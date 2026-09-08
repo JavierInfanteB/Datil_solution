@@ -1,0 +1,674 @@
+:root {
+  --datil-bg: #f4f5f7;
+  --datil-surface: #ffffff;
+  --datil-sidebar-bg: #14161c;
+  --datil-sidebar-text: #b7bac4;
+  --datil-text: #1a1d24;
+  --datil-text-muted: #6b7280;
+  --datil-border: #e3e5ea;
+  --datil-accent: #c9971f;
+  --datil-accent-dark: #a97e18;
+  --datil-up: #0f7b3c;
+  --datil-down: #c1272d;
+}
+
+[data-theme="dark"] {
+  --datil-bg: #0b0d12;
+  --datil-surface: #12141b;
+  --datil-sidebar-bg: #090a0e;
+  --datil-text: #e6e7eb;
+  --datil-text-muted: #9aa0ab;
+  --datil-border: #262a35;
+  --datil-accent: #d9ab2c;
+  --datil-accent-dark: #c9971f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: var(--datil-bg);
+  color: var(--datil-text);
+}
+
+h1, h2, h3 {
+  margin: 0;
+}
+
+/* ---------- Layout ---------- */
+
+.datil-app {
+  min-height: 100vh;
+  display: flex;
+}
+
+.datil-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  background: var(--datil-sidebar-bg);
+  color: var(--datil-sidebar-text);
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 1rem;
+  gap: 2rem;
+}
+
+.datil-content-area {
+  flex: 1;
+  background: var(--datil-bg);
+  min-height: 100vh;
+}
+
+.datil-content {
+  padding: 2rem;
+  max-width: 1180px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ---------- Brand / sidebar ---------- */
+
+.datil-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.datil-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 6px;
+  background: var(--datil-accent);
+  color: #14161c;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.datil-brand-name {
+  display: block;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+
+.datil-brand-tag {
+  display: block;
+  font-size: 0.68rem;
+  color: #878b96;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 0.15rem;
+}
+
+.datil-brand-center {
+  flex-direction: column;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.datil-nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+}
+
+.datil-nav-btn {
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-left: 3px solid transparent;
+  color: var(--datil-sidebar-text);
+  padding: 0.65rem 0.85rem;
+  font-size: 0.84rem;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  border-radius: 0 4px 4px 0;
+}
+
+.datil-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.datil-nav-btn.active {
+  background: rgba(201, 151, 31, 0.14);
+  border-left-color: var(--datil-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.datil-nav-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 1rem;
+}
+
+.datil-theme-toggle {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--datil-sidebar-text);
+  padding: 0.45rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.datil-theme-toggle:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.datil-user-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.datil-user-name {
+  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.datil-user-role {
+  color: #878b96;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* El sidebar siempre es oscuro sin importar el tema activo de la app, asi
+   que sus botones necesitan colores propios en vez de heredar los de texto
+   de contenido (que se invierten en tema claro y quedarian invisibles). */
+.datil-sidebar .datil-btn-secondary {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.datil-sidebar .datil-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- Cards ---------- */
+
+.datil-card {
+  background: var(--datil-surface);
+  border: 1px solid var(--datil-border);
+  border-radius: 8px;
+  padding: 1.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.datil-card h2 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--datil-text-muted);
+  font-weight: 700;
+  padding-bottom: 0.85rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--datil-border);
+}
+
+.datil-subheading {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--datil-text-muted);
+  font-weight: 700;
+  margin: 1.5rem 0 0.75rem;
+}
+
+/* ---------- Tabs ---------- */
+
+.datil-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--datil-border);
+  margin-bottom: 1.25rem;
+}
+
+.datil-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 0.6rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--datil-text-muted);
+  cursor: pointer;
+}
+
+.datil-tab:hover {
+  color: var(--datil-text);
+}
+
+.datil-tab.active {
+  color: var(--datil-text);
+  border-bottom-color: var(--datil-accent);
+}
+
+/* ---------- Tables ---------- */
+
+.datil-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.datil-table th {
+  text-align: left;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--datil-text-muted);
+  font-weight: 600;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 2px solid var(--datil-border);
+}
+
+.datil-table td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--datil-border);
+  font-size: 0.87rem;
+}
+
+.datil-table tbody tr:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="dark"] .datil-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.datil-col-num {
+  text-align: right;
+}
+
+/* ---------- Summary grid ---------- */
+
+.datil-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 1px;
+  background: var(--datil-border);
+  border: 1px solid var(--datil-border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 1rem;
+}
+
+.datil-summary-grid > div {
+  background: var(--datil-surface);
+  padding: 1rem 1.25rem;
+}
+
+.datil-summary-grid strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.datil-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--datil-text-muted);
+}
+
+.datil-period-tag {
+  color: var(--datil-text-muted);
+  font-weight: 400;
+  font-size: 0.85em;
+}
+
+.datil-up {
+  color: var(--datil-up);
+  font-weight: 600;
+}
+
+.datil-down {
+  color: var(--datil-down);
+  font-weight: 600;
+}
+
+/* ---------- Forms / inputs ---------- */
+
+.datil-form-row {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+  align-items: flex-start;
+}
+
+.datil-form-row label,
+.datil-login-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--datil-text-muted);
+}
+
+.datil-field-wide {
+  flex: 1;
+  min-width: 260px;
+}
+
+.datil-form-row select,
+.datil-form-row input,
+.datil-search-input,
+.datil-login-card input {
+  padding: 0.55rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--datil-border);
+  background: var(--datil-bg);
+  color: var(--datil-text);
+  font-size: 0.86rem;
+  font-family: inherit;
+}
+
+.datil-search-input {
+  width: 100%;
+}
+
+.datil-quick-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.datil-quick-pick-list {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.datil-chip {
+  border: 1px solid var(--datil-border);
+  background: var(--datil-surface);
+  color: var(--datil-text-muted);
+  padding: 0.35rem 0.7rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.datil-chip.active {
+  border-color: var(--datil-accent);
+  color: var(--datil-text);
+  background: rgba(201, 151, 31, 0.1);
+}
+
+/* ---------- Custom select / search ---------- */
+
+.datil-select {
+  position: relative;
+}
+
+.datil-select-trigger {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.55rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--datil-border);
+  background: var(--datil-bg);
+  color: var(--datil-text);
+  font-size: 0.86rem;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.datil-select-caret {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--datil-text-muted);
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+}
+
+.datil-select-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--datil-surface);
+  border: 1px solid var(--datil-border);
+  border-radius: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+  padding: 0.25rem;
+  list-style: none;
+  margin: 0;
+}
+
+.datil-select-option {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0.5rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.84rem;
+  color: var(--datil-text);
+  font-family: inherit;
+}
+
+.datil-select-option:hover,
+.datil-select-option.active {
+  background: var(--datil-bg);
+}
+
+.datil-select-option-detail {
+  font-size: 0.72rem;
+  color: var(--datil-text-muted);
+}
+
+.datil-select-empty {
+  padding: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--datil-text-muted);
+}
+
+/* ---------- History / chart ---------- */
+
+.datil-history-summary {
+  display: flex;
+  gap: 2.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.datil-history-summary strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.datil-chart-wrapper {
+  background: var(--datil-bg);
+  border: 1px solid var(--datil-border);
+  border-radius: 8px;
+  padding: 1rem 0.5rem 0.5rem;
+}
+
+.datil-estimated-total {
+  font-size: 0.86rem;
+  color: var(--datil-text-muted);
+  margin: -0.5rem 0 1.25rem;
+}
+
+.datil-estimated-total strong {
+  color: var(--datil-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.datil-pending-orders {
+  margin-top: 1.5rem;
+}
+
+/* ---------- Buttons ---------- */
+
+.datil-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.datil-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 0.6rem 1.15rem;
+  font-weight: 600;
+  font-size: 0.84rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.datil-btn-primary {
+  background: var(--datil-accent);
+  color: #14161c;
+}
+
+.datil-btn-primary:hover {
+  background: var(--datil-accent-dark);
+}
+
+.datil-btn-secondary {
+  background: transparent;
+  border: 1px solid var(--datil-border);
+  color: var(--datil-text);
+}
+
+.datil-btn-secondary:hover {
+  background: var(--datil-bg);
+}
+
+.datil-btn-block {
+  width: 100%;
+}
+
+.datil-success {
+  color: var(--datil-up);
+  font-size: 0.86rem;
+}
+
+.datil-error {
+  color: var(--datil-down);
+  font-size: 0.86rem;
+}
+
+/* ---------- Login ---------- */
+
+.datil-login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--datil-bg);
+}
+
+.datil-login-card {
+  background: var(--datil-surface);
+  border: 1px solid var(--datil-border);
+  border-radius: 10px;
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+}
+
+.datil-login-card h1 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-top: 0.6rem;
+  color: var(--datil-text);
+}
+
+/* ---------- Session modal ---------- */
+
+.datil-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 12, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.datil-modal {
+  background: var(--datil-surface);
+  border-radius: 8px;
+  padding: 1.5rem 2rem;
+  max-width: 360px;
+  border-top: 3px solid var(--datil-accent);
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 860px) {
+  .datil-app {
+    flex-direction: column;
+  }
+
+  .datil-sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .datil-nav-links {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .datil-nav-footer {
+    flex-direction: row;
+    align-items: center;
+    border-top: none;
+    padding-top: 0;
+    margin-left: auto;
+  }
+
+  .datil-user-card {
+    display: none;
+  }
+}

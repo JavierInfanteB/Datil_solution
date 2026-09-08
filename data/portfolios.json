@@ -1,0 +1,42 @@
+{
+  "admin": {
+    "cash": 8978.61,
+    "holdings": [
+      {
+        "symbol": "AAPL",
+        "name": "Apple Inc.",
+        "type": "accion",
+        "quantity": 11
+      },
+      {
+        "symbol": "MSFT",
+        "name": "Microsoft Corp.",
+        "type": "accion",
+        "quantity": 5
+      },
+      {
+        "symbol": "CETES28",
+        "name": "CETES 28 dias",
+        "type": "bono",
+        "quantity": 8,
+        "nominal_value": 10,
+        "rate_at_purchase": 6.49,
+        "purchase_date": "2026-09-08",
+        "maturity_date": "2026-10-06",
+        "lot_id": "f403e119-3fa2-403d-8d26-ddea5230930f"
+      },
+      {
+        "symbol": "GOOGL",
+        "name": "Alphabet Inc.",
+        "type": "accion",
+        "quantity": 1
+      },
+      {
+        "symbol": "TSLA",
+        "name": "Tesla, Inc.",
+        "type": "accion",
+        "quantity": 1
+      }
+    ]
+  }
+}

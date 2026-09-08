@@ -1,0 +1,14 @@
+{
+  "admin": [
+    {
+      "id": "bda7607e-2b73-43ac-bebf-c8af1846dff1",
+      "symbol": "CETES28",
+      "name": "CETES28",
+      "quantity": 1,
+      "scheduled_date": "2026-09-14",
+      "created_at": "2026-09-08",
+      "status": "cancelled",
+      "failure_reason": null
+    }
+  ]
+}
