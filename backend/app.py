@@ -1,5 +1,5 @@
 """Punto de entrada de la API Datil Solutions."""
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 
 from config import Config
@@ -13,6 +13,12 @@ def create_app():
     CORS(app, origins=Config.CORS_ORIGINS, supports_credentials=True)
     ensure_seed_data()
     register_routes(app)
+    
+    # Endpoint raíz para verificar que el servidor está activo
+    @app.route("/")
+    def health_check():
+        return jsonify({"message": "Datil Solutions API running", "status": "ok"}), 200
+    
     return app
 
 
