@@ -3,7 +3,7 @@ import json
 import os
 import threading
 
-from config import DATA_DIR
+from config import DATA_DIR, DEMO_READONLY
 
 # Un lock simple basta: es una app de un solo proceso para desarrollo/demo.
 _lock = threading.Lock()
@@ -20,6 +20,9 @@ def read_json(filename):
 
 
 def write_json(filename, data):
+    # Tambien los GET escriben (process_due_events cobra cupones y ejecuta ordenes): aqui se corta todo.
+    if DEMO_READONLY:
+        return
     with _lock:
         with open(_path(filename), "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)

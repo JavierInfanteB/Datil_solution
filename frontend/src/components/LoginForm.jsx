@@ -40,6 +40,9 @@ export default function LoginForm() {
         <button className="datil-btn datil-btn-primary" type="submit" disabled={loading}>
           {loading ? "Ingresando..." : "Iniciar sesion"}
         </button>
+        {import.meta.env.VITE_DEMO && (
+          <p className="datil-demo-hint">Cuenta de prueba: usuario <b>admin</b> · contrasena <b>admin</b>. Solo lectura.</p>
+        )}
       </form>
     </div>
   );

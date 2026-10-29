@@ -8,6 +8,7 @@ import "./styles/datil-theme.css";
 function App() {
   return (
     <ThemeProvider>
+      {import.meta.env.VITE_DEMO && <div className="datil-demo-badge">Modo de pruebas · solo lectura</div>}
       <AuthProvider>
         <ProtectedRoute>
           <DashboardPage />

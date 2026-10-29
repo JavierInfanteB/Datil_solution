@@ -11,6 +11,10 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 
+# Modo demo: la API solo lee. Ninguna ruta ni evento programado modifica los JSON.
+DEMO_READONLY = os.environ.get("DEMO_READONLY") == "1"
+
+
 class Config:
     # En produccion esto DEBE venir de una variable de entorno real.
     SECRET_KEY = os.environ.get("SECRET_KEY", "datil-solutions-dev-secret-change-in-prod")
