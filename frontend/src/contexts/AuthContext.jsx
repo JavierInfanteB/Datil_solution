@@ -6,6 +6,9 @@ const AuthContext = createContext(null);
 // Debe reflejar Config.SESSION_TIMEOUT en el backend (10 min de inactividad).
 const SESSION_MS = 10 * 60 * 1000;
 const WARNING_MS = 60 * 1000;
+// Con el usuario activo se avisa al servidor como mucho una vez por minuto.
+const PING_MS = 60 * 1000;
+const USER_EVENTS = ["pointerdown", "keydown", "wheel", "scroll"];
 const TOKEN_KEY = "datil_token";
 const USER_KEY = "datil_user";
 
@@ -62,6 +65,23 @@ export function AuthProvider({ children }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Los timers de arriba solo se reiniciaban con respuestas de la API, así que usar la pantalla sin llamarla
+  // (cambiar de lapso en una gráfica, leer, hacer scroll) no contaba como actividad y la sesión se cerraba
+  // a los 10 min. Un clic, tecla o scroll ahora mantiene viva la sesión; con el aviso de expiración abierto
+  // no se extiende sola: hay que elegir "Seguir conectado".
+  useEffect(() => {
+    if (!token || showWarning) return;
+    let lastPing = Date.now();
+    const onUserActivity = () => {
+      if (Date.now() - lastPing < PING_MS) return;
+      lastPing = Date.now();
+      apiClient.get("/api/auth/verify").catch(() => {}); // un 401 ya cierra la sesión desde el interceptor
+    };
+    const options = { capture: true, passive: true };
+    USER_EVENTS.forEach((name) => window.addEventListener(name, onUserActivity, options));
+    return () => USER_EVENTS.forEach((name) => window.removeEventListener(name, onUserActivity, options));
+  }, [token, showWarning]);
 
   const login = useCallback(async (username, password) => {
     const { data } = await apiClient.post("/api/auth/login", { username, password });
