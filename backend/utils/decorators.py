@@ -40,11 +40,25 @@ def require_auth(f):
     return wrapper
 
 
-def require_permission(module_id):
-    """Bloquea el acceso si el usuario no tiene el modulo habilitado.
+def is_granted(granted, perm):
+    """'trading' concede el modulo completo y 'trading.bono' solo esa seccion.
 
-    El rol admin siempre pasa; el resto se valida contra permissions.json.
+    Pedir el modulo ('trading') pasa con cualquiera de sus secciones.
+    Misma regla que frontend/src/utils/permissions.js.
     """
+    module_id = perm.split(".")[0]
+    return module_id in granted or perm in granted or any(p.startswith(perm + ".") for p in granted)
+
+
+def has_permission(user, perm):
+    """El rol admin siempre pasa; el resto se valida contra permissions.json."""
+    if user["role"] == "admin":
+        return True
+    return is_granted(read_json("permissions.json").get(user["username"], []), perm)
+
+
+def require_permission(perm):
+    """Bloquea el acceso si el usuario no tiene el modulo (o seccion) habilitado."""
 
     def decorator(f):
         @wraps(f)
@@ -53,11 +67,7 @@ def require_permission(module_id):
             if user is None:
                 return jsonify({"error": "No autenticado"}), 401
 
-            if user["role"] == "admin":
-                return f(*args, **kwargs)
-
-            permissions = read_json("permissions.json")
-            if module_id not in permissions.get(user["username"], []):
+            if not has_permission(user, perm):
                 return jsonify({"error": "Permiso denegado"}), 403
 
             return f(*args, **kwargs)

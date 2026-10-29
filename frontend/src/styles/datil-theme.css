@@ -61,6 +61,8 @@ h1, h2, h3 {
 
 .datil-content-area {
   flex: 1;
+  /* Sin esto el flex no se encoge y las tablas anchas desbordan la pagina en vez de desplazarse */
+  min-width: 0;
   background: var(--datil-bg);
   min-height: 100vh;
 }
@@ -148,6 +150,60 @@ h1, h2, h3 {
   font-weight: 600;
 }
 
+/* Secciones de un modulo (sus subpestañas), siempre visibles bajo el modulo */
+.datil-nav-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.datil-nav-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin: 0.15rem 0 0.35rem 1rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.datil-nav-sub-btn {
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--datil-sidebar-text);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.datil-nav-sub-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.datil-nav-sub-btn.active {
+  background: rgba(201, 151, 31, 0.1);
+  color: var(--datil-accent);
+  font-weight: 600;
+}
+
+/* En escritorio el menu es parte del sidebar; en celular se pliega (ver Responsive) */
+.datil-menu {
+  display: contents;
+}
+
+.datil-menu-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  padding: 0.5rem 0.95rem;
+  min-height: 40px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
 .datil-nav-footer {
   display: flex;
   flex-direction: column;
@@ -231,37 +287,6 @@ h1, h2, h3 {
   margin: 1.5rem 0 0.75rem;
 }
 
-/* ---------- Tabs ---------- */
-
-.datil-tabs {
-  display: flex;
-  gap: 0.25rem;
-  border-bottom: 1px solid var(--datil-border);
-  margin-bottom: 1.25rem;
-}
-
-.datil-tab {
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  padding: 0.6rem 1rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--datil-text-muted);
-  cursor: pointer;
-}
-
-.datil-tab:hover {
-  color: var(--datil-text);
-}
-
-.datil-tab.active {
-  color: var(--datil-text);
-  border-bottom-color: var(--datil-accent);
-}
-
 /* ---------- Tables ---------- */
 
 .datil-table {
@@ -298,6 +323,22 @@ h1, h2, h3 {
 .datil-col-num,
 .datil-table th.datil-col-num {
   text-align: right;
+}
+
+/* Encabezado de un modulo que agrupa las columnas de sus secciones */
+.datil-table th.datil-th-group {
+  text-align: center;
+  border-bottom-width: 1px;
+}
+
+/* Tablas anchas: en pantallas chicas se desplazan de lado en vez de desbordar la pagina */
+.datil-table-wrap {
+  overflow-x: auto;
+}
+
+.datil-table-wrap .datil-table th,
+.datil-table-wrap .datil-table td {
+  white-space: nowrap;
 }
 
 /* ---------- Summary grid ---------- */
@@ -807,31 +848,42 @@ h1, h2, h3 {
     padding: 1.1rem;
   }
 
+  /* Barra superior fija con boton "Menu" que despliega el mismo menu lateral */
   .datil-sidebar {
     width: 100%;
     height: auto;
-    position: static;
+    z-index: 50;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
-    gap: 1rem;
+    gap: 0 1rem;
+    padding: 0.75rem 1rem;
   }
 
-  .datil-nav-links {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-
-  .datil-nav-footer {
-    flex-direction: row;
+  .datil-menu-toggle {
+    display: inline-flex;
     align-items: center;
-    border-top: none;
-    padding-top: 0;
     margin-left: auto;
   }
 
-  .datil-user-card {
+  .datil-menu {
     display: none;
+  }
+
+  .datil-sidebar.open .datil-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    width: 100%;
+    max-height: calc(100dvh - 4rem);
+    overflow-y: auto;
+    padding: 1rem 0 0.25rem;
+  }
+
+  /* Objetivos tactiles de al menos 44px */
+  .datil-nav-btn,
+  .datil-nav-sub-btn {
+    min-height: 44px;
   }
 }
 
