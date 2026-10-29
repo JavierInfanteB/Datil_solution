@@ -3,7 +3,7 @@ import apiClient from "../api/client";
 
 // Autocompletado de acciones/ETFs contra Yahoo Finance: no hay catalogo fijo,
 // cualquier simbolo que la API reconozca se puede elegir.
-export default function StockSearch({ onSelect, placeholder = "Buscar por nombre o simbolo..." }) {
+export default function StockSearch({ onSelect, placeholder = "Buscar por nombre o símbolo..." }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);

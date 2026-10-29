@@ -20,7 +20,7 @@ export default function DashboardPage() {
   }, []);
 
   if (error) return <p className="datil-error">{error}</p>;
-  if (!modules) return <p>Cargando modulos...</p>;
+  if (!modules) return <p>Cargando módulos...</p>;
 
   const ActiveModule = modules.find((m) => m.id === activeId)?.Component;
 
@@ -29,7 +29,7 @@ export default function DashboardPage() {
       <Navbar modules={modules} activeId={activeId} onSelect={setActiveId} />
       <div className="datil-content-area">
         <main className="datil-content">
-          {ActiveModule ? <ActiveModule /> : <p>No tienes modulos habilitados todavia.</p>}
+          {ActiveModule ? <ActiveModule /> : <p>No tienes módulos habilitados todavía.</p>}
         </main>
       </div>
     </div>

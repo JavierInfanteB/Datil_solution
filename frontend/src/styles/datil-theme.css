@@ -295,7 +295,8 @@ h1, h2, h3 {
   background: rgba(255, 255, 255, 0.03);
 }
 
-.datil-col-num {
+.datil-col-num,
+.datil-table th.datil-col-num {
   text-align: right;
 }
 
@@ -504,8 +505,71 @@ h1, h2, h3 {
 
 .datil-history-summary {
   display: flex;
-  gap: 2.5rem;
+  flex-wrap: wrap;
+  gap: 1rem 2.5rem;
   margin-bottom: 1.25rem;
+}
+
+.datil-history-summary .datil-meter {
+  width: 9rem;
+  margin: 0.6rem 0 0;
+}
+
+/* Selectores de lapso y de periodo (chips) */
+.datil-lapse-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.datil-lapse-change {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tabla de variaciones: se desplaza por dentro para no alargar la pantalla */
+.datil-table-scroll {
+  max-height: 18rem;
+  overflow: auto;
+  border: 1px solid var(--datil-border);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.datil-table-scroll .datil-table th {
+  position: sticky;
+  top: 0;
+  background: var(--datil-surface);
+}
+
+/* En celular la tabla se desplaza de lado en vez de partir las fechas en dos renglones */
+.datil-table-scroll .datil-table th,
+.datil-table-scroll .datil-table td {
+  white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+  .datil-table-scroll .datil-table th,
+  .datil-table-scroll .datil-table td {
+    padding: 0.55rem 0.6rem;
+  }
+
+  .datil-table-scroll .datil-period-tag {
+    display: block;
+  }
+}
+
+.datil-risk-details {
+  margin-top: 1rem;
+  font-size: 0.86rem;
+}
+
+.datil-risk-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
 }
 
 .datil-history-summary strong {
@@ -630,6 +694,10 @@ h1, h2, h3 {
   gap: 0.75rem;
 }
 
+.datil-card > .datil-actions {
+  margin: 1.25rem 0;
+}
+
 .datil-btn {
   border: none;
   border-radius: 6px;
@@ -729,6 +797,14 @@ h1, h2, h3 {
 @media (max-width: 860px) {
   .datil-app {
     flex-direction: column;
+  }
+
+  .datil-content {
+    padding: 1rem;
+  }
+
+  .datil-card {
+    padding: 1.1rem;
   }
 
   .datil-sidebar {

@@ -8,8 +8,8 @@ export default function SessionWarning() {
   return (
     <div className="datil-modal-overlay">
       <div className="datil-modal">
-        <h3>Tu sesion esta por expirar</h3>
-        <p>Por seguridad, se cerrara tu sesion en menos de un minuto por inactividad.</p>
+        <h3>Tu sesión está por expirar</h3>
+        <p>Por seguridad, se cerrará tu sesión en menos de un minuto por inactividad.</p>
         <div className="datil-actions">
           <button className="datil-btn datil-btn-primary" onClick={extendSession}>
             Seguir conectado

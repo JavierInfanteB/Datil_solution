@@ -23,10 +23,10 @@ def require_auth(f):
         except pyjwt.ExpiredSignatureError:
             return jsonify({"error": "Token expirado"}), 401
         except pyjwt.InvalidTokenError:
-            return jsonify({"error": "Token invalido"}), 401
+            return jsonify({"error": "Token inválido"}), 401
 
         if not is_session_active(payload["jti"]):
-            return jsonify({"error": "Sesion expirada por inactividad"}), 401
+            return jsonify({"error": "Sesión expirada por inactividad"}), 401
 
         touch_session(payload["jti"])
         g.current_user = {

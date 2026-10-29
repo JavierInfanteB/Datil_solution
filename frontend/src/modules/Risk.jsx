@@ -1,118 +1,32 @@
 ﻿import { useEffect, useState } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import apiClient from "../api/client";
+import { FactorTable, Meter, RiskBadge } from "../components/RiskParts";
 import StockSearch from "../components/StockSearch";
 import { formatCurrency } from "../utils/format";
+import { pct, SCORE_EXPLANATION, useStockRisk } from "../utils/risk";
 
 const TABS = [
-  { id: "stock", label: "Una accion" },
+  { id: "stock", label: "Una acción" },
   { id: "compare", label: "Comparar acciones" },
   { id: "portfolio", label: "Mi portafolio" },
 ];
 
-const LEVEL_LABEL = { bajo: "Riesgo bajo", medio: "Riesgo medio", alto: "Riesgo alto" };
 const COMPARE_COLORS = ["#c9971f", "#2f6fdb", "#0f7b3c", "#c1272d", "#7a4fd0"];
 const MAX_COMPARE = 5;
-const MEDIUM_FROM = 35;
-const HIGH_FROM = 60;
 
 const apiError = (err, fallback) => err.response?.data?.error ?? fallback;
-const pct = (value) => (value == null ? "N/D" : `${value.toFixed(1)}%`);
-
-function RiskBadge({ level, score }) {
-  if (!level) return <span className="datil-period-tag">N/D</span>;
-  return (
-    <span className={`datil-risk datil-risk-${level}`}>
-      {LEVEL_LABEL[level]} · {score}
-    </span>
-  );
-}
-
-// Barra 0-100 con las tres zonas del puntaje y un marcador en el valor.
-function Meter({ score }) {
-  return (
-    <div
-      className="datil-meter"
-      role="img"
-      aria-label={`Puntaje de riesgo ${score} de 100`}
-    >
-      <div className="datil-meter-zone datil-meter-low" style={{ width: `${MEDIUM_FROM}%` }} />
-      <div className="datil-meter-zone datil-meter-mid" style={{ width: `${HIGH_FROM - MEDIUM_FROM}%` }} />
-      <div className="datil-meter-zone datil-meter-high" style={{ width: `${100 - HIGH_FROM}%` }} />
-      <div className="datil-meter-marker" style={{ left: `${Math.min(Math.max(score, 0), 100)}%` }} />
-    </div>
-  );
-}
-
-function formatFactorValue(factor) {
-  if (factor.value == null) return "N/D";
-  return `${factor.value}${factor.unit}`;
-}
-
-function FactorTable({ factors }) {
-  return (
-    <table className="datil-table">
-      <thead>
-        <tr>
-          <th>Senal</th>
-          <th className="datil-col-num">Valor</th>
-          <th>Se considera</th>
-          <th className="datil-col-num">Peso</th>
-        </tr>
-      </thead>
-      <tbody>
-        {factors.map((f) => (
-          <tr key={f.id}>
-            <td>{f.label}</td>
-            <td className="datil-col-num">{formatFactorValue(f)}</td>
-            <td>
-              {f.available ? (
-                <span className={`datil-risk datil-risk-${f.level}`}>{f.level}</span>
-              ) : (
-                <span className="datil-period-tag">sin datos suficientes</span>
-              )}
-              <span className="datil-period-tag">
-                {" "}
-                (bajo hasta {f.medium_from}
-                {f.unit}, alto desde {f.high_from}
-                {f.unit})
-              </span>
-            </td>
-            <td className="datil-col-num">{f.weight}%</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-const SCORE_EXPLANATION =
-  "Mide que tanto suele caer una accion, con datos historicos hasta hoy. En pruebas con 10 anos de historia, las " +
-  "acciones de riesgo alto tuvieron caidas de 30% o mas en el ano siguiente unas 2.5 veces mas seguido que las de " +
-  "riesgo bajo. No predice si va a subir o bajar, y el pasado no garantiza el futuro. No es asesoria financiera.";
 
 function StockRisk() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const load = (asset) => {
-    setLoading(true);
-    setError("");
-    setData(null);
-    apiClient
-      .get(`/api/risk/stock/${encodeURIComponent(asset.symbol)}`)
-      .then(({ data }) => setData(data))
-      .catch((err) => setError(apiError(err, "No se pudo calcular el riesgo.")))
-      .finally(() => setLoading(false));
-  };
+  const [asset, setAsset] = useState(null);
+  const { data, loading, error } = useStockRisk(asset?.symbol);
 
   return (
     <>
       <div className="datil-form-row">
         <label className="datil-field-wide">
-          Accion
-          <StockSearch onSelect={load} placeholder="Ej. Apple, Tesla, Toyota, Nestle..." />
+          Acción
+          <StockSearch onSelect={setAsset} placeholder="Ej. Apple, Tesla, Toyota, Nestlé..." />
         </label>
       </div>
 
@@ -155,11 +69,11 @@ function StockRisk() {
             )}
           </div>
 
-          <h3 className="datil-subheading">Por que este puntaje</h3>
+          <h3 className="datil-subheading">Por qué este puntaje</h3>
           <FactorTable factors={data.factors} />
           {data.missing.length > 0 && (
             <p className="datil-period-tag">
-              Sin datos suficientes para: {data.missing.join(", ")}. El puntaje se calculo con las demas senales.
+              Sin datos suficientes para: {data.missing.join(", ")}. El puntaje se calculó con las demás señales.
             </p>
           )}
           <p className="datil-period-tag">{SCORE_EXPLANATION}</p>
@@ -207,21 +121,21 @@ function Compare() {
     <>
       <div className="datil-form-row">
         <label className="datil-field-wide">
-          Agregar accion ({symbols.length}/{MAX_COMPARE})
-          <StockSearch key={searchKey} onSelect={add} placeholder="Busca por nombre o simbolo..." />
+          Agregar acción ({symbols.length}/{MAX_COMPARE})
+          <StockSearch key={searchKey} onSelect={add} placeholder="Busca por nombre o símbolo..." />
         </label>
       </div>
 
       {symbols.length > 0 && (
         <div className="datil-quick-pick-list">
           {symbols.map((s) => (
-            <button key={s} className="datil-chip active" onClick={() => remove(s)} title="Quitar de la comparacion">
+            <button key={s} className="datil-chip active" onClick={() => remove(s)} title="Quitar de la comparación">
               <span className="datil-swatch" style={{ background: colorOf(s) }} /> {s} ×
             </button>
           ))}
         </div>
       )}
-      {symbols.length === 1 && <p className="datil-period-tag">Agrega al menos una accion mas para comparar.</p>}
+      {symbols.length === 1 && <p className="datil-period-tag">Agrega al menos una acción más para comparar.</p>}
 
       {loading && <p>Comparando...</p>}
       {error && <p className="datil-error">{error}</p>}
@@ -232,11 +146,11 @@ function Compare() {
           <table className="datil-table">
             <thead>
               <tr>
-                <th>Accion</th>
+                <th>Acción</th>
                 <th>Moneda</th>
                 <th>Riesgo</th>
                 <th className="datil-col-num">Volatilidad</th>
-                <th className="datil-col-num">Caida maxima</th>
+                <th className="datil-col-num">Caída máxima</th>
                 <th className="datil-col-num">Beta</th>
                 <th className="datil-col-num">Rend. 12 meses</th>
               </tr>
@@ -269,7 +183,7 @@ function Compare() {
             </p>
           )}
 
-          <h3 className="datil-subheading">Ultimo ano en pesos (inicio = 100)</h3>
+          <h3 className="datil-subheading">Último año en pesos (inicio = 100)</h3>
           <div className="datil-chart-wrapper">
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={result.series}>
@@ -317,7 +231,7 @@ function PortfolioRisk() {
   return (
     <>
       {data.incomplete && (
-        <p className="datil-error">No se pudo valuar alguna posicion; los porcentajes no la incluyen.</p>
+        <p className="datil-error">No se pudo valuar alguna posición; los porcentajes no la incluyen.</p>
       )}
 
       <div className="datil-summary-grid">
@@ -332,7 +246,7 @@ function PortfolioRisk() {
           </strong>
         </div>
         <div>
-          <span className="datil-label">Posicion mas grande</span>
+          <span className="datil-label">Posición más grande</span>
           <strong>
             {concentration.largest_position.symbol} · {concentration.largest_position.share}%
           </strong>
@@ -343,10 +257,10 @@ function PortfolioRisk() {
         </div>
       </div>
       <p className="datil-period-tag">
-        El riesgo de tus acciones es el promedio de sus puntajes, ponderado por cuanto tienes en cada una.
+        El riesgo de tus acciones es el promedio de sus puntajes, ponderado por cuánto tienes en cada una.
       </p>
 
-      <h3 className="datil-subheading">Comportamiento historico del portafolio completo</h3>
+      <h3 className="datil-subheading">Comportamiento histórico del portafolio completo</h3>
       {history?.error && <p className="datil-period-tag">{history.error}</p>}
       {history && !history.error && (
         <>
@@ -359,7 +273,7 @@ function PortfolioRisk() {
               </span>
             </div>
             <div>
-              <span className="datil-label">Peor caida</span>
+              <span className="datil-label">Peor caída</span>
               <strong>{pct(history.max_drawdown)}</strong>
               <span className="datil-period-tag">
                 {history.benchmark.symbol}: {pct(history.benchmark.max_drawdown)}
@@ -373,7 +287,7 @@ function PortfolioRisk() {
           </p>
         </>
       )}
-      <h3 className="datil-subheading">Que pasaria si...</h3>
+      <h3 className="datil-subheading">Qué pasaría si...</h3>
       <table className="datil-table">
         <thead>
           <tr>
@@ -395,7 +309,7 @@ function PortfolioRisk() {
         </tbody>
       </table>
 
-      <h3 className="datil-subheading">Exposicion por moneda</h3>
+      <h3 className="datil-subheading">Exposición por moneda</h3>
       <div className="datil-quick-pick-list">
         {Object.entries(concentration.currency_exposure).map(([currency, share]) => (
           <span key={currency} className="datil-chip">
@@ -406,15 +320,15 @@ function PortfolioRisk() {
 
       {stocks.positions.length > 0 && (
         <>
-          <h3 className="datil-subheading">Riesgo por accion</h3>
+          <h3 className="datil-subheading">Riesgo por acción</h3>
           <table className="datil-table">
             <thead>
               <tr>
-                <th>Accion</th>
+                <th>Acción</th>
                 <th className="datil-col-num">% del portafolio</th>
                 <th>Riesgo</th>
                 <th className="datil-col-num">Volatilidad</th>
-                <th className="datil-col-num">Caida maxima</th>
+                <th className="datil-col-num">Caída máxima</th>
                 <th className="datil-col-num">Beta</th>
               </tr>
             </thead>
