@@ -1,13 +1,12 @@
 ﻿import { useEffect, useState } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import apiClient from "../api/client";
-import { FactorTable, Meter, RiskBadge } from "../components/RiskParts";
+import { RiskBadge } from "../components/RiskParts";
 import StockSearch from "../components/StockSearch";
 import { formatCurrency } from "../utils/format";
-import { pct, SCORE_EXPLANATION, useStockRisk } from "../utils/risk";
+import { pct, SCORE_EXPLANATION } from "../utils/risk";
 
 const TABS = [
-  { id: "stock", label: "Una acción" },
   { id: "compare", label: "Comparar acciones" },
   { id: "portfolio", label: "Mi portafolio" },
 ];
@@ -16,72 +15,6 @@ const COMPARE_COLORS = ["#c9971f", "#2f6fdb", "#0f7b3c", "#c1272d", "#7a4fd0"];
 const MAX_COMPARE = 5;
 
 const apiError = (err, fallback) => err.response?.data?.error ?? fallback;
-
-function StockRisk() {
-  const [asset, setAsset] = useState(null);
-  const { data, loading, error } = useStockRisk(asset?.symbol);
-
-  return (
-    <>
-      <div className="datil-form-row">
-        <label className="datil-field-wide">
-          Acción
-          <StockSearch onSelect={setAsset} placeholder="Ej. Apple, Tesla, Toyota, Nestlé..." />
-        </label>
-      </div>
-
-      {loading && <p>Calculando riesgo...</p>}
-      {error && <p className="datil-error">{error}</p>}
-
-      {data && (
-        <>
-          <h3 className="datil-subheading">
-            {data.symbol} · {data.name}
-          </h3>
-          <p className="datil-period-tag">
-            {data.exchange} · cotiza en {data.currency} · datos al {data.as_of}
-          </p>
-
-          <div className="datil-risk-hero">
-            <RiskBadge level={data.level} score={data.score} />
-            <strong className={data.risky ? "datil-down" : "datil-up"}>
-              {data.risky ? "Clasificada como riesgosa" : "No se clasifica como riesgosa"}
-            </strong>
-          </div>
-          <Meter score={data.score} />
-
-          <div className="datil-summary-grid">
-            <div>
-              <span className="datil-label">Rendimiento 12 meses (MXN)</span>
-              <strong className={data.metrics.return_1y >= 0 ? "datil-up" : "datil-down"}>
-                {pct(data.metrics.return_1y)}
-              </strong>
-            </div>
-            <div>
-              <span className="datil-label">Volatilidad en pesos</span>
-              <strong>{pct(data.metrics.volatility)}</strong>
-            </div>
-            {data.metrics.volatility_native != null && data.currency !== "MXN" && (
-              <div>
-                <span className="datil-label">Volatilidad en {data.currency}</span>
-                <strong>{pct(data.metrics.volatility_native)}</strong>
-              </div>
-            )}
-          </div>
-
-          <h3 className="datil-subheading">Por qué este puntaje</h3>
-          <FactorTable factors={data.factors} />
-          {data.missing.length > 0 && (
-            <p className="datil-period-tag">
-              Sin datos suficientes para: {data.missing.join(", ")}. El puntaje se calculó con las demás señales.
-            </p>
-          )}
-          <p className="datil-period-tag">{SCORE_EXPLANATION}</p>
-        </>
-      )}
-    </>
-  );
-}
 
 function Compare() {
   const [symbols, setSymbols] = useState([]);
@@ -362,7 +295,7 @@ function PortfolioRisk() {
 }
 
 export default function Risk() {
-  const [tab, setTab] = useState("stock");
+  const [tab, setTab] = useState("compare");
 
   return (
     <section className="datil-card">
@@ -375,7 +308,6 @@ export default function Risk() {
         ))}
       </div>
 
-      {tab === "stock" && <StockRisk />}
       {tab === "compare" && <Compare />}
       {tab === "portfolio" && <PortfolioRisk />}
     </section>

@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import apiClient from "../api/client";
-import { FactorTable, Meter, RiskBadge } from "../components/RiskParts";
+import { Meter, RiskBadge, StockRiskDetail } from "../components/RiskParts";
 import Select from "../components/Select";
 import StockSearch from "../components/StockSearch";
 import { formatCurrency, formatMoney, formatPeriodLabel } from "../utils/format";
-import { SCORE_EXPLANATION, useStockRisk } from "../utils/risk";
+import { useStockRisk } from "../utils/risk";
 import { GRAIN_LABELS, LAPSES, lapseStart, lapseVariation, periodVariations, sliceLapse } from "../utils/variation";
 
 const TABS = [
@@ -345,9 +345,8 @@ export default function Trading() {
 
           {tab === "accion" && risk.data && (
             <details className="datil-risk-details">
-              <summary>Por qué este puntaje de riesgo</summary>
-              <FactorTable factors={risk.data.factors} />
-              <p className="datil-period-tag">{SCORE_EXPLANATION}</p>
+              <summary>Detalle del riesgo</summary>
+              <StockRiskDetail data={risk.data} />
             </details>
           )}
         </>
