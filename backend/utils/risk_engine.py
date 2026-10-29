@@ -36,11 +36,11 @@ BETA_MIN_WEEKS = 52
 
 # weight: peso en el puntaje. low/high: valor que da 0 y valor que da 100.
 RULES = [
-    {"id": "volatility", "label": "Volatilidad anual (1 ano)", "weight": 25, "low": 15, "high": 60, "unit": "%"},
-    {"id": "max_drawdown", "label": "Caida maxima (3 anos)", "weight": 25, "low": 10, "high": 60, "unit": "%"},
-    {"id": "worst_month", "label": "Peor mes (3 anos)", "weight": 15, "low": 5, "high": 35, "unit": "%"},
+    {"id": "volatility", "label": "Volatilidad anual (1 año)", "weight": 25, "low": 15, "high": 60, "unit": "%"},
+    {"id": "max_drawdown", "label": "Caída máxima (3 años)", "weight": 25, "low": 10, "high": 60, "unit": "%"},
+    {"id": "worst_month", "label": "Peor mes (3 años)", "weight": 15, "low": 5, "high": 35, "unit": "%"},
     {"id": "beta", "label": "Beta vs mercado global", "weight": 30, "low": 0.6, "high": 1.8, "unit": ""},
-    {"id": "current_drawdown", "label": "Distancia al maximo de 52 semanas", "weight": 5, "low": 0, "high": 40, "unit": "%"},
+    {"id": "current_drawdown", "label": "Distancia al máximo de 52 semanas", "weight": 5, "low": 0, "high": 40, "unit": "%"},
 ]
 MEDIUM_FROM = 35  # puntaje < 35 = bajo
 HIGH_FROM = 60  # puntaje >= 60 = alto; "riesgosa" = alto
@@ -110,7 +110,7 @@ def compute_metrics(series_mxn, series_native=None, bench_native=None):
     prices = [p for _, p in series_mxn]
     if len(prices) - 1 < MIN_RETURNS:
         raise ValueError(
-            f"Historia insuficiente: {len(prices) - 1} dias de rendimientos, se necesitan al menos {MIN_RETURNS}"
+            f"Historia insuficiente: {len(prices) - 1} días de rendimientos, se necesitan al menos {MIN_RETURNS}"
         )
 
     long_prices = prices[-LONG_WINDOW - 1:]

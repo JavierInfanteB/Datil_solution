@@ -11,7 +11,7 @@ export default function Navbar({ modules, activeId, onSelect }) {
         <span className="datil-logo">D</span>
         <div>
           <span className="datil-brand-name">Datil Solutions</span>
-          <span className="datil-brand-tag">Gestion de inversiones</span>
+          <span className="datil-brand-tag">Gestión de inversiones</span>
         </div>
       </div>
 
@@ -36,7 +36,7 @@ export default function Navbar({ modules, activeId, onSelect }) {
           <span className="datil-user-role">{user?.role === "admin" ? "Administrador" : "Usuario"}</span>
         </div>
         <button className="datil-btn datil-btn-secondary datil-btn-block" onClick={logout}>
-          Cerrar sesion
+          Cerrar sesión
         </button>
       </div>
     </aside>

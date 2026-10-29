@@ -89,7 +89,7 @@ def _describe(exc):
     """(mensaje, codigo HTTP) para un fallo al evaluar un simbolo."""
     if isinstance(exc, ValueError) and "Historia insuficiente" in str(exc):
         return str(exc), 422
-    return "No se pudo obtener el historico de este simbolo", 502
+    return "No se pudo obtener el histórico de este símbolo", 502
 
 
 @risk_bp.route("/stock/<symbol>", methods=["GET"])
@@ -134,7 +134,7 @@ def compare():
         if symbol and symbol not in symbols:
             symbols.append(symbol)
     if len(symbols) < 2 or len(symbols) > MAX_COMPARE:
-        return jsonify({"error": f"Compara entre 2 y {MAX_COMPARE} simbolos"}), 400
+        return jsonify({"error": f"Compara entre 2 y {MAX_COMPARE} símbolos"}), 400
 
     assessments, loaded, failures = [], {}, {}
     for symbol in symbols:
@@ -145,7 +145,7 @@ def compare():
             failures[symbol] = _describe(exc)[0]
 
     if len(assessments) < 2:
-        return jsonify({"error": "Se necesitan al menos 2 simbolos con historia suficiente", "failures": failures}), 422
+        return jsonify({"error": "Se necesitan al menos 2 símbolos con historia suficiente", "failures": failures}), 422
 
     return jsonify({
         "assessments": assessments,
@@ -164,7 +164,7 @@ def _portfolio_index(positions, weights):
     start = max(w[0][0] for w in window.values())
     days = sorted({d for w in window.values() for d, _ in w if d >= start})
     if len(days) < risk_engine.MIN_RETURNS + 1:
-        raise ValueError("Historia insuficiente en comun entre las acciones del portafolio")
+        raise ValueError("Historia insuficiente en común entre las acciones del portafolio")
 
     filled = {}
     for symbol, w in window.items():
@@ -195,7 +195,7 @@ def _scenarios(total, bond_lots, curve, stock_value, foreign_stock_value):
         for lot in bond_lots:
             shock += bond_math.market_value(lot, today, curve, shift=1.0) - bond_math.market_value(lot, today, curve)
         scenarios.append({"id": "rates_+1",
-                          "label": "Las tasas de interes suben 1 punto (solo cuenta si vendes tus bonos antes de que venzan)",
+                          "label": "Las tasas de interés suben 1 punto (solo cuenta si vendes tus bonos antes de que venzan)",
                           "impact_mxn": round(shock, 2)})
     for s in scenarios:
         s["impact_percent"] = round(s["impact_mxn"] / total * 100, 2) if total else None
@@ -211,7 +211,7 @@ def portfolio_risk():
     view = build_portfolio_view(username)
     total = view["portfolio_total"]
     if not total:
-        return jsonify({"error": "El portafolio esta vacio"}), 422
+        return jsonify({"error": "El portafolio está vacío"}), 422
 
     stocks = [h for h in view["holdings"] if h["type"] == "accion" and h.get("value")]
     positions, stock_rows = {}, []

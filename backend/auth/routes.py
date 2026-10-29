@@ -16,13 +16,13 @@ def login():
     password = body.get("password") or ""
 
     if not username or not password:
-        return jsonify({"error": "Usuario y contrasena son requeridos"}), 400
+        return jsonify({"error": "Usuario y contraseña son requeridos"}), 400
 
     users = read_json("users.json")["users"]
     user = next((u for u in users if u["username"] == username), None)
 
     if user is None or not check_password_hash(user["password_hash"], password):
-        return jsonify({"error": "Credenciales invalidas"}), 401
+        return jsonify({"error": "Credenciales inválidas"}), 401
 
     token = create_token(user["id"], user["username"], user["role"])
     return jsonify({
@@ -40,7 +40,7 @@ def login():
 @require_auth
 def logout():
     end_session(g.current_user["jti"])
-    return jsonify({"message": "Sesion cerrada"})
+    return jsonify({"message": "Sesión cerrada"})
 
 
 @auth_bp.route("/verify", methods=["GET"])

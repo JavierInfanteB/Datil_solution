@@ -44,7 +44,7 @@ def search_available_stocks():
     try:
         return jsonify(search_stocks(query))
     except Exception:
-        return jsonify({"error": "No se pudo completar la busqueda"}), 502
+        return jsonify({"error": "No se pudo completar la búsqueda"}), 502
 
 
 @trading_bp.route("/orders", methods=["GET"])
@@ -81,7 +81,7 @@ def _validate_order(body):
     name = body.get("name") or symbol
 
     if not symbol or isinstance(quantity, bool) or not isinstance(quantity, (int, float)) or quantity <= 0:
-        return None, (jsonify({"error": "Simbolo y cantidad validos son requeridos"}), 400)
+        return None, (jsonify({"error": "Símbolo y cantidad válidos son requeridos"}), 400)
 
     if asset_type == "bono" and symbol not in {b["symbol"] for b in list_bonds()}:
         return None, (jsonify({"error": "Bono no disponible"}), 404)
@@ -109,7 +109,7 @@ def buy_asset():
             return jsonify({
                 "message": (
                     f"Este bono solo se compra los lunes. "
-                    f"Se agendo tu orden para el {pending['scheduled_date']}."
+                    f"Se agendó tu orden para el {pending['scheduled_date']}."
                 ),
                 "order": pending,
             })

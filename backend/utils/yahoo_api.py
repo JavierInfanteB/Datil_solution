@@ -5,7 +5,7 @@ un navegador real, en vez de usar yfinance: la libreria yfinance no siempre
 respeta la sesion personalizada que se le pasa, lo que termina disparando
 el bloqueo anti-bot de Yahoo para ciertas llamadas (ej. fast_info).
 """
-from datetime import datetime, timezone
+from datetime import date as date_type, datetime, timedelta, timezone
 
 from curl_cffi import requests as curl_requests
 
@@ -39,7 +39,7 @@ def _fetch_chart(symbol, range_="1mo", interval="1d"):
     result = response.json().get("chart", {}).get("result")
 
     if not result:
-        raise ValueError(f"Sin datos para el simbolo {symbol}")
+        raise ValueError(f"Sin datos para el símbolo {symbol}")
     return result[0]
 
 
@@ -166,8 +166,13 @@ def get_fx_series(currency, range_="5y"):
         return _ratio_series(usd_mxn, usd_per_currency)
 
 
+# (dias que cubre, rango de Yahoo): se usa el primer rango que alcanza.
+HISTORY_RANGES = [(31, "1mo"), (92, "3mo"), (183, "6mo"), (366, "1y"), (731, "2y")]
+
+
 def get_history(symbol, days=30):
-    range_ = "3mo" if days > 30 else "1mo"
+    """Cierres diarios de los ultimos `days` dias naturales (contados desde el ultimo cierre)."""
+    range_ = next((r for limit, r in HISTORY_RANGES if days <= limit), "5y")
     result = _fetch_chart(symbol, range_=range_)
 
     timestamps = result.get("timestamp", [])
@@ -181,4 +186,7 @@ def get_history(symbol, days=30):
         date = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
         history.append({"date": date, "close": round(close / divisor, 2)})
 
-    return history[-days:]
+    if not history:
+        return history
+    cutoff = (date_type.fromisoformat(history[-1]["date"]) - timedelta(days=days)).isoformat()
+    return [point for point in history if point["date"] >= cutoff]

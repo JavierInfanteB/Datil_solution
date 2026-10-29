@@ -31,7 +31,7 @@ export default function Portfolio() {
       </p>
       {data.incomplete && (
         <p className="datil-error">
-          No se pudo valuar alguna accion; los totales no la incluyen. Intenta de nuevo en un momento.
+          No se pudo valuar alguna acción; los totales no la incluyen. Intenta de nuevo en un momento.
         </p>
       )}
 
@@ -60,12 +60,12 @@ export default function Portfolio() {
           <table className="datil-table">
             <thead>
               <tr>
-                <th>Simbolo</th>
+                <th>Símbolo</th>
                 <th>Nombre</th>
                 <th className="datil-col-num">Cantidad</th>
                 <th className="datil-col-num">Costo prom.</th>
                 <th className="datil-col-num">Precio</th>
-                <th className="datil-col-num">Variacion</th>
+                <th className="datil-col-num">Variación</th>
                 <th className="datil-col-num">Total (MXN)</th>
                 <th className="datil-col-num">Ganancia (MXN)</th>
               </tr>
@@ -78,7 +78,7 @@ export default function Portfolio() {
                   <td className="datil-col-num">{h.quantity}</td>
                   <td className="datil-col-num">
                     {formatMoney(h.avg_cost, h.currency)}
-                    {h.cost_estimated && <span className="datil-period-tag" title="Compra anterior al registro de costos: se estimo con el precio del dia de la migracion"> (est.)</span>}
+                    {h.cost_estimated && <span className="datil-period-tag" title="Compra anterior al registro de costos: se estimó con el precio del día de la migración"> (est.)</span>}
                   </td>
                   <td className="datil-col-num">{formatMoney(h.price, h.currency)}</td>
                   <td className={`datil-col-num ${h.change_percent >= 0 ? "datil-up" : "datil-down"}`}>
@@ -108,9 +108,9 @@ export default function Portfolio() {
           <table className="datil-table">
             <thead>
               <tr>
-                <th>Simbolo</th>
+                <th>Símbolo</th>
                 <th>Nombre</th>
-                <th className="datil-col-num">Titulos</th>
+                <th className="datil-col-num">Títulos</th>
                 <th className="datil-col-num">Tasa contratada</th>
                 <th>Compra</th>
                 <th>Vence</th>
@@ -118,7 +118,7 @@ export default function Portfolio() {
                 <th className="datil-col-num">Valor hoy</th>
                 <th className="datil-col-num">Ganancia</th>
                 <th className="datil-col-num">Si lo mantienes</th>
-                <th>Proximo cupon</th>
+                <th>Próximo cupón</th>
               </tr>
             </thead>
             <tbody>
@@ -137,7 +137,7 @@ export default function Portfolio() {
                       className="datil-period-tag"
                       title={
                         h.value_basis === "mercado"
-                          ? "Lo que recibirias si lo vendes hoy, a las tasas de mercado de hoy"
+                          ? "Lo que recibirías si lo vendes hoy, a las tasas de mercado de hoy"
                           : "Sin tasas de mercado disponibles: se muestra el valor devengado"
                       }
                     >
@@ -150,7 +150,7 @@ export default function Portfolio() {
                   </td>
                   <td
                     className="datil-col-num"
-                    title="Valor al vencimiento si lo mantienes: CETES pagan el nominal; el Bono M paga el nominal mas sus cupones"
+                    title="Valor al vencimiento si lo mantienes: CETES pagan el nominal; el Bono M paga el nominal más sus cupones"
                   >
                     {formatCurrency(h.maturity_value)}
                   </td>
@@ -164,7 +164,7 @@ export default function Portfolio() {
         </>
       )}
 
-      {stocks.length === 0 && bonds.length === 0 && <p className="datil-label">Aun no tienes activos en cartera.</p>}
+      {stocks.length === 0 && bonds.length === 0 && <p className="datil-label">Aún no tienes activos en cartera.</p>}
     </section>
   );
 }

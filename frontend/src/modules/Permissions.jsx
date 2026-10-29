@@ -10,7 +10,7 @@ export default function Permissions() {
     apiClient
       .get("/api/permissions")
       .then(({ data }) => setInfo(data))
-      .catch(() => setError("No tienes acceso a esta seccion."));
+      .catch(() => setError("No tienes acceso a esta sección."));
   };
 
   useEffect(load, []);
@@ -35,7 +35,7 @@ export default function Permissions() {
 
   return (
     <section className="datil-card">
-      <h2>Gestion de permisos</h2>
+      <h2>Gestión de permisos</h2>
       <table className="datil-table">
         <thead>
           <tr>

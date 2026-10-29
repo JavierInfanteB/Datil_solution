@@ -19,5 +19,5 @@ export function formatMoney(value, currency) {
 export function formatPeriodLabel(period) {
   if (period === "1w") return "var. semanal";
   if (period === "1d") return "var. diaria";
-  return "variacion";
+  return "variación";
 }

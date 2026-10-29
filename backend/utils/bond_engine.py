@@ -218,7 +218,7 @@ def sell_bond_lots(portfolio, symbol, quantity, curve, today=None):
     available = sum(lot["quantity"] for lot in lots)
 
     if available < quantity:
-        return None, None, None, "No tienes suficientes titulos para vender"
+        return None, None, None, "No tienes suficientes títulos para vender"
 
     remaining = quantity
     proceeds = 0.0
