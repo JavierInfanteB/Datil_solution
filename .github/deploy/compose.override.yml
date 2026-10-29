@@ -2,6 +2,6 @@
 # y no con la carpeta de trabajo de la PC (que puede traer cambios sin commitear). El resto (args,
 # endurecimiento, recursos, red) sale del compose de siempre.
 services:
-  datil-api:
+  datil-solution:
     build:
       context: ${DATIL_SRC:?DATIL_SRC es la carpeta del repo a construir}
