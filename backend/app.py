@@ -25,7 +25,7 @@ def create_app():
     def health_check():
         if Config.STATIC_DIR:
             return app.send_static_file("index.html")
-        return jsonify({"message": "Datil Solutions API running", "status": "ok"}), 200
+        return jsonify({"message": "Datil Solutions running", "status": "ok"}), 200
     
     return app
 
