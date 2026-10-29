@@ -6,7 +6,7 @@ Finance (no hay catalogo fijo); los bonos si estan restringidos al catalogo
 curado de series de Banxico en assets.json, porque cada uno requiere un
 series_id especifico que no se puede "buscar" igual que un ticker.
 """
-from utils import banxico_api, yahoo_api
+from utils import banxico_api, bond_math, yahoo_api
 from utils.data_store import read_json
 
 
@@ -31,9 +31,28 @@ def get_history(symbol, asset_type="accion", days=30):
     return yahoo_api.get_history(symbol, days=days)
 
 
+def get_fx_to_mxn(currency):
+    """Pesos por unidad de la moneda de cotizacion de una accion."""
+    return yahoo_api.get_fx_to_mxn(currency)
+
+
 def search_stocks(query):
     return yahoo_api.search_symbols(query)
 
 
 def list_bonds():
     return [a for a in read_json("assets.json") if a["type"] == "bono"]
+
+
+def get_bond_curve():
+    """Tasas de mercado de hoy de todos los bonos (una consulta a Banxico),
+    listas para valuar a mercado: ver bond_math.build_curve."""
+    bonds = list_bonds()
+    symbol_by_series = {b["series_id"]: b["symbol"] for b in bonds}
+    rates = banxico_api.get_latest_rates(list(symbol_by_series))
+    return bond_math.build_curve({symbol_by_series[s]: r for s, r in rates.items()}, bonds)
+
+
+def get_bond_rate_at(symbol, as_of):
+    """Tasa vigente de un bono en una fecha pasada."""
+    return banxico_api.get_rate_as_of(_find_bond(symbol)["series_id"], as_of)

@@ -537,6 +537,92 @@ h1, h2, h3 {
   margin-top: 1.5rem;
 }
 
+/* ---------- Riesgo ---------- */
+
+.datil-risk {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.datil-risk-bajo {
+  color: var(--datil-up);
+  background: color-mix(in srgb, var(--datil-up) 14%, transparent);
+}
+
+.datil-risk-medio {
+  color: var(--datil-accent-dark);
+  background: color-mix(in srgb, var(--datil-accent) 18%, transparent);
+}
+
+.datil-risk-alto {
+  color: var(--datil-down);
+  background: color-mix(in srgb, var(--datil-down) 14%, transparent);
+}
+
+.datil-risk-hero {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 0.75rem;
+}
+
+.datil-risk-hero .datil-risk {
+  font-size: 0.95rem;
+  padding: 0.3rem 0.8rem;
+}
+
+.datil-meter {
+  position: relative;
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: visible;
+  margin-bottom: 1.25rem;
+}
+
+.datil-meter-zone {
+  height: 100%;
+  opacity: 0.85;
+}
+
+.datil-meter-low {
+  background: var(--datil-up);
+  border-radius: 5px 0 0 5px;
+}
+
+.datil-meter-mid {
+  background: var(--datil-accent);
+}
+
+.datil-meter-high {
+  background: var(--datil-down);
+  border-radius: 0 5px 5px 0;
+}
+
+.datil-meter-marker {
+  position: absolute;
+  top: -4px;
+  width: 4px;
+  height: 18px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--datil-text);
+  border: 1px solid var(--datil-surface);
+}
+
+.datil-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
 /* ---------- Buttons ---------- */
 
 .datil-actions {
@@ -671,4 +757,28 @@ h1, h2, h3 {
   .datil-user-card {
     display: none;
   }
+}
+
+/* Modo demo (VITE_DEMO): etiqueta fija para no mover el layout de 100vh */
+.datil-demo-badge {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 1000;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--datil-accent);
+  color: #1a1d24;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.datil-demo-hint {
+  margin: 0;
+  font-size: 13px;
+  text-align: center;
+  color: var(--datil-text-muted);
 }

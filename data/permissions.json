@@ -2,6 +2,7 @@
   "admin": [
     "trading",
     "permissions",
-    "portfolio"
+    "portfolio",
+    "risk"
   ]
 }

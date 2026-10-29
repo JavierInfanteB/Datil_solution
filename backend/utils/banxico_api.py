@@ -3,6 +3,7 @@
 Se usa el header Bmx-Token en vez de mandar el token en la URL, para que no
 quede expuesto en logs de acceso o en el historial del navegador/proxy.
 """
+import time
 from datetime import datetime, timedelta
 
 import requests
@@ -49,6 +50,55 @@ def get_bond_rate(series_id, symbol):
         "change_percent": round(change_percent, 2),
         "change_period": "1w",
     }
+
+
+_RATES_TTL_SECONDS = 30 * 60
+_rates_cache = {}
+
+
+def _last_valid_rate(datos):
+    valid = [d for d in datos if d["dato"] not in ("N/E", "")]
+    return _parse_dato(valid[-1]["dato"]) if valid else None
+
+
+def get_latest_rates(series_ids):
+    """Ultima tasa publicada de varias series en UNA sola consulta (Banxico
+    limita las consultas por token) y con cache de 30 min: las tasas de las
+    subastas cambian una vez por semana. Devuelve {series_id: tasa}."""
+    key = tuple(sorted(series_ids))
+    cached = _rates_cache.get(key)
+    if cached and time.monotonic() - cached[0] < _RATES_TTL_SECONDS:
+        return cached[1]
+
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=30)
+    url = f"{BASE_URL}/{','.join(key)}/datos/{start_date:%Y-%m-%d}/{end_date:%Y-%m-%d}"
+
+    response = requests.get(url, headers=_headers(), timeout=10)
+    response.raise_for_status()
+
+    rates = {}
+    for serie in response.json()["bmx"]["series"]:
+        rate = _last_valid_rate(serie.get("datos", []))
+        if rate is not None:
+            rates[serie["idSerie"]] = rate
+
+    _rates_cache[key] = (time.monotonic(), rates)
+    return rates
+
+
+def get_rate_as_of(series_id, as_of):
+    """Tasa vigente en una fecha pasada (la ultima publicada hasta ese dia).
+    Sirve para ejecutar ordenes agendadas con la tasa de su fecha, no la de hoy."""
+    start_date = as_of - timedelta(days=30)
+    url = f"{BASE_URL}/{series_id}/datos/{start_date:%Y-%m-%d}/{as_of:%Y-%m-%d}"
+
+    response = requests.get(url, headers=_headers(), timeout=10)
+    response.raise_for_status()
+    rate = _last_valid_rate(response.json()["bmx"]["series"][0].get("datos", []))
+    if rate is None:
+        raise ValueError(f"Sin tasa publicada para la serie {series_id} al {as_of}")
+    return rate
 
 
 def get_bond_history(series_id, days=180):

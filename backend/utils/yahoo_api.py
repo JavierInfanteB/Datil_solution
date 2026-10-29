@@ -12,6 +12,18 @@ from curl_cffi import requests as curl_requests
 CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 SEARCH_URL = "https://query1.finance.yahoo.com/v1/finance/search"
 
+USD_MXN_SYMBOL = "MXN=X"  # Yahoo: pesos por dolar
+
+# Algunas bolsas cotizan en la subunidad de la moneda (Londres en peniques,
+# Tel Aviv en agorot, Johannesburgo en centavos): sin normalizar, el precio
+# saldria 100 veces mas caro. Se convierte a la moneda principal.
+MINOR_UNITS = {"GBp": ("GBP", 100), "GBX": ("GBP", 100), "ILA": ("ILS", 100), "ZAc": ("ZAR", 100)}
+
+
+def _major_currency(currency):
+    """(moneda principal, divisor) para llevar un precio a su moneda principal."""
+    return MINOR_UNITS.get(currency, (currency, 1))
+
 
 def _session():
     return curl_requests.Session(impersonate="chrome")
@@ -35,8 +47,9 @@ def get_current_price(symbol):
     result = _fetch_chart(symbol, range_="5d")
     meta = result["meta"]
 
-    price = meta["regularMarketPrice"]
-    previous_close = meta.get("previousClose") or meta.get("chartPreviousClose")
+    currency, divisor = _major_currency(meta.get("currency"))
+    price = meta["regularMarketPrice"] / divisor
+    previous_close = (meta.get("previousClose") or meta.get("chartPreviousClose")) / divisor
     change = price - previous_close
     change_percent = (change / previous_close * 100) if previous_close else 0
 
@@ -47,7 +60,27 @@ def get_current_price(symbol):
         "change": round(change, 2),
         "change_percent": round(change_percent, 2),
         "change_period": "1d",
+        "currency": currency,
+        "exchange": meta.get("fullExchangeName") or meta.get("exchangeName"),
     }
+
+
+def _market_price(symbol):
+    return _fetch_chart(symbol, range_="5d")["meta"]["regularMarketPrice"]
+
+
+def get_fx_to_mxn(currency):
+    """Pesos por unidad de `currency`, sin redondear (redondear a 2 decimales
+    ya distorsiona montos grandes). Yahoo no tiene par directo contra MXN para
+    todas las monedas (KRW, INR, CNY...): en ese caso se cruza via dolar."""
+    if currency == "MXN":
+        return 1.0
+    if currency == "USD":
+        return _market_price(USD_MXN_SYMBOL)
+    try:
+        return _market_price(f"{currency}MXN=X")
+    except Exception:
+        return _market_price(USD_MXN_SYMBOL) / _market_price(f"{currency}=X")
 
 
 def search_symbols(query):
@@ -74,18 +107,78 @@ def search_symbols(query):
     return results
 
 
+def _series_from_chart(result, divisor=1):
+    """Serie [(fecha, precio)] ordenada y sin fechas repetidas. La fecha es la
+    local de la bolsa (gmtoffset) y el precio esta ajustado por dividendos y
+    splits cuando Yahoo lo trae, para que los rendimientos sean reales."""
+    offset = result["meta"].get("gmtoffset", 0)
+    timestamps = result.get("timestamp") or []
+    indicators = result["indicators"]
+    adjusted = (indicators.get("adjclose") or [{}])[0].get("adjclose")
+    closes = adjusted or indicators["quote"][0].get("close", [])
+
+    by_date = {}
+    for ts, price in zip(timestamps, closes):
+        if price is None:
+            continue
+        day = datetime.fromtimestamp(ts + offset, tz=timezone.utc).strftime("%Y-%m-%d")
+        by_date[day] = price / divisor  # si Yahoo repite el dia (precio parcial), gana el ultimo
+    return sorted(by_date.items())
+
+
+def get_price_series(symbol, range_="5y"):
+    """Historico diario para calcular riesgo, en la moneda principal de la
+    accion (no en peniques). Devuelve {"series", "currency", "name", "exchange"}."""
+    result = _fetch_chart(symbol, range_=range_)
+    meta = result["meta"]
+    currency, divisor = _major_currency(meta.get("currency"))
+    return {
+        "series": _series_from_chart(result, divisor),
+        "currency": currency,
+        "name": meta.get("shortName") or meta.get("longName") or symbol,
+        "exchange": meta.get("fullExchangeName") or meta.get("exchangeName"),
+    }
+
+
+def _ratio_series(numerator, denominator):
+    """numerator/denominator por fecha, con el ultimo valor conocido del denominador."""
+    out, j = [], -1
+    for day, value in numerator:
+        while j + 1 < len(denominator) and denominator[j + 1][0] <= day:
+            j += 1
+        if j >= 0:
+            out.append((day, value / denominator[j][1]))
+    return out
+
+
+def get_fx_series(currency, range_="5y"):
+    """Historico diario de pesos por unidad de `currency` (mismo criterio que
+    get_fx_to_mxn: par directo o cruzado via dolar). None si ya es MXN."""
+    if currency == "MXN":
+        return None
+    if currency == "USD":
+        return _series_from_chart(_fetch_chart(USD_MXN_SYMBOL, range_=range_))
+    try:
+        return _series_from_chart(_fetch_chart(f"{currency}MXN=X", range_=range_))
+    except Exception:
+        usd_mxn = _series_from_chart(_fetch_chart(USD_MXN_SYMBOL, range_=range_))
+        usd_per_currency = _series_from_chart(_fetch_chart(f"{currency}=X", range_=range_))
+        return _ratio_series(usd_mxn, usd_per_currency)
+
+
 def get_history(symbol, days=30):
     range_ = "3mo" if days > 30 else "1mo"
     result = _fetch_chart(symbol, range_=range_)
 
     timestamps = result.get("timestamp", [])
     closes = result["indicators"]["quote"][0].get("close", [])
+    _, divisor = _major_currency(result["meta"].get("currency"))
 
     history = []
     for ts, close in zip(timestamps, closes):
         if close is None:
             continue
         date = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
-        history.append({"date": date, "close": round(close, 2)})
+        history.append({"date": date, "close": round(close / divisor, 2)})
 
     return history[-days:]

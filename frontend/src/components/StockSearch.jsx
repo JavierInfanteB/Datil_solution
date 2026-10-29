@@ -70,7 +70,8 @@ export default function StockSearch({ onSelect, placeholder = "Buscar por nombre
                 >
                   <strong>{asset.symbol}</strong>
                   <span className="datil-select-option-detail">
-                    {asset.name} · {asset.sector || asset.exchange}
+                    {asset.name} · {asset.exchange}
+                    {asset.sector ? ` · ${asset.sector}` : ""}
                   </span>
                 </button>
               </li>

@@ -1,7 +1,7 @@
 [
-  { "symbol": "CETES28", "name": "CETES 28 dias", "type": "bono", "source": "banxico", "series_id": "SF43936", "nominal_value": 10, "term_days": 28, "purchase_weekday": 0 },
-  { "symbol": "CETES91", "name": "CETES 91 dias", "type": "bono", "source": "banxico", "series_id": "SF43939", "nominal_value": 10, "term_days": 91, "purchase_weekday": 0 },
-  { "symbol": "CETES182", "name": "CETES 182 dias", "type": "bono", "source": "banxico", "series_id": "SF43942", "nominal_value": 10, "term_days": 182, "purchase_weekday": 0 },
-  { "symbol": "CETES364", "name": "CETES 364 dias", "type": "bono", "source": "banxico", "series_id": "SF43945", "nominal_value": 10, "term_days": 364, "purchase_weekday": 0 },
-  { "symbol": "BONOM10", "name": "Bono M tasa fija 10 anos", "type": "bono", "source": "banxico", "series_id": "SF44071", "nominal_value": 100, "term_days": 3650, "purchase_weekday": 0 }
+  { "symbol": "CETES28", "name": "CETES 28 dias", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43936", "nominal_value": 10, "term_days": 28, "purchase_weekday": 0 },
+  { "symbol": "CETES91", "name": "CETES 91 dias", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43939", "nominal_value": 10, "term_days": 91, "purchase_weekday": 0 },
+  { "symbol": "CETES182", "name": "CETES 182 dias", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43942", "nominal_value": 10, "term_days": 182, "purchase_weekday": 0 },
+  { "symbol": "CETES364", "name": "CETES 364 dias", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43945", "nominal_value": 10, "term_days": 364, "purchase_weekday": 0 },
+  { "symbol": "BONOM10", "name": "Bono M tasa fija 10 anos", "type": "bono", "kind": "bono_m", "source": "banxico", "series_id": "SF44071", "nominal_value": 100, "term_days": 3640, "coupon_days": 182, "purchase_weekday": 0 }
 ]

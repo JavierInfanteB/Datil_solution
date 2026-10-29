@@ -6,13 +6,21 @@
         "symbol": "AAPL",
         "name": "Apple Inc.",
         "type": "accion",
-        "quantity": 11
+        "quantity": 11,
+        "currency": "USD",
+        "avg_cost": 347.1,
+        "cost_basis_mxn": 71283.93,
+        "cost_estimated": true
       },
       {
         "symbol": "MSFT",
         "name": "Microsoft Corp.",
         "type": "accion",
-        "quantity": 5
+        "quantity": 5,
+        "currency": "USD",
+        "avg_cost": 531.33,
+        "cost_basis_mxn": 49599.66,
+        "cost_estimated": true
       },
       {
         "symbol": "CETES28",
@@ -29,13 +37,21 @@
         "symbol": "GOOGL",
         "name": "Alphabet Inc.",
         "type": "accion",
-        "quantity": 1
+        "quantity": 1,
+        "currency": "USD",
+        "avg_cost": 320.58,
+        "cost_basis_mxn": 5985.23,
+        "cost_estimated": true
       },
       {
         "symbol": "TSLA",
         "name": "Tesla, Inc.",
         "type": "accion",
-        "quantity": 1
+        "quantity": 1,
+        "currency": "USD",
+        "avg_cost": 407.46,
+        "cost_basis_mxn": 7608.3,
+        "cost_estimated": true
       }
     ]
   }

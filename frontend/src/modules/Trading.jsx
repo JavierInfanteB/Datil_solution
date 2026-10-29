@@ -3,7 +3,7 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import apiClient from "../api/client";
 import Select from "../components/Select";
 import StockSearch from "../components/StockSearch";
-import { formatCurrency, formatPeriodLabel } from "../utils/format";
+import { formatCurrency, formatMoney, formatPeriodLabel } from "../utils/format";
 
 const TABS = [
   { id: "accion", label: "Acciones" },
@@ -88,8 +88,19 @@ export default function Trading() {
   const bondOptions = bonds.map((b) => ({ value: b.symbol, label: `${b.symbol} · ${b.name}` }));
   const chartData = useMemo(() => history?.history ?? [], [history]);
   const isUp = (history?.current?.change_percent ?? 0) >= 0;
-  const unitPrice = tab === "accion" ? history?.current?.price : activeBond?.nominal_value;
+  // En bonos, history.current.price es la tasa vigente (%), no un precio. Un CETE se compra con
+  // descuento (nominal / (1 + tasa * dias/360)); el Bono M se compra a la par y paga cupones.
+  const bondRate = tab === "bono" ? history?.current?.price : null;
+  const bondUnitCost =
+    activeBond && bondRate != null && activeBond.kind !== "bono_m"
+      ? activeBond.nominal_value / (1 + (bondRate / 100) * (activeBond.term_days / 360))
+      : activeBond?.nominal_value;
+  const unitPrice = tab === "accion" ? history?.current?.price : bondUnitCost;
   const estimatedTotal = unitPrice != null && quantity > 0 ? unitPrice * Number(quantity) : null;
+  // Las acciones cotizan en la moneda de su bolsa; el dinero de la cuenta es en pesos.
+  const stockCurrency = tab === "accion" ? history?.current?.currency : null;
+  const stockInForeignCurrency = stockCurrency != null && stockCurrency !== "MXN";
+  const fxMxn = history?.fx_mxn;
   const pendingOrders = orders.filter((o) => o.status === "pending");
 
   return (
@@ -124,14 +135,33 @@ export default function Trading() {
 
       {estimatedTotal != null && (
         <p className="datil-estimated-total">
-          Total estimado: <strong>{formatCurrency(estimatedTotal)}</strong>
-          {tab === "bono" && <span className="datil-period-tag"> (valor nominal, no incluye rendimiento)</span>}
+          Total estimado:{" "}
+          <strong>{stockInForeignCurrency && fxMxn ? formatCurrency(estimatedTotal * fxMxn) : formatCurrency(estimatedTotal)}</strong>
+          {stockInForeignCurrency && (
+            <span className="datil-period-tag">
+              {" "}
+              ({formatMoney(estimatedTotal, stockCurrency)}
+              {fxMxn ? ` a ${stockCurrency}/MXN ${fxMxn}` : ""})
+            </span>
+          )}
+          {tab === "bono" && activeBond?.kind !== "bono_m" && activeBond && (
+            <span className="datil-period-tag">
+              {" "}
+              (con descuento; al vencer recibes {formatCurrency(activeBond.nominal_value * Number(quantity))})
+            </span>
+          )}
+          {tab === "bono" && activeBond?.kind === "bono_m" && (
+            <span className="datil-period-tag"> (a la par; paga cupon cada {activeBond.coupon_days} dias)</span>
+          )}
         </p>
       )}
 
       {tab === "bono" && activeBond && (
         <p className="datil-label">
           Este bono solo se subasta los lunes. Si compras otro dia, se agenda una orden para el proximo lunes.
+          La tasa se fija al comprar. Si lo vendes antes de vencer se paga a precio de mercado: si las tasas
+          subieron desde tu compra recibes menos, y si bajaron, mas. Si lo mantienes hasta el final, recibes lo
+          pactado.
         </p>
       )}
 
@@ -159,7 +189,7 @@ export default function Trading() {
           <div className="datil-history-summary">
             <div>
               <span className="datil-label">Precio actual</span>
-              <strong>{history.current.price}</strong>
+              <strong>{tab === "accion" ? formatMoney(history.current.price, stockCurrency) : history.current.price}</strong>
             </div>
             <div>
               <span className="datil-label">{formatPeriodLabel(history.current.change_period)}</span>

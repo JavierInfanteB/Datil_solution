@@ -8,7 +8,7 @@ permissions_bp = Blueprint("permissions", __name__, url_prefix="/api/permissions
 
 # Catalogo fijo de modulos instalados en el index. Agregar uno nuevo aqui
 # es lo unico que se necesita para que el admin pueda concederlo.
-AVAILABLE_MODULES = ["portfolio", "trading", "permissions"]
+AVAILABLE_MODULES = ["portfolio", "trading", "risk", "permissions"]
 
 
 @permissions_bp.route("/me", methods=["GET"])
