@@ -1,5 +1,15 @@
-# Solo el backend (el frontend va en Cloudflare Pages). Contexto de build: esta carpeta,
-# porque config.py lee ../data. Montar un volumen en /app/data para que sobreviva.
+# Web + API en una sola imagen: Flask sirve el frontend compilado y la API desde el mismo dominio.
+# Contexto de build: esta carpeta, porque config.py lee ../data (montar un volumen en /app/data para que sobreviva).
+FROM node:22-slim AS web
+WORKDIR /web
+COPY frontend/package*.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend .
+# VITE_API_URL=/ -> la web llama a /api en su propio dominio; VITE_DEMO vacio = sin aviso de pruebas.
+ARG VITE_DEMO=1
+ENV VITE_API_URL=/ VITE_DEMO=$VITE_DEMO
+RUN npm run build
+
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
@@ -11,6 +21,8 @@ RUN pip install -r backend/requirements.txt gunicorn
 RUN useradd --system --no-create-home app
 COPY --chown=app backend backend
 COPY --chown=app data data
+COPY --from=web /web/dist /app/web
+ENV STATIC_DIR=/app/web
 
 USER app
 WORKDIR /app/backend

@@ -28,3 +28,6 @@ class Config:
 
     # Token de consulta de la API SIE de Banxico (tasas de CETES / Bono M).
     BANXICO_TOKEN = os.environ.get("BANXICO_TOKEN", "")
+
+    # Carpeta con el frontend compilado: si existe, Flask lo sirve en "/" (web y API en un solo dominio).
+    STATIC_DIR = os.environ.get("STATIC_DIR") or None
