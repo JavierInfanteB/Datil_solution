@@ -1,4 +1,6 @@
-// Piezas del puntaje de riesgo compartidas por la pantalla de Riesgo y la de Comprar / Vender.
+// Piezas del puntaje de riesgo de una acción que usa Comprar / Vender (la insignia también la usa Riesgo).
+import { pct, SCORE_EXPLANATION } from "../utils/risk";
+
 const LEVEL_LABEL = { bajo: "Riesgo bajo", medio: "Riesgo medio", alto: "Riesgo alto" };
 const MEDIUM_FROM = 35;
 const HIGH_FROM = 60;
@@ -31,6 +33,46 @@ export function Meter({ score }) {
 function formatFactorValue(factor) {
   if (factor.value == null) return "N/D";
   return `${factor.value}${factor.unit}`;
+}
+
+// Detalle completo del riesgo de una acción (respuesta de GET /api/risk/stock): cifras clave,
+// desglose por señal y la advertencia de qué mide y qué no.
+export function StockRiskDetail({ data }) {
+  return (
+    <>
+      <p className="datil-period-tag">
+        {data.exchange} · cotiza en {data.currency} · datos al {data.as_of}
+      </p>
+
+      <div className="datil-summary-grid">
+        <div>
+          <span className="datil-label">Rendimiento 12 meses (MXN)</span>
+          <strong className={data.metrics.return_1y >= 0 ? "datil-up" : "datil-down"}>
+            {pct(data.metrics.return_1y)}
+          </strong>
+        </div>
+        <div>
+          <span className="datil-label">Volatilidad en pesos</span>
+          <strong>{pct(data.metrics.volatility)}</strong>
+        </div>
+        {data.metrics.volatility_native != null && data.currency !== "MXN" && (
+          <div>
+            <span className="datil-label">Volatilidad en {data.currency}</span>
+            <strong>{pct(data.metrics.volatility_native)}</strong>
+          </div>
+        )}
+      </div>
+
+      <h3 className="datil-subheading">Por qué este puntaje</h3>
+      <FactorTable factors={data.factors} />
+      {data.missing.length > 0 && (
+        <p className="datil-period-tag">
+          Sin datos suficientes para: {data.missing.join(", ")}. El puntaje se calculó con las demás señales.
+        </p>
+      )}
+      <p className="datil-period-tag">{SCORE_EXPLANATION}</p>
+    </>
+  );
 }
 
 export function FactorTable({ factors }) {
