@@ -14,7 +14,7 @@ from flask import Blueprint, g, jsonify, request
 
 from utils import bond_engine, stock_engine
 from utils.data_store import read_json, write_json
-from utils.decorators import require_auth, require_permission
+from utils.decorators import has_permission, require_auth, require_permission
 from utils.market_data import get_bond_curve, get_current_price, get_fx_to_mxn, list_bonds, search_stocks
 
 trading_bp = Blueprint("trading", __name__, url_prefix="/api/trading")
@@ -85,6 +85,10 @@ def _validate_order(body):
 
     if asset_type == "bono" and symbol not in {b["symbol"] for b in list_bonds()}:
         return None, (jsonify({"error": "Bono no disponible"}), 404)
+
+    # Cada tipo de activo es una seccion del modulo: comprar bonos pide "trading.bono".
+    if not has_permission(g.current_user, f"trading.{asset_type}"):
+        return None, (jsonify({"error": "Permiso denegado"}), 403)
 
     return {"symbol": symbol, "quantity": quantity, "asset_type": asset_type, "name": name}, None
 

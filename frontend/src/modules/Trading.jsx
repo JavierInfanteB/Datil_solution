@@ -9,11 +9,6 @@ import { formatCurrency, formatMoney, formatPeriodLabel } from "../utils/format"
 import { useStockRisk } from "../utils/risk";
 import { GRAIN_LABELS, LAPSES, lapseStart, lapseVariation, periodVariations, sliceLapse } from "../utils/variation";
 
-const TABS = [
-  { id: "accion", label: "Acciones" },
-  { id: "bono", label: "Bonos y CETES" },
-];
-
 // Cubre el lapso más largo (1 año) más el cierre previo que sirve de base a la primera variación.
 const HISTORY_DAYS = 400;
 const fetchHistory = (symbol, type) => apiClient.get(`/api/history/${symbol}`, { params: { type, days: HISTORY_DAYS } });
@@ -21,8 +16,9 @@ const fetchHistory = (symbol, type) => apiClient.get(`/api/history/${symbol}`, {
 const signed = (value) => `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
 const trendClass = (value) => (value >= 0 ? "datil-up" : "datil-down");
 
-export default function Trading() {
-  const [tab, setTab] = useState("accion");
+// La sección (Acciones / Bonos y CETES) se elige en el menú lateral; ver moduleRegistry.
+export default function Trading({ section }) {
+  const tab = section.id;
   const [holdings, setHoldings] = useState([]);
   const [bonds, setBonds] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -132,18 +128,7 @@ export default function Trading() {
 
   return (
     <section className="datil-card">
-      <h2>Comprar / Vender</h2>
-      <div className="datil-tabs">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            className={tab === t.id ? "datil-tab active" : "datil-tab"}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <h2>Comprar / Vender · {section.name}</h2>
 
       <div className="datil-form-row">
         <label className="datil-field-wide">

@@ -1,7 +1,7 @@
 """Historicos de precio por simbolo, usados al ver el detalle de una accion/bono."""
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, g, jsonify, request
 
-from utils.decorators import require_auth, require_permission
+from utils.decorators import has_permission, require_auth, require_permission
 from utils.market_data import get_current_price, get_fx_to_mxn, get_history
 
 history_bp = Blueprint("history", __name__, url_prefix="/api/history")
@@ -16,6 +16,8 @@ MAX_DAYS = 730  # el rango mas largo que pide el front (1 ano) mas el cierre pre
 def get_symbol_history(symbol):
     asset_type = request.args.get("type") if request.args.get("type") in ("accion", "bono") else "accion"
     days = min(max(request.args.get("days", DEFAULT_DAYS, type=int), 1), MAX_DAYS)
+    if not has_permission(g.current_user, f"trading.{asset_type}"):
+        return jsonify({"error": "Permiso denegado"}), 403
 
     try:
         current = get_current_price(symbol, asset_type)

@@ -1,19 +1,31 @@
 import Portfolio from "./Portfolio";
 import Trading from "./Trading";
 import Permissions from "./Permissions";
+import { isGranted } from "../utils/permissions";
 
 // Catalogo de modulos instalados en el index. Agregar uno nuevo = una entrada
-// aqui + su blueprint en el backend + el string de permiso correspondiente.
-// El index nunca decide "quien ve que": solo filtra este catalogo contra los
-// permisos que devuelve /api/permissions/me.
+// aqui + su blueprint en el backend + su id (y secciones) en MODULES de
+// backend/modules/permissions.py. Las secciones son las subpestañas que se
+// despliegan bajo el modulo en el menu lateral; el componente recibe la activa
+// como prop `section`. El index nunca decide "quien ve que": solo filtra este
+// catalogo contra los permisos que devuelve /api/permissions/me.
 export const MODULE_REGISTRY = [
   { id: "portfolio", name: "Mi Cartera", Component: Portfolio, order: 1 },
-  { id: "trading", name: "Comprar / Vender", Component: Trading, order: 2 },
+  {
+    id: "trading",
+    name: "Comprar / Vender",
+    Component: Trading,
+    order: 2,
+    sections: [
+      { id: "accion", name: "Acciones" },
+      { id: "bono", name: "Bonos y CETES" },
+    ],
+  },
   { id: "permissions", name: "Permisos", Component: Permissions, order: 3 },
 ];
 
-export function getAvailableModules(allowedModuleIds) {
-  return MODULE_REGISTRY.filter((mod) => allowedModuleIds.includes(mod.id)).sort(
-    (a, b) => a.order - b.order
-  );
+export function getAvailableModules(granted) {
+  return MODULE_REGISTRY.filter((mod) => isGranted(granted, mod.id))
+    .map((mod) => ({ ...mod, sections: (mod.sections ?? []).filter((s) => isGranted(granted, `${mod.id}.${s.id}`)) }))
+    .sort((a, b) => a.order - b.order);
 }

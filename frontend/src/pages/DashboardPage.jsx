@@ -5,8 +5,11 @@ import Navbar from "../components/Navbar";
 
 export default function DashboardPage() {
   const [modules, setModules] = useState(null);
-  const [activeId, setActiveId] = useState(null);
+  const [active, setActive] = useState({ moduleId: null, sectionId: null });
   const [error, setError] = useState("");
+
+  // Abrir un módulo sin sección elegida cae en su primera sección permitida.
+  const open = (mod, sectionId = mod?.sections[0]?.id ?? null) => setActive({ moduleId: mod?.id ?? null, sectionId });
 
   useEffect(() => {
     apiClient
@@ -14,7 +17,7 @@ export default function DashboardPage() {
       .then(({ data }) => {
         const available = getAvailableModules(data.modules);
         setModules(available);
-        setActiveId(available[0]?.id ?? null);
+        open(available[0]);
       })
       .catch(() => setError("No se pudieron cargar tus permisos."));
   }, []);
@@ -22,14 +25,16 @@ export default function DashboardPage() {
   if (error) return <p className="datil-error">{error}</p>;
   if (!modules) return <p>Cargando módulos...</p>;
 
-  const ActiveModule = modules.find((m) => m.id === activeId)?.Component;
+  const activeModule = modules.find((m) => m.id === active.moduleId);
+  const ActiveModule = activeModule?.Component;
+  const activeSection = activeModule?.sections.find((s) => s.id === active.sectionId);
 
   return (
     <div className="datil-app">
-      <Navbar modules={modules} activeId={activeId} onSelect={setActiveId} />
+      <Navbar modules={modules} active={active} onSelect={open} />
       <div className="datil-content-area">
         <main className="datil-content">
-          {ActiveModule ? <ActiveModule /> : <p>No tienes módulos habilitados todavía.</p>}
+          {ActiveModule ? <ActiveModule section={activeSection} /> : <p>No tienes módulos habilitados todavía.</p>}
         </main>
       </div>
     </div>
