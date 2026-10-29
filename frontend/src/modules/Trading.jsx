@@ -3,6 +3,7 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import apiClient from "../api/client";
 import { Meter, RiskBadge, StockRiskDetail } from "../components/RiskParts";
 import Select from "../components/Select";
+import StockCompare from "../components/StockCompare";
 import StockSearch from "../components/StockSearch";
 import { formatCurrency, formatMoney, formatPeriodLabel } from "../utils/format";
 import { useStockRisk } from "../utils/risk";
@@ -347,6 +348,13 @@ export default function Trading() {
             <details className="datil-risk-details">
               <summary>Detalle del riesgo</summary>
               <StockRiskDetail data={risk.data} />
+            </details>
+          )}
+
+          {tab === "accion" && !risk.forbidden && (
+            <details className="datil-risk-details">
+              <summary>Comparar con otras acciones</summary>
+              <StockCompare key={activeSymbol} initial={[activeSymbol]} />
             </details>
           )}
         </>

@@ -1,4 +1,4 @@
-// Piezas del puntaje de riesgo de una acción que usa Comprar / Vender (la insignia también la usa Riesgo).
+// Piezas del puntaje de riesgo compartidas por Comprar / Vender, la comparación y el riesgo del portafolio.
 import { pct, SCORE_EXPLANATION } from "../utils/risk";
 
 const LEVEL_LABEL = { bajo: "Riesgo bajo", medio: "Riesgo medio", alto: "Riesgo alto" };

@@ -1,6 +1,5 @@
 import Portfolio from "./Portfolio";
 import Trading from "./Trading";
-import Risk from "./Risk";
 import Permissions from "./Permissions";
 
 // Catalogo de modulos instalados en el index. Agregar uno nuevo = una entrada
@@ -10,8 +9,7 @@ import Permissions from "./Permissions";
 export const MODULE_REGISTRY = [
   { id: "portfolio", name: "Mi Cartera", Component: Portfolio, order: 1 },
   { id: "trading", name: "Comprar / Vender", Component: Trading, order: 2 },
-  { id: "risk", name: "Riesgo", Component: Risk, order: 3 },
-  { id: "permissions", name: "Permisos", Component: Permissions, order: 4 },
+  { id: "permissions", name: "Permisos", Component: Permissions, order: 3 },
 ];
 
 export function getAvailableModules(allowedModuleIds) {
