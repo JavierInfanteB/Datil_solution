@@ -1,0 +1,27 @@
+name: Runner test
+
+# Corre en cada push (y tambien a mano); solo comprueba que el runner responde.
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: [self-hosted, datil]
+    steps:
+      - name: Quien corre esto
+        shell: powershell
+        run: |
+          hostname
+          whoami
+      - name: Herramientas disponibles
+        shell: powershell
+        run: |
+          git --version
+          python --version
+          node --version
+      - name: El token personal no debe llegar al job
+        shell: powershell
+        run: |
+          if ($env:GITHUB_TOKEN) { throw 'GITHUB_TOKEN presente en el entorno del runner' }
+          'ok: sin GITHUB_TOKEN'
