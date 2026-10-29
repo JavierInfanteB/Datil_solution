@@ -1,6 +1,7 @@
 name: Runner test
 
 # Corre en cada push (y tambien a mano); solo comprueba que el runner responde.
+# shell: cmd porque la politica de ejecucion de PowerShell en esta PC bloquea los .ps1 del runner.
 on:
   push:
   workflow_dispatch:
@@ -8,20 +9,23 @@ on:
 jobs:
   ping:
     runs-on: [self-hosted, datil]
+    defaults:
+      run:
+        shell: cmd
     steps:
       - name: Quien corre esto
-        shell: powershell
         run: |
           hostname
           whoami
       - name: Herramientas disponibles
-        shell: powershell
         run: |
           git --version
           python --version
           node --version
       - name: El token personal no debe llegar al job
-        shell: powershell
         run: |
-          if ($env:GITHUB_TOKEN) { throw 'GITHUB_TOKEN presente en el entorno del runner' }
-          'ok: sin GITHUB_TOKEN'
+          if defined GITHUB_TOKEN (
+            echo GITHUB_TOKEN presente en el entorno del runner
+            exit /b 1
+          )
+          echo ok: sin GITHUB_TOKEN
