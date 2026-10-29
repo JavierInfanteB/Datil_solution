@@ -1,0 +1,39 @@
+name: Deploy Datil
+
+# Cada push a main que toque la app reconstruye la imagen y recrea el contenedor en el Docker de esta PC,
+# con el runner self-hosted. A mano (Run workflow) fuerza un deploy aunque no haya cambios.
+# Recrear el contenedor cierra las sesiones abiertas: viven en memoria.
+# shell: cmd porque la politica de ejecucion de PowerShell en esta PC bloquea los .ps1 del runner.
+on:
+  push:
+    branches: [main]
+    paths:
+      - backend/**
+      - frontend/**
+      - data/**
+      - Dockerfile
+      - .dockerignore
+      - .github/deploy/**
+      - .github/workflows/deploy.yml
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-datil
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, datil]
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Construir y desplegar
+        run: python .github\deploy\deploy.py
