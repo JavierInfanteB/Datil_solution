@@ -34,7 +34,7 @@ export default function PortfolioRisk() {
   );
 }
 
-function PortfolioRiskDetail({ data }) {
+export function PortfolioRiskDetail({ data }) {
   const { stocks, history, concentration, scenarios } = data;
 
   return (
@@ -45,11 +45,11 @@ function PortfolioRiskDetail({ data }) {
 
       <div className="datil-summary-grid">
         <div>
-          <span className="datil-label">Acciones en tu portafolio</span>
+          <span className="datil-label">Acciones en el portafolio</span>
           <strong>{stocks.share}%</strong>
         </div>
         <div>
-          <span className="datil-label">Riesgo de tus acciones</span>
+          <span className="datil-label">Riesgo de las acciones</span>
           <strong>
             <RiskBadge level={stocks.level} score={stocks.weighted_score} />
           </strong>
@@ -66,7 +66,7 @@ function PortfolioRiskDetail({ data }) {
         </div>
       </div>
       <p className="datil-period-tag">
-        El riesgo de tus acciones es el promedio de sus puntajes, ponderado por cuánto tienes en cada una.
+        El riesgo de las acciones es el promedio de sus puntajes, ponderado por cuánto hay en cada una.
       </p>
 
       <h3 className="datil-subheading">Comportamiento histórico del portafolio completo</h3>
@@ -82,6 +82,13 @@ function PortfolioRiskDetail({ data }) {
               </span>
             </div>
             <div>
+              <span className="datil-label">Pérdida en los peores días</span>
+              <strong>{pct(history.tail_loss)}</strong>
+              <span className="datil-period-tag">
+                {history.benchmark.symbol}: {pct(history.benchmark.tail_loss)}
+              </span>
+            </div>
+            <div>
               <span className="datil-label">Peor caída</span>
               <strong>{pct(history.max_drawdown)}</strong>
               <span className="datil-period-tag">
@@ -91,7 +98,7 @@ function PortfolioRiskDetail({ data }) {
           </div>
           <p className="datil-period-tag">
             Con la mezcla de hoy mantenida de {history.from} a {history.to}, en pesos, incluyendo las acciones que
-            suman {history.covers_pct_of_portfolio}% de tu portafolio. {history.benchmark.symbol} es un fondo de
+            suman {history.covers_pct_of_portfolio}% del portafolio. {history.benchmark.symbol} es un fondo de
             acciones de todo el mundo, como referencia de lo que hizo el mercado en el mismo periodo.
           </p>
         </>

@@ -203,15 +203,13 @@ def _scenarios(total, bond_lots, curve, stock_value, foreign_stock_value):
 
 
 
-@risk_bp.route("/portfolio", methods=["GET"])
-@require_auth
-@require_permission("risk")
-def portfolio_risk():
-    username = g.current_user["username"]
-    view = build_portfolio_view(username)
+def portfolio_risk_for(username, view=None):
+    """Riesgo del portafolio de `username` (con `view` ya construida si se tiene).
+    Lanza ValueError si el portafolio esta vacio."""
+    view = view or build_portfolio_view(username)
     total = view["portfolio_total"]
     if not total:
-        return jsonify({"error": "El portafolio está vacío"}), 422
+        raise ValueError("El portafolio está vacío")
 
     stocks = [h for h in view["holdings"] if h["type"] == "accion" and h.get("value")]
     positions, stock_rows = {}, []
@@ -243,10 +241,12 @@ def portfolio_risk():
             benchmark = [p for d, p in load_stock(BENCHMARK)["series_mxn"] if d >= index[0][0]]
             history = {
                 "volatility": round(risk_engine.annual_volatility(prices) * 100, 2),
+                "tail_loss": round(risk_engine.tail_loss(prices) * 100, 2),
                 "max_drawdown": round(risk_engine.max_drawdown(prices) * 100, 2),
                 "benchmark": {
                     "symbol": BENCHMARK,
                     "volatility": round(risk_engine.annual_volatility(benchmark) * 100, 2),
+                    "tail_loss": round(risk_engine.tail_loss(benchmark) * 100, 2),
                     "max_drawdown": round(risk_engine.max_drawdown(benchmark) * 100, 2),
                 },
                 "from": index[0][0], "to": index[-1][0],
@@ -273,7 +273,7 @@ def portfolio_risk():
             pass
 
     top = max(view["holdings"], key=lambda h: h.get("value") or 0)
-    return jsonify({
+    return {
         "total": total,
         "currency": "MXN",
         "stocks": {"value": round(stock_value, 2), "share": round(stock_value / total * 100, 2),
@@ -290,7 +290,17 @@ def portfolio_risk():
         "incomplete": view["incomplete"],
         "notes": [
             "Los bonos y el efectivo se tratan como estables en el historial; su riesgo de tasas aparece en los escenarios.",
-            "El historial supone que tuviste siempre la mezcla de hoy.",
+            "El historial supone que siempre se tuvo la mezcla de hoy.",
         ],
-    })
+    }
+
+
+@risk_bp.route("/portfolio", methods=["GET"])
+@require_auth
+@require_permission("risk")
+def portfolio_risk():
+    try:
+        return jsonify(portfolio_risk_for(g.current_user["username"]))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 422
 

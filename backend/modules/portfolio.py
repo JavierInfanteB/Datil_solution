@@ -29,10 +29,13 @@ def get_portfolio():
     return jsonify(build_portfolio_view(g.current_user["username"]))
 
 
-def build_portfolio_view(username):
+def build_portfolio_view(username, settle=True):
     """Cartera valuada en pesos. La usan tambien los modulos que necesitan los
-    mismos numeros que ve el usuario (p. ej. el riesgo del portafolio)."""
-    bond_engine.process_due_events(username)
+    mismos numeros que ve el usuario (p. ej. el riesgo del portafolio).
+    settle=False solo lee: no cobra cupones ni ejecuta ordenes pendientes (lo que
+    hace falta cuando quien mira es el consultor y no el dueno de la cartera)."""
+    if settle:
+        bond_engine.process_due_events(username)
 
     portfolios = read_json("portfolios.json")
     portfolio = portfolios.get(username, {"cash": 0, "holdings": []})

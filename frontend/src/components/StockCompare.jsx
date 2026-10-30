@@ -78,7 +78,7 @@ export default function StockCompare({ initial = [] }) {
                 <th className="datil-col-num">Volatilidad</th>
                 <th className="datil-col-num">Caída máxima</th>
                 <th className="datil-col-num">Beta</th>
-                <th className="datil-col-num">Rend. 12 meses</th>
+                <th className="datil-col-num">Pérdida peores días</th>
               </tr>
             </thead>
             <tbody>
@@ -96,9 +96,7 @@ export default function StockCompare({ initial = [] }) {
                   <td className="datil-col-num">{pct(a.metrics.volatility)}</td>
                   <td className="datil-col-num">{pct(a.metrics.max_drawdown)}</td>
                   <td className="datil-col-num">{a.metrics.beta ?? "N/D"}</td>
-                  <td className={`datil-col-num ${a.metrics.return_1y >= 0 ? "datil-up" : "datil-down"}`}>
-                    {pct(a.metrics.return_1y)}
-                  </td>
+                  <td className="datil-col-num">{pct(a.metrics.tail_loss)}</td>
                 </tr>
               ))}
             </tbody>

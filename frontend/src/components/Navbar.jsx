@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
+import Logo from "./Logo";
+
+const ROLE_LABEL = { admin: "Administrador", consultor: "Consultor" };
 
 export default function Navbar({ modules, active, onSelect }) {
   const { user, logout } = useAuth();
@@ -16,7 +19,7 @@ export default function Navbar({ modules, active, onSelect }) {
   return (
     <aside className={menuOpen ? "datil-sidebar open" : "datil-sidebar"}>
       <div className="datil-brand">
-        <span className="datil-logo">D</span>
+        <Logo />
         <div>
           <span className="datil-brand-name">Datil Solutions</span>
           <span className="datil-brand-tag">Gestión de inversiones</span>
@@ -73,7 +76,7 @@ export default function Navbar({ modules, active, onSelect }) {
           </button>
           <div className="datil-user-card">
             <span className="datil-user-name">{user?.name}</span>
-            <span className="datil-user-role">{user?.role === "admin" ? "Administrador" : "Usuario"}</span>
+            <span className="datil-user-role">{ROLE_LABEL[user?.role] ?? "Usuario"}</span>
           </div>
           <button className="datil-btn datil-btn-secondary datil-btn-block" onClick={logout}>
             Cerrar sesión

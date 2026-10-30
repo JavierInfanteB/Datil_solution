@@ -171,10 +171,10 @@ def auc_report(samples, title):
 
 
 WEIGHT_VARIANTS = {
-    "actual (vol30 caida30 mes15 beta15 dist10)": {"volatility": 30, "max_drawdown": 30, "worst_month": 15, "beta": 15, "current_drawdown": 10},
-    "sin distancia al maximo (beta25)": {"volatility": 30, "max_drawdown": 30, "worst_month": 15, "beta": 25},
-    "beta 30, distancia 5": {"volatility": 25, "max_drawdown": 25, "worst_month": 15, "beta": 30, "current_drawdown": 5},
-    "4 senales iguales (sin distancia)": {"volatility": 25, "max_drawdown": 25, "worst_month": 25, "beta": 25},
+    "actual (vol25 cola20 caida15 beta40)": {"volatility": 25, "tail_loss": 20, "max_drawdown": 15, "beta": 40},
+    "4 senales iguales": {"volatility": 25, "tail_loss": 25, "max_drawdown": 25, "beta": 25},
+    "menos beta (vol30 cola25 caida15 beta30)": {"volatility": 30, "tail_loss": 25, "max_drawdown": 15, "beta": 30},
+    "sin caida maxima (vol25 cola25 beta50)": {"volatility": 25, "tail_loss": 25, "beta": 50},
     "solo volatilidad y beta": {"volatility": 50, "beta": 50},
 }
 

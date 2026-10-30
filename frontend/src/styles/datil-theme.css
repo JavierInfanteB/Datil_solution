@@ -83,15 +83,10 @@ h1, h2, h3 {
 }
 
 .datil-logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   width: 2.25rem;
   height: 2.25rem;
-  border-radius: 6px;
-  background: var(--datil-accent);
-  color: #14161c;
-  font-weight: 800;
+  color: var(--datil-accent); /* el mosaico y las barras del logo pintan con currentColor */
   flex-shrink: 0;
 }
 
@@ -417,6 +412,7 @@ h1, h2, h3 {
 }
 
 .datil-form-row select,
+.datil-table select,
 .datil-form-row input,
 .datil-search-input,
 .datil-login-card input {
@@ -772,6 +768,26 @@ h1, h2, h3 {
   width: 100%;
 }
 
+.datil-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--datil-accent-dark);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.datil-suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  font-size: 0.87rem;
+  line-height: 1.5;
+}
 .datil-success {
   color: var(--datil-up);
   font-size: 0.86rem;

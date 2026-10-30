@@ -1,49 +1,54 @@
 """Reglas de negocio para medir el riesgo de una accion (sin I/O).
 
 Pregunta que responde: "si compro esto y lo mantengo un ano, ¿que tan
-probable es que sea una mala experiencia?". Se mide con cinco senales
+probable es que sea una mala experiencia?". Solo mide riesgo (cuanto y que tan
+feo puede caer), nunca ganancias esperadas. Se mide con cuatro senales
 historicas, cada una llevada a una escala 0-100 entre un umbral "bajo" y uno
 "alto", y el puntaje final es el promedio ponderado:
 
-    volatilidad (1 ano)  25   cuanto se mueve el precio dia a dia
-    caida maxima (3 a.)  25   la peor caida pico-a-valle que ya vivio
-    peor mes (3 a.)      15   el peor mes que ya vivio
-    beta                 30   cuanto amplifica los movimientos del mercado global
-    distancia al maximo   5   si hoy viene cayendo (52 semanas)
+    volatilidad (3 a.)   25   cuanto se mueve el precio dia a dia
+    perdida en peores    20   perdida promedio en el 5% de los peores dias (CVaR)
+      dias (3 a.)
+    caida maxima (3 a.)  15   la peor caida pico-a-valle que ya vivio
+    beta                 40   cuanto amplifica los movimientos del mercado global
 
 Los pesos y umbrales (RULES) se calibraron con scripts/backtest_risk.py, que
-compara el puntaje contra lo que realmente paso los 12 meses siguientes: la
-beta fue la senal que mejor distinguio y la distancia al maximo la mas debil,
-por eso se movieron pesos de una a otra. Con 60 acciones y solo un par de
-crisis en la muestra, el ajuste es deliberadamente moderado; si se vuelve a
-calibrar, hay que correr el backtest otra vez y comparar.
-Volatilidad, caidas y peor mes se miden en PESOS, porque es el
-dinero del usuario: una accion extranjera tambien lleva el riesgo cambiario.
-La beta usa los precios en su moneda original contra un ETF global, con
-rendimientos semanales para que los distintos horarios de bolsa no la sesguen.
+compara el puntaje contra lo que realmente paso los 12 meses siguientes
+(AUC contra "caida >= 30%": 0.68 con el modelo anterior de cinco senales, 0.71
+con este, y mejor en las cuatro rebanadas del periodo). Lo que se probo:
+  - Ventana de 3 anos en vez de 1 para la volatilidad: mejor en las dos mitades.
+  - Perdida en los peores dias (cola izquierda): mejor que la volatilidad sola.
+  - Semidesviacion (solo los dias de baja) en lugar de volatilidad: no mejoro, se descarto.
+  - Peor mes y distancia al maximo de 52 semanas: las mas debiles y redundantes, se quitaron.
+Con 59 acciones y solo un par de crisis en la muestra, las diferencias de ~0.005
+entre combinaciones de pesos son ruido: el ajuste es deliberadamente moderado y,
+si se vuelve a calibrar, hay que correr el backtest otra vez y comparar.
+Volatilidad, perdidas y caidas se miden en PESOS, porque es el dinero del
+usuario: una accion extranjera tambien lleva el riesgo cambiario. La beta usa
+los precios en su moneda original contra un ETF global, con rendimientos
+semanales para que los distintos horarios de bolsa no la sesguen.
 """
 import math
 from datetime import date
 from statistics import mean, stdev
 
 TRADING_DAYS = 252
-YEAR_WINDOW = TRADING_DAYS
 LONG_WINDOW = 3 * TRADING_DAYS
-MONTH_DAYS = 21
 MIN_RETURNS = 250  # menos de ~1 ano de historia no alcanza para medir riesgo
+TAIL_SHARE = 0.05  # fraccion de los peores dias que promedia la perdida de cola
 BETA_MAX_WEEKS = 156
 BETA_MIN_WEEKS = 52
 
 # weight: peso en el puntaje. low/high: valor que da 0 y valor que da 100.
+# tail_loss: low/high salen de los de la volatilidad (CVaR diario ~ 2.06 x vol / raiz de 252), no de ajustarlos a la muestra.
 RULES = [
-    {"id": "volatility", "label": "Volatilidad anual (1 año)", "weight": 25, "low": 15, "high": 60, "unit": "%"},
-    {"id": "max_drawdown", "label": "Caída máxima (3 años)", "weight": 25, "low": 10, "high": 60, "unit": "%"},
-    {"id": "worst_month", "label": "Peor mes (3 años)", "weight": 15, "low": 5, "high": 35, "unit": "%"},
-    {"id": "beta", "label": "Beta vs mercado global", "weight": 30, "low": 0.6, "high": 1.8, "unit": ""},
-    {"id": "current_drawdown", "label": "Distancia al máximo de 52 semanas", "weight": 5, "low": 0, "high": 40, "unit": "%"},
+    {"id": "volatility", "label": "Volatilidad anual (3 años)", "weight": 25, "low": 15, "high": 60, "unit": "%"},
+    {"id": "tail_loss", "label": "Pérdida en los peores días (3 años)", "weight": 20, "low": 1.95, "high": 7.8, "unit": "%"},
+    {"id": "max_drawdown", "label": "Caída máxima (3 años)", "weight": 15, "low": 10, "high": 60, "unit": "%"},
+    {"id": "beta", "label": "Beta vs mercado global", "weight": 40, "low": 0.6, "high": 1.8, "unit": ""},
 ]
-MEDIUM_FROM = 35  # puntaje < 35 = bajo
-HIGH_FROM = 60  # puntaje >= 60 = alto; "riesgosa" = alto
+MEDIUM_FROM = 30  # puntaje < 30 = bajo (el frontend repite estos cortes en components/RiskParts.jsx)
+HIGH_FROM = 55  # puntaje >= 55 = alto; "riesgosa" = alto
 
 
 def level_of(score):
@@ -70,14 +75,16 @@ def max_drawdown(prices):
 
 
 def annual_volatility(prices):
-    returns = log_returns(prices)[-YEAR_WINDOW:]
+    returns = log_returns(prices)[-LONG_WINDOW:]
     return stdev(returns) * math.sqrt(TRADING_DAYS)
 
 
-def worst_month(prices):
-    """Peor rendimiento en ventanas de ~un mes, como fraccion positiva."""
-    losses = [1 - prices[i] / prices[i - MONTH_DAYS] for i in range(MONTH_DAYS, len(prices))]
-    return max(0.0, max(losses)) if losses else 0.0
+def tail_loss(prices):
+    """Perdida diaria promedio en el 5% de los peores dias (CVaR / expected shortfall),
+    como fraccion positiva (0.04 = -4% en un mal dia). Con poca historia usa la que haya."""
+    returns = sorted(log_returns(prices)[-LONG_WINDOW:])
+    worst = returns[: max(1, int(len(returns) * TAIL_SHARE))]
+    return max(0.0, -mean(worst))
 
 
 def weekly_returns(series):
@@ -113,14 +120,11 @@ def compute_metrics(series_mxn, series_native=None, bench_native=None):
             f"Historia insuficiente: {len(prices) - 1} días de rendimientos, se necesitan al menos {MIN_RETURNS}"
         )
 
-    long_prices = prices[-LONG_WINDOW - 1:]
     metrics = {
         "volatility": annual_volatility(prices) * 100,
-        "max_drawdown": max_drawdown(long_prices) * 100,
-        "worst_month": worst_month(long_prices) * 100,
-        "current_drawdown": (1 - prices[-1] / max(prices[-YEAR_WINDOW:])) * 100,
+        "tail_loss": tail_loss(prices) * 100,
+        "max_drawdown": max_drawdown(prices[-LONG_WINDOW - 1:]) * 100,
         "beta": None,
-        "return_1y": (prices[-1] / prices[-YEAR_WINDOW - 1] - 1) * 100 if len(prices) > YEAR_WINDOW else None,
         "volatility_native": None,
     }
     if series_native and len(series_native) - 1 >= MIN_RETURNS:
