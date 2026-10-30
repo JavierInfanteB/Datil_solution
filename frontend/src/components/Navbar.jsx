@@ -5,7 +5,7 @@ import Logo from "./Logo";
 
 const ROLE_LABEL = { admin: "Administrador", consultor: "Consultor" };
 
-export default function Navbar({ modules, active, onSelect }) {
+export default function Navbar({ modules, active, onSelect, badges = {} }) {
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   // Solo aplica en celular: ahí el menú se pliega detrás del botón "Menú".
@@ -47,6 +47,11 @@ export default function Navbar({ modules, active, onSelect }) {
                   onClick={() => (isActive ? setMenuOpen(false) : select(mod))}
                 >
                   {mod.name}
+                  {badges[mod.id] > 0 && (
+                    <span className="datil-badge" title="Sin leer">
+                      {badges[mod.id]}
+                    </span>
+                  )}
                 </button>
                 {mod.sections.length > 0 && (
                   <div className="datil-nav-sub">

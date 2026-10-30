@@ -38,6 +38,7 @@ def require_auth(f):
         g.current_user = {
             "id": record["id"],
             "username": record["username"],
+            "name": record["name"],
             "role": record["role"],
             "puesto": record.get("puesto"),
             "jti": payload["jti"],

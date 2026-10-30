@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import apiClient from "../api/client";
 import { formatCurrency } from "../utils/format";
 import { apiError, pct } from "../utils/risk";
+import NotifyClient from "./NotifyClient";
 import { PortfolioRiskDetail } from "./PortfolioRisk";
 import { RiskBadge, SeverityTag } from "./RiskParts";
 
 const SIDE_LABEL = { buy: "Compra", sell: "Venta", coupon: "Cupón", redeem: "Vencimiento" };
+// Decisiones que piden mover algo: se mandan como acción sugerida; el resto, como aviso de riesgo.
+const ACTION_IDS = new Set(["concentration", "risky_stock"]);
 
 // Detalle de un cliente para su consultor: qué decisiones conviene tomar, qué tiene, cómo está de riesgo y,
 // operación por operación, en qué contexto de riesgo compró y vendió.
@@ -14,6 +17,13 @@ export default function ClientDetail({ username, onBack }) {
   const [timeline, setTimeline] = useState(null);
   const [error, setError] = useState("");
   const [timelineError, setTimelineError] = useState("");
+  const [draft, setDraft] = useState(null);
+
+  // Precarga el formulario de aviso con una decisión sugerida y lleva hasta él.
+  const notify = (d) => {
+    setDraft({ kind: ACTION_IDS.has(d.id) ? "accion" : "riesgo", title: d.title.slice(0, 80), message: d.detail });
+    document.getElementById("avisar")?.scrollIntoView({ behavior: "smooth" });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -43,7 +53,8 @@ export default function ClientDetail({ username, onBack }) {
       </div>
       {error && <p className="datil-error">{error}</p>}
       {!error && !detail && <p>Calculando el riesgo del cliente...</p>}
-      {detail && <Overview detail={detail} />}
+      {detail && <Overview detail={detail} onNotify={notify} />}
+      {detail && <NotifyClient username={username} draft={draft} />}
 
       <section className="datil-card">
         <h2>Tiempos de compra y venta</h2>
@@ -55,7 +66,7 @@ export default function ClientDetail({ username, onBack }) {
   );
 }
 
-function Overview({ detail }) {
+function Overview({ detail, onNotify }) {
   const { client, portfolio, risk, decisions } = detail;
   return (
     <>
@@ -86,7 +97,10 @@ function Overview({ detail }) {
             {decisions.map((d, i) => (
               <li key={`${d.id}-${i}`}>
                 <SeverityTag severity={d.severity} /> <strong>{d.title}</strong>
-                <span className="datil-period-tag"> {d.detail}</span>
+                <span className="datil-period-tag"> {d.detail} </span>
+                <button className="datil-link" onClick={() => onNotify(d)}>
+                  Enviar al cliente
+                </button>
               </li>
             ))}
           </ul>

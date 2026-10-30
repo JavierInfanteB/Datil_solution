@@ -82,8 +82,21 @@ class AccountsApiTest(unittest.TestCase):
 
     def test_el_puesto_da_los_modulos_y_el_usuario_no_ve_permisos(self):
         modules = self.http.get("/api/permissions/me", headers=self.as_user("beto")).get_json()["modules"]
-        self.assertEqual(set(modules), {"portfolio", "trading", "risk"})
+        self.assertEqual(set(modules), {"portfolio", "trading", "risk", "avisos"})
         self.assertEqual(self.http.get("/api/permissions", headers=self.as_user("beto")).status_code, 403)
+
+    def test_cada_rol_ve_solo_sus_modulos_personales(self):
+        def modules(who):
+            return set(self.http.get("/api/permissions/me", headers=self.as_user(who)).get_json()["modules"])
+
+        self.assertEqual(modules("ana"), {"consultor"})
+        admin = modules("root")
+        self.assertIn("permissions", admin)
+        self.assertTrue({"consultor", "avisos"}.isdisjoint(admin))  # ni el admin ve "Mis clientes" ni la bandeja
+
+        # Darle "consultor" a un usuario no le abre el panel: el rol decide.
+        self.http.put("/api/permissions/beto", headers=self.as_user("root"), json={"modules": ["consultor"]})
+        self.assertNotIn("consultor", modules("beto"))
 
     def test_cambiar_un_puesto_llega_a_todos_sus_miembros(self):
         admin = self.as_user("root")
@@ -171,11 +184,42 @@ class AccountsApiTest(unittest.TestCase):
             self.assertEqual(self.http.get("/api/consultant/clients/carla", headers=ana).status_code, 404)
             self.assertEqual(self.http.get("/api/consultant/clients/carla/timeline", headers=ana).status_code, 404)
 
-    def test_el_admin_ve_a_todos_los_usuarios(self):
-        with mock.patch("modules.consultant.build_portfolio_view", fake_view), \
-                mock.patch("modules.consultant.portfolio_risk_for", fake_risk):
-            data = self.http.get("/api/consultant/dashboard", headers=self.as_user("root")).get_json()
-        self.assertEqual({c["username"] for c in data["clients"]}, {"beto", "carla"})
+    def test_el_admin_no_usa_el_panel_del_consultor(self):
+        self.assertEqual(self.http.get("/api/consultant/dashboard", headers=self.as_user("root")).status_code, 403)
+
+    # ---------------------------------------------------------------- avisos
+
+    def test_el_consultor_avisa_y_el_cliente_lo_ve_y_lo_marca_leido(self):
+        ana, beto = self.as_user("ana"), self.as_user("beto")
+        sent = self.http.post("/api/consultant/clients/beto/notifications", headers=ana, json={
+            "kind": "riesgo", "title": "AAPL pesa mucho", "message": "Conviene reducirla."})
+        self.assertEqual(sent.status_code, 201)
+
+        inbox = self.http.get("/api/notifications", headers=beto).get_json()
+        self.assertEqual(inbox["unread"], 1)
+        self.assertEqual((inbox["items"][0]["title"], inbox["items"][0]["from_name"]), ("AAPL pesa mucho", "Ana"))
+
+        self.assertEqual(self.http.post(f"/api/notifications/{sent.get_json()['id']}/read", headers=beto).status_code, 200)
+        self.assertEqual(self.http.get("/api/notifications", headers=beto).get_json()["unread"], 0)
+        history = self.http.get("/api/consultant/clients/beto/notifications", headers=ana).get_json()
+        self.assertTrue(history[0]["read"])
+
+    def test_los_avisos_se_validan_y_son_privados(self):
+        ana = self.as_user("ana")
+        url = "/api/consultant/clients/beto/notifications"
+        self.assertEqual(self.http.post(url, headers=ana, json={"kind": "spam", "title": "x", "message": "y"}).status_code, 400)
+        self.assertEqual(self.http.post(url, headers=ana, json={"title": " ", "message": "y"}).status_code, 400)
+        self.assertEqual(self.http.post(url, headers=ana, json={"title": "x" * 81, "message": "y"}).status_code, 400)
+        # Solo a sus clientes: carla es de dora.
+        self.assertEqual(self.http.post("/api/consultant/clients/carla/notifications", headers=ana,
+                                        json={"title": "x", "message": "y"}).status_code, 404)
+
+        self.http.post(url, headers=ana, json={"title": "Hola", "message": "Para Beto"})
+        carla = self.http.get("/api/notifications", headers=self.as_user("carla")).get_json()
+        self.assertEqual(carla["items"], [])  # lo de Beto no le llega a Carla
+        # El consultor no tiene bandeja y el usuario no puede mandar avisos.
+        self.assertEqual(self.http.get("/api/notifications", headers=ana).status_code, 403)
+        self.assertEqual(self.http.post(url, headers=self.as_user("beto"), json={"title": "x", "message": "y"}).status_code, 403)
 
 
 if __name__ == "__main__":

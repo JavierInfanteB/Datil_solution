@@ -17,9 +17,13 @@ MODULES = {
     "portfolio": [],
     "trading": ["accion", "bono"],
     "risk": [],
+    "avisos": [],
     "consultor": [],
     "permissions": [],
 }
+# Modulos personales de un rol: solo ese rol los usa ("Mis clientes" es del consultor y la bandeja de
+# avisos es del usuario). Ni el admin los ve, aunque lo controle todo; el resto de modulos sirve a cualquier rol.
+ROLE_ONLY = {"consultor": "consultor", "avisos": "usuario"}
 AVAILABLE_PERMISSIONS = set(MODULES) | {f"{m}.{s}" for m, sections in MODULES.items() for s in sections}
 PUESTO_NAME = re.compile(r"^[\w .-]{1,40}$")  # sin "/" : el nombre viaja en la URL
 
@@ -31,10 +35,10 @@ def _valid(modules):
 @permissions_bp.route("/me", methods=["GET"])
 @require_auth
 def get_my_permissions():
-    if g.current_user["role"] == "admin":
-        return jsonify({"modules": list(MODULES)})
-
-    return jsonify({"modules": effective_permissions(g.current_user)})
+    user = g.current_user
+    granted = list(MODULES) if user["role"] == "admin" else effective_permissions(user)
+    usable = [p for p in granted if ROLE_ONLY.get(p.split(".")[0], user["role"]) == user["role"]]
+    return jsonify({"modules": usable})
 
 
 @permissions_bp.route("", methods=["GET"])

@@ -1,7 +1,9 @@
-"""Panel del consultor: los clientes que tiene asignados, su actividad, su riesgo y que decisiones tomar.
+"""Panel del consultor: los clientes que tiene asignados, su actividad, su riesgo, que decisiones tomar
+y los avisos que les manda.
 
-El consultor solo ve a sus clientes (el admin ve a todos los usuarios) y solo lee: las carteras se
-consultan sin cobrar cupones ni ejecutar ordenes pendientes (ver build_portfolio_view).
+Es un panel personal: solo el consultor lo usa y solo ve a sus clientes (el admin los asigna desde
+Usuarios y permisos). Las carteras se consultan sin cobrar cupones ni ejecutar ordenes pendientes
+(ver build_portfolio_view); lo unico que el consultor escribe son avisos.
 """
 from datetime import date, timedelta
 
@@ -9,8 +11,8 @@ from flask import Blueprint, g, jsonify, request
 
 from modules.portfolio import build_portfolio_view
 from modules.risk import BENCHMARK, load_stock, portfolio_risk_for
-from utils import advice, trade_timing
-from utils.accounts import clients_of, load_users
+from utils import advice, notifications, trade_timing
+from utils.accounts import clients_of
 from utils.data_store import read_json
 from utils.decorators import require_auth, require_permission, require_role
 
@@ -19,16 +21,15 @@ consultant_bp = Blueprint("consultant", __name__, url_prefix="/api/consultant")
 TOP = 5
 MAX_SUGGESTIONS = 20
 MAX_DAYS = 365
+MAX_TITLE = 80
+MAX_MESSAGE = 1000
 TIMELINE_LIMIT = 100
 TRADE_FIELDS = ("id", "date", "type", "side", "symbol", "name", "quantity", "price", "currency",
                 "total_mxn", "realized_pnl_mxn")
 
 
 def _clients():
-    user = g.current_user
-    if user["role"] == "admin":
-        return [u for u in load_users() if u["role"] == "usuario"]
-    return clients_of(user["username"])
+    return clients_of(g.current_user["username"])
 
 
 def _client(username):
@@ -37,7 +38,7 @@ def _client(username):
 
 @consultant_bp.route("/dashboard", methods=["GET"])
 @require_auth
-@require_role("consultor", "admin")
+@require_role("consultor")
 @require_permission("consultor")
 def dashboard():
     days = min(max(request.args.get("days", 30, type=int), 1), MAX_DAYS)
@@ -105,7 +106,7 @@ def dashboard():
 
 @consultant_bp.route("/clients/<username>", methods=["GET"])
 @require_auth
-@require_role("consultor", "admin")
+@require_role("consultor")
 @require_permission("consultor")
 def client_detail(username):
     client = _client(username)
@@ -138,7 +139,7 @@ def _timing(trade):
 
 @consultant_bp.route("/clients/<username>/timeline", methods=["GET"])
 @require_auth
-@require_role("consultor", "admin")
+@require_role("consultor")
 @require_permission("consultor")
 def client_timeline(username):
     if _client(username) is None:
@@ -153,3 +154,35 @@ def client_timeline(username):
         row["timing"] = _timing(t) if t["type"] == "accion" and t["side"] in ("buy", "sell") else None
         rows.append(row)
     return jsonify(rows)
+
+
+@consultant_bp.route("/clients/<username>/notifications", methods=["GET"])
+@require_auth
+@require_role("consultor")
+@require_permission("consultor")
+def sent_notifications(username):
+    """Los avisos que este consultor le ha mandado al cliente, del mas nuevo al mas viejo, y si ya los leyo."""
+    if _client(username) is None:
+        return jsonify({"error": "Cliente no encontrado"}), 404
+    sent = [n for n in notifications.load().get(username, []) if n["from"] == g.current_user["username"]]
+    return jsonify(list(reversed(sent)))
+
+
+@consultant_bp.route("/clients/<username>/notifications", methods=["POST"])
+@require_auth
+@require_role("consultor")
+@require_permission("consultor")
+def send_notification(username):
+    if _client(username) is None:
+        return jsonify({"error": "Cliente no encontrado"}), 404
+
+    body = request.get_json(silent=True) or {}
+    kind = body.get("kind") or "aviso"
+    title = (body.get("title") or "").strip()
+    message = (body.get("message") or "").strip()
+    if kind not in notifications.KINDS:
+        return jsonify({"error": "Tipo de aviso inválido"}), 400
+    if not 1 <= len(title) <= MAX_TITLE or not 1 <= len(message) <= MAX_MESSAGE:
+        return jsonify({"error": f"El título (hasta {MAX_TITLE}) y el mensaje (hasta {MAX_MESSAGE}) son requeridos"}), 400
+
+    return jsonify(notifications.add(username, g.current_user, kind, title, message)), 201

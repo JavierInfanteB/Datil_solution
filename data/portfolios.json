@@ -54,5 +54,60 @@
         "cost_estimated": true
       }
     ]
+  },
+  "usuario": {
+    "cash": 73704.89,
+    "holdings": [
+      {
+        "symbol": "TSLA",
+        "name": "Tesla, Inc.",
+        "type": "accion",
+        "currency": "USD",
+        "quantity": 18,
+        "avg_cost": 305.1183,
+        "cost_basis_mxn": 110266.96,
+        "cost_estimated": false
+      },
+      {
+        "symbol": "AAPL",
+        "name": "Apple Inc.",
+        "type": "accion",
+        "currency": "USD",
+        "quantity": 45,
+        "avg_cost": 200.7299,
+        "cost_basis_mxn": 173360.14,
+        "cost_estimated": false
+      },
+      {
+        "symbol": "MSFT",
+        "name": "Microsoft Corp.",
+        "type": "accion",
+        "currency": "USD",
+        "quantity": 10,
+        "avg_cost": 515.4689,
+        "cost_basis_mxn": 94755.35,
+        "cost_estimated": false
+      },
+      {
+        "symbol": "GOOGL",
+        "name": "Alphabet Inc.",
+        "type": "accion",
+        "currency": "USD",
+        "quantity": 12,
+        "avg_cost": 343.0227,
+        "cost_basis_mxn": 71898.48,
+        "cost_estimated": false
+      },
+      {
+        "symbol": "NVDA",
+        "name": "NVIDIA Corporation",
+        "type": "accion",
+        "currency": "USD",
+        "quantity": 20,
+        "avg_cost": 226.32,
+        "cost_basis_mxn": 82659.17,
+        "cost_estimated": false
+      }
+    ]
   }
 }
