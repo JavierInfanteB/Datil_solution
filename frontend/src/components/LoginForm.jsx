@@ -2,6 +2,13 @@ import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import Logo from "./Logo";
 
+// Cuentas del demo público (solo lectura); los datos de prueba están en data/users.json.
+const DEMO_ACCOUNTS = [
+  { role: "Administrador", username: "admin", password: "admin", about: "Controla el sistema: usuarios, puestos y permisos." },
+  { role: "Consultor", username: "consultor", password: "consultor", about: "Ve a sus clientes, su riesgo y les manda avisos." },
+  { role: "Usuario", username: "usuario", password: "usuario", about: "Compra y vende, y ve su cartera, sus riesgos y los avisos de su consultor." },
+];
+
 export default function LoginForm() {
   const { login } = useAuth();
   const [username, setUsername] = useState("");
@@ -42,7 +49,27 @@ export default function LoginForm() {
           {loading ? "Ingresando..." : "Iniciar sesión"}
         </button>
         {import.meta.env.VITE_DEMO && (
-          <p className="datil-demo-hint">Cuenta de prueba: usuario <b>admin</b> · contraseña <b>admin</b>. Solo lectura.</p>
+          <div className="datil-demo-hint">
+            <p>Cuentas de prueba, solo lectura. Toca una para llenar los datos:</p>
+            <ul className="datil-demo-accounts">
+              {DEMO_ACCOUNTS.map((a) => (
+                <li key={a.username}>
+                  <button
+                    type="button"
+                    className="datil-link"
+                    onClick={() => {
+                      setUsername(a.username);
+                      setPassword(a.password);
+                    }}
+                  >
+                    {a.role}
+                  </button>{" "}
+                  usuario <b>{a.username}</b> · contraseña <b>{a.password}</b>
+                  <div>{a.about}</div>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </form>
     </div>

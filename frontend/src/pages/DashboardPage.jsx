@@ -7,6 +7,7 @@ export default function DashboardPage() {
   const [modules, setModules] = useState(null);
   const [active, setActive] = useState({ moduleId: null, sectionId: null });
   const [error, setError] = useState("");
+  const [unread, setUnread] = useState(0); // avisos sin leer del usuario, para el contador del menú
 
   // Abrir un módulo sin sección elegida cae en su primera sección permitida.
   const open = (mod, sectionId = mod?.sections[0]?.id ?? null) => setActive({ moduleId: mod?.id ?? null, sectionId });
@@ -18,6 +19,9 @@ export default function DashboardPage() {
         const available = getAvailableModules(data.modules);
         setModules(available);
         open(available[0]);
+        if (available.some((m) => m.id === "avisos")) {
+          apiClient.get("/api/notifications").then(({ data }) => setUnread(data.unread)).catch(() => {});
+        }
       })
       .catch(() => setError("No se pudieron cargar tus permisos."));
   }, []);
@@ -31,10 +35,14 @@ export default function DashboardPage() {
 
   return (
     <div className="datil-app">
-      <Navbar modules={modules} active={active} onSelect={open} />
+      <Navbar modules={modules} active={active} onSelect={open} badges={{ avisos: unread }} />
       <div className="datil-content-area">
         <main className="datil-content">
-          {ActiveModule ? <ActiveModule section={activeSection} /> : <p>No tienes módulos habilitados todavía.</p>}
+          {ActiveModule ? (
+            <ActiveModule section={activeSection} onUnreadChange={setUnread} />
+          ) : (
+            <p>No tienes módulos habilitados todavía.</p>
+          )}
         </main>
       </div>
     </div>

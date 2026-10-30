@@ -1,5 +1,6 @@
 import Portfolio from "./Portfolio";
 import Trading from "./Trading";
+import Avisos from "./Avisos";
 import Consultor from "./Consultor";
 import Permissions from "./Permissions";
 import { isGranted } from "../utils/permissions";
@@ -22,8 +23,9 @@ export const MODULE_REGISTRY = [
       { id: "bono", name: "Bonos y CETES" },
     ],
   },
-  { id: "consultor", name: "Mis clientes", Component: Consultor, order: 3 },
-  { id: "permissions", name: "Usuarios y permisos", Component: Permissions, order: 4 },
+  { id: "avisos", name: "Avisos", Component: Avisos, order: 3 },
+  { id: "consultor", name: "Mis clientes", Component: Consultor, order: 4 },
+  { id: "permissions", name: "Usuarios y permisos", Component: Permissions, order: 5 },
 ];
 
 export function getAvailableModules(granted) {

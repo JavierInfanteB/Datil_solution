@@ -414,6 +414,7 @@ h1, h2, h3 {
 .datil-form-row select,
 .datil-table select,
 .datil-form-row input,
+.datil-form-row textarea,
 .datil-search-input,
 .datil-login-card input {
   padding: 0.55rem 0.7rem;
@@ -921,8 +922,35 @@ h1, h2, h3 {
 }
 
 .datil-demo-hint {
-  margin: 0;
   font-size: 13px;
-  text-align: center;
   color: var(--datil-text-muted);
+}
+.datil-demo-hint p {
+  margin: 0;
+  text-align: center;
+}
+.datil-demo-accounts {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  line-height: 1.4;
+}
+.datil-badge {
+  display: inline-block;
+  min-width: 1.2rem;
+  margin-left: 0.5rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--datil-accent);
+  color: #14161c;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-align: center;
+}
+.datil-notice-text {
+  margin-top: 0.3rem;
+  white-space: pre-line;
 }
