@@ -2,8 +2,9 @@
 import { pct, SCORE_EXPLANATION } from "../utils/risk";
 
 const LEVEL_LABEL = { bajo: "Riesgo bajo", medio: "Riesgo medio", alto: "Riesgo alto" };
-const MEDIUM_FROM = 35;
-const HIGH_FROM = 60;
+// Mismos cortes que MEDIUM_FROM / HIGH_FROM en backend/utils/risk_engine.py.
+const MEDIUM_FROM = 30;
+const HIGH_FROM = 55;
 
 export function RiskBadge({ level, score }) {
   if (!level) return <span className="datil-period-tag">N/D</span>;
@@ -12,6 +13,13 @@ export function RiskBadge({ level, score }) {
       {LEVEL_LABEL[level]} · {score}
     </span>
   );
+}
+
+// Prioridad de una sugerencia del consultor (alta / media / baja), con los colores de los niveles de riesgo.
+const SEVERITY_LEVEL = { alta: "alto", media: "medio", baja: "bajo" };
+
+export function SeverityTag({ severity }) {
+  return <span className={`datil-risk datil-risk-${SEVERITY_LEVEL[severity]}`}>{severity}</span>;
 }
 
 // Barra 0-100 con las tres zonas del puntaje y un marcador en el valor.
@@ -46,10 +54,12 @@ export function StockRiskDetail({ data }) {
 
       <div className="datil-summary-grid">
         <div>
-          <span className="datil-label">Rendimiento 12 meses (MXN)</span>
-          <strong className={data.metrics.return_1y >= 0 ? "datil-up" : "datil-down"}>
-            {pct(data.metrics.return_1y)}
-          </strong>
+          <span className="datil-label">Caída máxima (3 años, MXN)</span>
+          <strong>{pct(data.metrics.max_drawdown)}</strong>
+        </div>
+        <div>
+          <span className="datil-label">Pérdida en los peores días</span>
+          <strong>{pct(data.metrics.tail_loss)}</strong>
         </div>
         <div>
           <span className="datil-label">Volatilidad en pesos</span>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import Logo from "./Logo";
 
 export default function LoginForm() {
   const { login } = useAuth();
@@ -25,7 +26,7 @@ export default function LoginForm() {
     <div className="datil-login-page">
       <form className="datil-login-card" onSubmit={handleSubmit}>
         <div className="datil-brand datil-brand-center">
-          <span className="datil-logo">D</span>
+          <Logo />
           <h1>Datil Solutions</h1>
         </div>
         <label>

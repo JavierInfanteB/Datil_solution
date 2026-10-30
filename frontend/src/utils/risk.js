@@ -7,8 +7,9 @@ export const pct = (value) => (value == null ? "N/D" : `${value.toFixed(1)}%`);
 
 export const SCORE_EXPLANATION =
   "Mide qué tanto suele caer una acción, con datos históricos hasta hoy. En pruebas con 10 años de historia, las " +
-  "acciones de riesgo alto tuvieron caídas de 30% o más en el año siguiente unas 2.5 veces más seguido que las de " +
-  "riesgo bajo. No predice si va a subir o bajar, y el pasado no garantiza el futuro. No es asesoría financiera.";
+  "acciones de riesgo alto tuvieron caídas de 30% o más en el año siguiente casi 3 veces más seguido (60% contra " +
+  "21%) que las de riesgo bajo. No predice si va a subir o bajar, y el pasado no garantiza el futuro. No es " +
+  "asesoría financiera.";
 
 // Riesgo de una acción (GET /api/risk/stock/<símbolo>), para la pantalla de Comprar / Vender.
 // forbidden: el usuario no tiene el módulo de riesgo, así que la pantalla puede omitirlo sin mostrar un error.
