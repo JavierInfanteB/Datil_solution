@@ -134,15 +134,23 @@ function Body({ r }) {
 export const withProgress = (goals, total) => goals.map((g) => ({ ...g, progress_pct: Math.round((total / g.target_mxn) * 1000) / 10 }));
 
 // Metas con su avance: patrimonio actual contra el monto que se quiere alcanzar.
-export function Goals({ goals }) {
+export function Goals({ goals, onRemove }) {
   return (
     <ul className="datil-suggestions">
       {goals.map((g) => (
         <li key={g.id}>
           <strong>{g.title}</strong>: {formatCurrency(g.target_mxn)}
           {g.target_date && <span className="datil-period-tag"> para {g.target_date}</span>}
-          <div className="datil-meter" role="img" aria-label={`Avance ${g.progress_pct}%`}>
-            <div style={{ width: `${Math.min(g.progress_pct, 100)}%`, height: "100%", background: "var(--datil-accent)" }} />
+          {onRemove && (
+            <>
+              {" "}
+              <button className="datil-link" onClick={() => onRemove(g)}>
+                Quitar
+              </button>
+            </>
+          )}
+          <div className="datil-progress" role="img" aria-label={`Avance ${g.progress_pct}%`}>
+            <div style={{ width: `${Math.min(g.progress_pct, 100)}%` }} />
           </div>
           <span className="datil-period-tag">{g.progress_pct}% con el patrimonio de hoy</span>
         </li>

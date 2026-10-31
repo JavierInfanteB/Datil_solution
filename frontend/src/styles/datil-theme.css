@@ -341,16 +341,14 @@ h1, h2, h3 {
 .datil-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 1px;
-  background: var(--datil-border);
-  border: 1px solid var(--datil-border);
-  border-radius: 8px;
-  overflow: hidden;
+  gap: 0.75rem;
   margin-top: 1rem;
 }
 
 .datil-summary-grid > div {
   background: var(--datil-surface);
+  border: 1px solid var(--datil-border);
+  border-radius: 8px;
   padding: 1rem 1.25rem;
 }
 
@@ -953,4 +951,131 @@ h1, h2, h3 {
 .datil-notice-text {
   margin-top: 0.3rem;
   white-space: pre-line;
+}
+
+/* ---------- Formularios sueltos dentro de una tarjeta ---------- */
+
+.datil-card > label,
+.datil-card form > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-width: 420px;
+  margin: 1rem 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--datil-text-muted);
+}
+
+.datil-card label > input,
+.datil-card label > textarea,
+.datil-card label > select {
+  padding: 0.55rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--datil-border);
+  background: var(--datil-bg);
+  color: var(--datil-text);
+  font-size: 0.86rem;
+  font-family: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+
+.datil-card label > input:focus,
+.datil-card label > textarea:focus,
+.datil-card label > select:focus {
+  outline: none;
+  border-color: var(--datil-accent);
+}
+
+.datil-card textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.datil-success {
+  color: var(--datil-up);
+  font-weight: 600;
+}
+
+/* ---------- Distribucion: tarjetas lado a lado para no dejar huecos ---------- */
+
+.datil-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.datil-grid-2 > .datil-card {
+  margin-bottom: 0;
+}
+
+.datil-grid-2 + .datil-card,
+.datil-grid-2 + .datil-grid-2 {
+  margin-top: 1.5rem;
+}
+
+/* ---------- Listas de sugerencias, notas y metas ---------- */
+
+.datil-suggestions {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.datil-suggestions > li {
+  padding: 0.7rem 0.9rem;
+  background: var(--datil-bg);
+  border: 1px solid var(--datil-border);
+  border-left: 3px solid var(--datil-accent);
+  border-radius: 6px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.datil-suggestions .datil-period-tag {
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.datil-progress {
+  height: 8px;
+  margin: 0.5rem 0 0.25rem;
+  background: var(--datil-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.datil-progress > div {
+  height: 100%;
+  background: var(--datil-accent);
+}
+
+.datil-card details {
+  border: 1px solid var(--datil-border);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  padding: 0.7rem 1rem;
+}
+
+.datil-card details[open] > summary {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--datil-border);
+}
+
+.datil-card summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.datil-section-note {
+  margin: 0.75rem 0 0;
 }

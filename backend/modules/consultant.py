@@ -5,15 +5,16 @@ Es un panel personal: solo el consultor lo usa y solo ve a sus clientes (el admi
 Usuarios y permisos). Las carteras se consultan sin cobrar cupones ni ejecutar ordenes pendientes
 (ver build_portfolio_view); lo unico que el consultor escribe son avisos.
 """
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 
 from flask import Blueprint, g, jsonify, request
 
 from modules.insights import build_insights
 from modules.portfolio import build_portfolio_view
-from modules.risk import BENCHMARK, load_stock, portfolio_risk_for
+from modules.risk import BENCHMARK, assess, load_stock, portfolio_risk_for
 from modules.plan import parse_note, period_report, requested_period, GOALS, NOTES
-from utils import advice, alerts, notifications, records, trade_timing
+from utils import advice, alerts, ideas, notifications, records, trade_timing
 from utils.accounts import clients_of
 from utils.data_store import read_json
 from utils.decorators import require_auth, require_permission, require_role
@@ -307,3 +308,27 @@ def client_report(username):
     if error:
         return error
     return jsonify(period_report(username, requested_period()))
+
+
+def _idea(symbol):
+    try:
+        risk = assess(symbol)
+        if risk["level"] != "bajo":
+            return None
+        found = ideas.facts(load_stock(symbol)["series"])
+    except Exception:
+        return None  # sin historico de Yahoo o con historia insuficiente
+    why = ideas.reasons(found)
+    return {"symbol": symbol, "name": risk["name"], "risk": {"level": risk["level"], "score": risk["score"]},
+            "facts": found, "reasons": why} if why else None
+
+
+@consultant_bp.route("/ideas", methods=["GET"])
+@require_auth
+@require_role("consultor")
+@require_permission("consultor")
+def stock_ideas():
+    """Acciones de riesgo bajo cerca de su minimo o con buena tendencia: para revisar, no una prediccion."""
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        found = [i for i in pool.map(_idea, ideas.WATCHLIST) if i]
+    return jsonify({"ideas": sorted(found, key=lambda i: i["risk"]["score"]), "reviewed": len(ideas.WATCHLIST)})

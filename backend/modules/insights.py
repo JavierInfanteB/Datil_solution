@@ -46,6 +46,16 @@ def movements(held):
     return {"months": labels or [], "rows": rows}
 
 
+def pnl_row(client, view, transactions):
+    """Ganancia o perdida de un cliente: en posiciones abiertas, realizada con ventas, y su costo abierto."""
+    held = [h for h in view["holdings"] if h.get("gain_mxn") is not None]
+    unrealized = sum(h["gain_mxn"] for h in held)
+    realized = sum(t["realized_pnl_mxn"] for t in transactions if t.get("realized_pnl_mxn") is not None)
+    return {"username": client["username"], "client": client["name"], "unrealized": round(unrealized, 2),
+            "realized": round(realized, 2), "total": round(unrealized + realized, 2),
+            "cost": round(sum(h["value"] - h["gain_mxn"] for h in held), 2), "portfolio": view["portfolio_total"]}
+
+
 def build_insights(clients, days=30):
     """`clients`: usuarios (dicts con username y name). `days`: ventana de las tendencias."""
     first_day = (date.today() - timedelta(days=days - 1)).isoformat()
@@ -56,13 +66,10 @@ def build_insights(clients, days=30):
         username = client["username"]
         view = build_portfolio_view(username, settle=False)
         transactions = all_transactions.get(username, [])
-        unrealized = sum(h["gain_mxn"] for h in view["holdings"] if h.get("gain_mxn") is not None)
-        sold = [t for t in transactions if t.get("realized_pnl_mxn") is not None]
-        realized = sum(t["realized_pnl_mxn"] for t in sold)
-        for t in sold:
-            monthly_realized[t["date"][:7]] += t["realized_pnl_mxn"]
-        pnl.append({"username": username, "client": client["name"], "unrealized": round(unrealized, 2),
-                    "realized": round(realized, 2), "total": round(unrealized + realized, 2)})
+        for t in transactions:
+            if t.get("realized_pnl_mxn") is not None:
+                monthly_realized[t["date"][:7]] += t["realized_pnl_mxn"]
+        pnl.append(pnl_row(client, view, transactions))
 
         for h in view["holdings"]:
             if h["type"] == "accion":
