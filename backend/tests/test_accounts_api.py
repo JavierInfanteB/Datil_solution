@@ -184,11 +184,15 @@ class AccountsApiTest(unittest.TestCase):
             self.assertEqual([c["username"] for c in data["clients"]], ["beto"])
             self.assertEqual(data["totals"]["buys"], 1)
             self.assertEqual(data["totals"]["sells"], 1)
-            self.assertEqual(data["totals"]["alerts"], 2)  # AAPL: concentracion y riesgo alto, ambas de prioridad alta
+            self.assertEqual(data["totals"]["unrealized"], 100.0)
+            self.assertNotIn("suggestions", data)  # las sugerencias viven solo en /feed
             self.assertEqual(len(data["activity"]), 7)
             self.assertEqual(data["top_sales"][0]["realized_pnl_mxn"], 100.0)
             self.assertEqual(data["top_positions"][0]["symbol"], "AAPL")
-            self.assertEqual(data["suggestions"][0]["id"], "concentration")  # AAPL pesa 60%
+            self.assertEqual(self.http.get("/api/consultant/dashboard?client=beto", headers=ana).get_json()["totals"]["clients"], 1)
+            feed = self.http.get("/api/consultant/feed", headers=ana).get_json()["items"]
+            self.assertEqual((feed[0]["kind"], feed[0]["status"], feed[0]["symbol"]), ("sugerencia", "activa", "AAPL"))
+            self.assertTrue(feed[0]["when"].startswith("20"))
             self.assertEqual(self.http.get("/api/consultant/clients/beto", headers=ana).status_code, 200)
             self.assertEqual(self.http.get("/api/consultant/clients/carla", headers=ana).status_code, 404)
             self.assertEqual(self.http.get("/api/consultant/clients/carla/timeline", headers=ana).status_code, 404)
@@ -276,19 +280,21 @@ class AccountsApiTest(unittest.TestCase):
         self.http.post("/api/consultant/clients/beto/alerts", headers=ana, json={**bad, "percent": 20})
 
         with mock.patch("modules.consultant.build_portfolio_view", losing_view):
-            dashboard = self.http.get("/api/consultant/alerts", headers=ana).get_json()
-        self.assertEqual(dashboard["counts"]["3"], 1)  # la de 10% ya se cumplio; la de 20% va a la mitad
-        self.assertEqual([a["level"] for a in dashboard["alerts"]], [3, 0])
+            with mock.patch("modules.consultant.portfolio_risk_for", fake_risk):
+                feed = self.http.get("/api/consultant/feed", headers=ana).get_json()["items"]
+        alert_items = [i for i in feed if i["kind"] == "alerta"]
+        self.assertEqual([(i["severity"], i["title"]) for i in alert_items], [("alta", "AAPL: pérdida de 10% cumplida")])
+        self.assertIn("when", alert_items[0])  # la de 20% va a la mitad: no aparece aun
 
         inbox = self.http.get("/api/notifications", headers=beto).get_json()["items"]
         self.assertEqual(inbox[0]["title"], "Alerta cumplida: AAPL")
         self.assertIn("vender", inbox[0]["message"])
         # La que puso el consultor no es del cliente, ni al reves; y el aviso no se repite.
-        alert_ids = {a["by"]: a["id"] for a in dashboard["alerts"]}
+        alert_ids = {a["by"]: a["id"] for a in alerts.load()["beto"]}
         self.assertEqual(self.http.delete(f"/api/plan/alerts/{alert_ids['ana']}", headers=beto).status_code, 404)
         self.assertEqual(self.http.delete(f"/api/consultant/clients/beto/alerts/{alert_ids['beto']}", headers=ana).status_code, 404)
-        with mock.patch("modules.consultant.build_portfolio_view", losing_view):
-            self.http.get("/api/consultant/alerts", headers=ana)
+        with mock.patch("modules.consultant.build_portfolio_view", losing_view),                 mock.patch("modules.consultant.portfolio_risk_for", fake_risk):
+            self.http.get("/api/consultant/feed", headers=ana)
         self.assertEqual(len(self.http.get("/api/notifications", headers=beto).get_json()["items"]), 1)
 
     def test_metas_y_notas_llegan_al_consultor_y_las_privadas_no_salen(self):
@@ -337,17 +343,25 @@ class AccountsApiTest(unittest.TestCase):
         self.assertEqual(by_name["Dora"]["actions_30d"], 0)
         self.assertEqual(self.http.get("/api/admin/consultants", headers=ana).status_code, 403)
 
-    def test_la_actividad_se_filtra_por_rol(self):
+    def test_el_registro_dice_quien_y_por_donde_y_se_filtra_por_rol(self):
         self.http.post("/api/consultant/clients/beto/notifications", headers=self.as_user("ana"), json={"title": "Hola", "message": "x"})
+        root = self.as_user("root")
+        with mock.patch("modules.trading.get_current_price", return_value={"price": 10.0, "currency": "MXN"}),                 mock.patch("modules.trading.get_fx_to_mxn", return_value=1.0):
+            self.http.post("/api/trading/buy", headers=root, json={"symbol": "AAPL", "quantity": 1, "client": "beto"})
 
-        def roles(who):
-            rows = self.http.get("/api/activity", headers=self.as_user(who)).get_json()
-            return {r["role"] for r in rows}
+        def rows(who, kind="operaciones"):
+            return self.http.get(f"/api/activity?kind={kind}", headers=self.as_user(who)).get_json()
 
-        self.assertEqual(roles("root"), {"usuario", "consultor"})
-        self.assertEqual(roles("ana"), {"usuario", "consultor"})
-        self.assertEqual(roles("beto"), {"usuario"})  # el cliente solo ve operaciones de clientes: las suyas
-        self.assertEqual(roles("dora"), set())  # Beto no es su cliente ni Ana es ella
+        ops = rows("root")
+        self.assertEqual({(r["actor"], r["origin"]) for r in ops}, {("Beto", "cliente"), ("Root", "admin")})  # lo viejo es del cliente
+        self.assertEqual({r["consultant"] for r in ops}, {"ana"})
+        self.assertEqual(len(rows("beto")), 3)  # ve todo lo de su cartera, tambien lo que hizo el admin
+        self.assertEqual(len(rows("ana")), 3)
+        self.assertEqual(rows("dora"), [])
+        self.assertEqual([r["text"] for r in rows("root", "avisos")], ["Hola"])
+        self.assertEqual(rows("beto", "avisos"), [])  # el cliente tiene su bandeja de avisos, no este registro
+        self.assertEqual(len(rows("ana", "avisos")), 1)
+        self.assertEqual(rows("dora", "avisos"), [])
 
     def test_ideas_de_acciones_solo_con_motivo(self):
         flat = [("d", 100.0)] * 250

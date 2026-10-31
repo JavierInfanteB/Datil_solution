@@ -10,11 +10,11 @@ from datetime import date, timedelta
 
 from flask import Blueprint, g, jsonify, request
 
-from modules.insights import build_insights
+from modules.insights import build_insights, pnl_row
 from modules.portfolio import build_portfolio_view
 from modules.risk import BENCHMARK, assess, load_stock, portfolio_risk_for
 from modules.plan import parse_note, period_report, requested_period, GOALS, NOTES
-from utils import advice, alerts, ideas, notifications, records, trade_timing
+from utils import advice, alerts, ideas, notifications, records, signals, trade_timing
 from utils.accounts import clients_of
 from utils.data_store import read_json
 from utils.decorators import require_auth, require_permission, require_role
@@ -22,7 +22,6 @@ from utils.decorators import require_auth, require_permission, require_role
 consultant_bp = Blueprint("consultant", __name__, url_prefix="/api/consultant")
 
 TOP = 5
-MAX_SUGGESTIONS = 200
 MAX_DAYS = 365
 MAX_TITLE = 80
 MAX_MESSAGE = 1000
@@ -32,11 +31,13 @@ TRADE_FIELDS = ("id", "date", "type", "side", "symbol", "name", "quantity", "pri
 
 
 def _clients():
-    return clients_of(g.current_user["username"])
+    """Sus clientes, o solo el que pida el filtro `client` de la pantalla."""
+    only = request.args.get("client")
+    return [c for c in clients_of(g.current_user["username"]) if not only or c["username"] == only]
 
 
 def _client(username):
-    return next((c for c in _clients() if c["username"] == username), None)
+    return next((c for c in clients_of(g.current_user["username"]) if c["username"] == username), None)
 
 
 @consultant_bp.route("/dashboard", methods=["GET"])
@@ -50,7 +51,7 @@ def dashboard():
     all_transactions = read_json("transactions.json")
 
     activity = {(today - timedelta(days=n)).isoformat(): {"buys": 0, "sells": 0} for n in range(days - 1, -1, -1)}
-    rows, positions, sales, suggestions = [], [], [], []
+    rows, positions, sales = [], [], []
 
     # shortcut: un cliente tras otro (las cotizaciones de Yahoo quedan en cache 6 h); paralelizar si pasan de ~20 clientes.
     for client in _clients():
@@ -60,7 +61,6 @@ def dashboard():
             risk = portfolio_risk_for(username, view)
         except ValueError:  # portafolio vacio
             risk = None
-        decisions = advice.suggestions(risk) if risk else []
 
         trades = [t for t in all_transactions.get(username, [])
                   if t["side"] in ("buy", "sell") and t["date"][:10] >= first_day]
@@ -72,13 +72,13 @@ def dashboard():
         buys = sum(t["side"] == "buy" for t in trades)
         rows.append({
             **label,
+            **pnl_row(client, view, all_transactions.get(username, [])),
             "total": view["portfolio_total"],
             "holdings_count": view["holdings_count"],
             "risk": {"level": risk["stocks"]["level"], "score": risk["stocks"]["weighted_score"]} if risk else None,
             "buys": buys,
             "sells": len(trades) - buys,
             "volume_mxn": round(sum(t["total_mxn"] for t in trades), 2),
-            "alerts": sum(d["severity"] == "alta" for d in decisions),
         })
         positions += [{**label, "type": h["type"], "symbol": h["symbol"], "name": h["name"],
                        "gain_percent": h["gain_percent"], "gain_mxn": h["gain_mxn"]}
@@ -86,7 +86,6 @@ def dashboard():
         sales += [{**label, "symbol": t["symbol"], "name": t["name"], "date": t["date"][:10],
                    "realized_pnl_mxn": t["realized_pnl_mxn"], "total_mxn": t["total_mxn"]}
                   for t in trades if t["side"] == "sell" and t.get("realized_pnl_mxn") is not None]
-        suggestions += [{**label, **d} for d in decisions]
 
     return jsonify({
         "days": days,
@@ -97,13 +96,13 @@ def dashboard():
             "sells": sum(r["sells"] for r in rows),
             "volume_mxn": round(sum(r["volume_mxn"] for r in rows), 2),
             "high_risk": sum(bool(r["risk"]) and r["risk"]["level"] == "alto" for r in rows),
-            "alerts": sum(r["alerts"] for r in rows),
+            "unrealized": round(sum(r["unrealized"] for r in rows), 2),
+            "realized": round(sum(r["realized"] for r in rows), 2),
         },
-        "clients": sorted(rows, key=lambda r: (-r["alerts"], r["client"])),
+        "clients": sorted(rows, key=lambda r: r["client"]),
         "activity": [{"date": d, **counts} for d, counts in activity.items()],
         "top_positions": sorted(positions, key=lambda p: -p["gain_percent"])[:TOP],
         "top_sales": sorted(sales, key=lambda s: -s["realized_pnl_mxn"])[:TOP],
-        "suggestions": sorted(suggestions, key=lambda s: advice.SEVERITY_ORDER[s["severity"]])[:MAX_SUGGESTIONS],
     })
 
 
@@ -213,21 +212,39 @@ def _client_or_404(username):
     return (None, (jsonify({"error": "Cliente no encontrado"}), 404)) if _client(username) is None else (username, None)
 
 
-@consultant_bp.route("/alerts", methods=["GET"])
+SEVERITY_OF_LEVEL = {3: "alta", 2: "media", 1: "baja"}
+RULE = {"loss": "pérdida", "gain": "ganancia"}
+INDICATION = {"aviso": "solo avisar", "vender": "considerar vender", "comprar": "considerar comprar más"}
+
+
+@consultant_bp.route("/feed", methods=["GET"])
 @require_auth
 @require_role("consultor")
 @require_permission("consultor")
-def alerts_dashboard():
-    """Las alertas de todos sus clientes con su nivel de hoy: 3 cumplida, 2 al 80% del umbral, 1 al 60%."""
-    rows = []
+def feed():
+    """Sugerencias y alertas de sus clientes en un solo lugar, cada una con la fecha y hora en que aparecio."""
+    items = []
     for client in _clients():
-        view = build_portfolio_view(client["username"], settle=False)
-        rows += [{**a, "username": client["username"], "client": client["name"]}
-                 for a in alerts.evaluate(client["username"], view)]
-    return jsonify({
-        "counts": {level: sum(r["level"] == level for r in rows) for level in (3, 2, 1, 0)},
-        "alerts": sorted(rows, key=lambda r: (-r["level"], r["client"])),
-    })
+        username = client["username"]
+        label = {"username": username, "client": client["name"]}
+        view = build_portfolio_view(username, settle=False)
+        try:
+            decisions = advice.suggestions(portfolio_risk_for(username, view))
+        except ValueError:  # portafolio vacio
+            decisions = []
+        items += [{**label, "kind": "sugerencia", "id": s["key"], "when": s["first_seen"], "status": s["status"],
+                   "severity": s["severity"], "symbol": s["symbol"], "title": s["title"], "detail": s["detail"]}
+                  for s in signals.sync(username, decisions)]
+        for a in alerts.evaluate(username, view):
+            if a["level"] > 0:
+                move = "N/D" if a["move"] is None else f"{a['move']:+}%"
+                items.append({**label, "kind": "alerta", "id": a["id"], "when": a.get("level_at") or a["date"], "status": "activa",
+                              "severity": SEVERITY_OF_LEVEL[a["level"]], "symbol": a["symbol"],
+                              "title": f"{a['symbol']}: {RULE[a['kind']]} de {a['percent']}%"
+                                       + (" cumplida" if a["level"] == 3 else " cerca de cumplirse"),
+                              "detail": f"Hoy {move} desde su costo; {INDICATION[a['indication']]}."})
+    everyone = [{"username": c["username"], "name": c["name"]} for c in clients_of(g.current_user["username"])]
+    return jsonify({"clients": everyone, "items": sorted(items, key=lambda i: i["when"], reverse=True)})
 
 
 @consultant_bp.route("/clients/<username>/plan", methods=["GET"])

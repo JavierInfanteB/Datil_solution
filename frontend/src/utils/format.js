@@ -21,3 +21,8 @@ export function formatPeriodLabel(period) {
   if (period === "1d") return "var. diaria";
   return "variación";
 }
+
+// Fecha y hora locales de un instante ISO (los registros se guardan en UTC).
+export function formatDateTime(iso) {
+  return new Date(iso).toLocaleString("es-MX", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}

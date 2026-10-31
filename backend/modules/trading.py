@@ -23,7 +23,7 @@ trading_bp = Blueprint("trading", __name__, url_prefix="/api/trading")
 
 def _log_transaction(username, transaction):
     transactions = read_json("transactions.json")
-    transactions.setdefault(username, []).append(transaction)
+    transactions.setdefault(username, []).append(audit.tag(transaction))
     write_json("transactions.json", transactions)
 
 

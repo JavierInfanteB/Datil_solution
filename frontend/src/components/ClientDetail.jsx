@@ -3,28 +3,19 @@ import apiClient from "../api/client";
 import { formatCurrency } from "../utils/format";
 import { apiError, pct } from "../utils/risk";
 import ClientPlan from "./ClientPlan";
-import NotifyClient from "./NotifyClient";
 import { PortfolioRiskDetail } from "./PortfolioRisk";
-import { RiskBadge, SeverityTag } from "./RiskParts";
+import CompositionPie, { slices } from "./CompositionPie";
+import { RiskBadge } from "./RiskParts";
 
 const SIDE_LABEL = { buy: "Compra", sell: "Venta", coupon: "Cupón", redeem: "Vencimiento" };
-// Decisiones que piden mover algo: se mandan como acción sugerida; el resto, como aviso de riesgo.
-const ACTION_IDS = new Set(["concentration", "risky_stock"]);
 
-// Detalle de un cliente para su consultor: qué decisiones conviene tomar, qué tiene, cómo está de riesgo y,
+// Detalle de un cliente para su consultor: qué tiene, cómo está de riesgo y,
 // operación por operación, en qué contexto de riesgo compró y vendió.
 export default function ClientDetail({ username, onBack }) {
   const [detail, setDetail] = useState(null);
   const [timeline, setTimeline] = useState(null);
   const [error, setError] = useState("");
   const [timelineError, setTimelineError] = useState("");
-  const [draft, setDraft] = useState(null);
-
-  // Precarga el formulario de aviso con una decisión sugerida y lleva hasta él.
-  const notify = (d) => {
-    setDraft({ kind: ACTION_IDS.has(d.id) ? "accion" : "riesgo", title: d.title.slice(0, 80), message: d.detail });
-    document.getElementById("avisar")?.scrollIntoView({ behavior: "smooth" });
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -54,8 +45,7 @@ export default function ClientDetail({ username, onBack }) {
       </div>
       {error && <p className="datil-error">{error}</p>}
       {!error && !detail && <p>Calculando el riesgo del cliente...</p>}
-      {detail && <Overview detail={detail} onNotify={notify} />}
-      {detail && <NotifyClient username={username} draft={draft} />}
+      {detail && <Overview detail={detail} />}
       {detail && <ClientPlan username={username} />}
 
       <section className="datil-card">
@@ -68,8 +58,8 @@ export default function ClientDetail({ username, onBack }) {
   );
 }
 
-function Overview({ detail, onNotify }) {
-  const { client, portfolio, risk, decisions } = detail;
+function Overview({ detail }) {
+  const { client, portfolio, risk } = detail;
   return (
     <>
       <section className="datil-card">
@@ -88,29 +78,12 @@ function Overview({ detail, onNotify }) {
             <strong>{portfolio.holdings_count}</strong>
           </div>
         </div>
-
-        <h3 className="datil-subheading">Decisiones que podrías tomar</h3>
-        {risk.error ? (
-          <p className="datil-period-tag">{risk.error}: no hay riesgo que reducir todavía.</p>
-        ) : decisions.length === 0 ? (
-          <p>Sin alertas: la cartera no rebasa ninguno de los límites de riesgo.</p>
-        ) : (
-          <ul className="datil-suggestions">
-            {decisions.map((d, i) => (
-              <li key={`${d.id}-${i}`}>
-                <SeverityTag severity={d.severity} /> <strong>{d.title}</strong>
-                <span className="datil-period-tag"> {d.detail} </span>
-                <button className="datil-link" onClick={() => onNotify(d)}>
-                  Enviar al cliente
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="datil-period-tag">
-          Son ideas para reducir riesgo con datos históricos; la decisión es tuya y del cliente. No es asesoría financiera.
-        </p>
       </section>
+
+      <CompositionPie
+        title="Cómo se reparte su patrimonio"
+        data={slices([...portfolio.holdings.map((h) => ({ name: h.symbol, value: h.value })), { name: "Efectivo", value: portfolio.cash }])}
+      />
 
       {portfolio.holdings.length > 0 && (
         <section className="datil-card">

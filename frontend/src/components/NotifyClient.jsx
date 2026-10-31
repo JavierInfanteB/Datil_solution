@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import apiClient from "../api/client";
 import { KIND_LABEL } from "../utils/avisos";
+import { formatDateTime } from "../utils/format";
 import { apiError } from "../utils/risk";
 import KindTag from "./KindTag";
 
@@ -8,7 +9,7 @@ const EMPTY = { kind: "aviso", title: "", message: "" };
 
 // Avisar al cliente: el consultor elige el tipo (aviso, riesgo o acción sugerida), escribe y envía; abajo ve
 // lo que ya mandó y si el cliente lo leyó. `draft` precarga el formulario desde una decisión sugerida.
-export default function NotifyClient({ username, draft }) {
+export default function NotifyClient({ username, draft, hideSent = false, embedded = false, onSent }) {
   const [form, setForm] = useState(EMPTY);
   const [sent, setSent] = useState(null);
   const [message, setMessage] = useState(null);
@@ -40,15 +41,17 @@ export default function NotifyClient({ username, draft }) {
       .then(() => {
         setMessage({ ok: true, text: "Aviso enviado." });
         setForm(EMPTY);
+        onSent?.();
         return loadSent();
       })
       .catch((err) => setMessage({ ok: false, text: apiError(err, "No se pudo enviar el aviso.") }))
       .finally(() => setBusy(false));
   };
 
+  const Wrap = embedded ? "div" : "section";
   return (
-    <section className="datil-card" id="avisar">
-      <h2>Avisar al cliente</h2>
+    <Wrap className={embedded ? undefined : "datil-card"}>
+      {!embedded && <h2>Avisar al cliente</h2>}
       <form onSubmit={send}>
         <div className="datil-form-row">
           <label>
@@ -80,7 +83,7 @@ export default function NotifyClient({ username, draft }) {
       </form>
       {message && <p className={message.ok ? "datil-success" : "datil-error"}>{message.text}</p>}
 
-      {sent && sent.length > 0 && (
+      {!hideSent && sent && sent.length > 0 && (
         <>
           <h3 className="datil-subheading">Avisos enviados</h3>
           <div className="datil-table-wrap">
@@ -96,7 +99,7 @@ export default function NotifyClient({ username, draft }) {
               <tbody>
                 {sent.map((n) => (
                   <tr key={n.id}>
-                    <td>{n.date.slice(0, 10)}</td>
+                    <td>{formatDateTime(n.date)}</td>
                     <td>
                       <KindTag kind={n.kind} />
                     </td>
@@ -109,6 +112,6 @@ export default function NotifyClient({ username, draft }) {
           </div>
         </>
       )}
-    </section>
+    </Wrap>
   );
 }

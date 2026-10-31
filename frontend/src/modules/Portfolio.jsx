@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import apiClient from "../api/client";
+import CompositionPie, { slices } from "../components/CompositionPie";
 import PortfolioRisk from "../components/PortfolioRisk";
 import { formatCurrency, formatMoney, formatPeriodLabel } from "../utils/format";
 
@@ -173,6 +174,12 @@ export default function Portfolio({ client }) {
 
         {stocks.length === 0 && bonds.length === 0 && <p className="datil-label">Aún no tienes activos en cartera.</p>}
       </section>
+      {data.holdings.length > 0 && (
+        <CompositionPie
+          title={client ? "Cómo se reparte su cartera" : "Cómo se reparte mi cartera"}
+          data={slices([...data.holdings.map((h) => ({ name: h.symbol, value: h.value })), { name: "Efectivo", value: data.cash }])}
+        />
+      )}
     {!client && (stocks.length > 0 || bonds.length > 0) && <PortfolioRisk />}
     </>
   );

@@ -81,7 +81,7 @@ def evaluate(username, view):
                 notifications.add(username, SYSTEM, notifications.ALERT, f"Alerta cumplida: {alert['symbol']}",
                                   f"{alert['symbol']} {word} {abs(move)}% desde tu costo (tu alerta era de {alert['percent']}%). "
                                   f"{INDICATION_TEXT[alert['indication']]}")
-            alert["level"], changed = level, True
+            alert["level"], alert["level_at"], changed = level, datetime.now(timezone.utc).isoformat(timespec="seconds"), True
         rows.append({**alert, "move": move})
     if changed:
         write_json(FILE, data)

@@ -25,12 +25,12 @@ export const MODULE_REGISTRY = [
       { id: "bono", name: "Bonos y CETES" },
     ],
   },
-  { id: "avisos", name: "Avisos", Component: Avisos, order: 3 },
+  { id: "avisos", name: "Avisos", Component: Avisos, order: 6 },
   {
     id: "plan",
     name: "Mi plan",
     Component: Plan,
-    order: 3.5,
+    order: 3,
     sections: [
       { id: "alertas", name: "Alertas" },
       { id: "metas", name: "Metas" },
@@ -44,11 +44,10 @@ export const MODULE_REGISTRY = [
     Component: Consultor,
     order: 4,
     sections: [
-      { id: "resumen", name: "Ganancias y pérdidas" },
       { id: "clientes", name: "Clientes" },
-      { id: "alertas", name: "Alertas" },
-      { id: "sugerencias", name: "Sugerencias" },
+      { id: "sugerencias", name: "Sugerencias y alertas" },
       { id: "tendencias", name: "Tendencias" },
+      { id: "avisos", name: "Avisos" },
     ],
   },
   {
@@ -60,6 +59,7 @@ export const MODULE_REGISTRY = [
       { id: "resumen", name: "Ganancias y pérdidas" },
       { id: "lista", name: "Clientes y operaciones" },
       { id: "tendencias", name: "Tendencias" },
+      { id: "avisos", name: "Avisos" },
     ],
   },
   { id: "permissions", name: "Usuarios y permisos", Component: Permissions, order: 5 },
