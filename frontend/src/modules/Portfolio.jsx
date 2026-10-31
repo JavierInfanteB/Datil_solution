@@ -3,16 +3,17 @@ import apiClient from "../api/client";
 import PortfolioRisk from "../components/PortfolioRisk";
 import { formatCurrency, formatMoney, formatPeriodLabel } from "../utils/format";
 
-export default function Portfolio() {
+// `client`: cartera de un cliente cuando la ve el admin; sin él, la propia.
+export default function Portfolio({ client }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     apiClient
-      .get("/api/portfolio")
+      .get("/api/portfolio", { params: client ? { client } : undefined })
       .then(({ data }) => setData(data))
       .catch(() => setError("No se pudo cargar la cartera."));
-  }, []);
+  }, [client]);
 
   if (error) return <p className="datil-error">{error}</p>;
   if (!data) return <p>Cargando cartera...</p>;
@@ -23,7 +24,7 @@ export default function Portfolio() {
   return (
     <>
       <section className="datil-card">
-        <h2>Mi cartera</h2>
+        <h2>{client ? "Cartera del cliente" : "Mi cartera"}</h2>
         <p className="datil-label">
           Todo en pesos mexicanos (MXN).
           {Object.keys(data.fx_rates).length > 0 &&
@@ -172,7 +173,7 @@ export default function Portfolio() {
 
         {stocks.length === 0 && bonds.length === 0 && <p className="datil-label">Aún no tienes activos en cartera.</p>}
       </section>
-    {(stocks.length > 0 || bonds.length > 0) && <PortfolioRisk />}
+    {!client && (stocks.length > 0 || bonds.length > 0) && <PortfolioRisk />}
     </>
   );
 }

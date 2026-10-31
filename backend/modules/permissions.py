@@ -18,12 +18,17 @@ MODULES = {
     "trading": ["accion", "bono"],
     "risk": [],
     "avisos": [],
-    "consultor": [],
+    "plan": ["alertas", "metas", "notas", "reporte"],
+    "consultor": ["resumen", "clientes", "alertas", "sugerencias", "tendencias"],
+    "clientes": ["resumen", "lista", "tendencias"],
     "permissions": [],
 }
 # Modulos personales de un rol: solo ese rol los usa ("Mis clientes" es del consultor y la bandeja de
 # avisos es del usuario). Ni el admin los ve, aunque lo controle todo; el resto de modulos sirve a cualquier rol.
-ROLE_ONLY = {"consultor": "consultor", "avisos": "usuario"}
+# La cartera y las compras son de los clientes: el admin no tiene cartera propia, opera en nombre de un cliente
+# desde su modulo "clientes" (ver acting_username).
+ROLE_ONLY = {"consultor": "consultor", "avisos": "usuario", "portfolio": "usuario", "trading": "usuario", "plan": "usuario",
+             "clientes": "admin"}
 AVAILABLE_PERMISSIONS = set(MODULES) | {f"{m}.{s}" for m, sections in MODULES.items() for s in sections}
 PUESTO_NAME = re.compile(r"^[\w .-]{1,40}$")  # sin "/" : el nombre viaja en la URL
 

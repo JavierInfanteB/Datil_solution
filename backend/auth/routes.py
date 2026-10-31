@@ -24,6 +24,9 @@ def login():
     if user is None or not check_password_hash(user["password_hash"], password):
         return jsonify({"error": "Credenciales inválidas"}), 401
 
+    if user.get("disabled"):
+        return jsonify({"error": "Cuenta suspendida. Contacta al administrador"}), 403
+
     token = create_token(user["id"], user["username"], user["role"])
     return jsonify({
         "token": token,

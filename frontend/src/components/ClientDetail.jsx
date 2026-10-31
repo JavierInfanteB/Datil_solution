@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import apiClient from "../api/client";
 import { formatCurrency } from "../utils/format";
 import { apiError, pct } from "../utils/risk";
+import ClientPlan from "./ClientPlan";
 import NotifyClient from "./NotifyClient";
 import { PortfolioRiskDetail } from "./PortfolioRisk";
 import { RiskBadge, SeverityTag } from "./RiskParts";
@@ -55,6 +56,7 @@ export default function ClientDetail({ username, onBack }) {
       {!error && !detail && <p>Calculando el riesgo del cliente...</p>}
       {detail && <Overview detail={detail} onNotify={notify} />}
       {detail && <NotifyClient username={username} draft={draft} />}
+      {detail && <ClientPlan username={username} />}
 
       <section className="datil-card">
         <h2>Tiempos de compra y venta</h2>

@@ -1,7 +1,9 @@
 import Portfolio from "./Portfolio";
 import Trading from "./Trading";
 import Avisos from "./Avisos";
+import AdminClients from "./AdminClients";
 import Consultor from "./Consultor";
+import Plan from "./Plan";
 import Permissions from "./Permissions";
 import { isGranted } from "../utils/permissions";
 
@@ -24,7 +26,42 @@ export const MODULE_REGISTRY = [
     ],
   },
   { id: "avisos", name: "Avisos", Component: Avisos, order: 3 },
-  { id: "consultor", name: "Mis clientes", Component: Consultor, order: 4 },
+  {
+    id: "plan",
+    name: "Mi plan",
+    Component: Plan,
+    order: 3.5,
+    sections: [
+      { id: "alertas", name: "Alertas" },
+      { id: "metas", name: "Metas" },
+      { id: "notas", name: "Notas para mi consultor" },
+      { id: "reporte", name: "Reporte" },
+    ],
+  },
+  {
+    id: "consultor",
+    name: "Mis clientes",
+    Component: Consultor,
+    order: 4,
+    sections: [
+      { id: "resumen", name: "Ganancias y pérdidas" },
+      { id: "clientes", name: "Clientes" },
+      { id: "alertas", name: "Alertas" },
+      { id: "sugerencias", name: "Sugerencias" },
+      { id: "tendencias", name: "Tendencias" },
+    ],
+  },
+  {
+    id: "clientes",
+    name: "Clientes de Datil",
+    Component: AdminClients,
+    order: 4,
+    sections: [
+      { id: "resumen", name: "Ganancias y pérdidas" },
+      { id: "lista", name: "Clientes y operaciones" },
+      { id: "tendencias", name: "Tendencias" },
+    ],
+  },
   { id: "permissions", name: "Usuarios y permisos", Component: Permissions, order: 5 },
 ];
 

@@ -9,9 +9,11 @@ from datetime import date, timedelta
 
 from flask import Blueprint, g, jsonify, request
 
+from modules.insights import build_insights
 from modules.portfolio import build_portfolio_view
 from modules.risk import BENCHMARK, load_stock, portfolio_risk_for
-from utils import advice, notifications, trade_timing
+from modules.plan import parse_note, period_report, requested_period, GOALS, NOTES
+from utils import advice, alerts, notifications, records, trade_timing
 from utils.accounts import clients_of
 from utils.data_store import read_json
 from utils.decorators import require_auth, require_permission, require_role
@@ -19,7 +21,7 @@ from utils.decorators import require_auth, require_permission, require_role
 consultant_bp = Blueprint("consultant", __name__, url_prefix="/api/consultant")
 
 TOP = 5
-MAX_SUGGESTIONS = 20
+MAX_SUGGESTIONS = 200
 MAX_DAYS = 365
 MAX_TITLE = 80
 MAX_MESSAGE = 1000
@@ -104,6 +106,15 @@ def dashboard():
     })
 
 
+@consultant_bp.route("/insights", methods=["GET"])
+@require_auth
+@require_role("consultor")
+@require_permission("consultor")
+def insights():
+    days = min(max(request.args.get("days", 30, type=int), 1), MAX_DAYS)
+    return jsonify(build_insights(_clients(), days))
+
+
 @consultant_bp.route("/clients/<username>", methods=["GET"])
 @require_auth
 @require_role("consultor")
@@ -186,3 +197,113 @@ def send_notification(username):
         return jsonify({"error": f"El título (hasta {MAX_TITLE}) y el mensaje (hasta {MAX_MESSAGE}) son requeridos"}), 400
 
     return jsonify(notifications.add(username, g.current_user, kind, title, message)), 201
+
+
+# ---------------------------------------------------------------- plan del cliente: metas, notas, alertas y reporte
+
+PRIVATE_NOTES = "consultant_notes.json"  # {"consultor/cliente": [nota]}: solo las ve quien las escribe
+
+
+def _private_key(username):
+    return f"{g.current_user['username']}/{username}"
+
+
+def _client_or_404(username):
+    return (None, (jsonify({"error": "Cliente no encontrado"}), 404)) if _client(username) is None else (username, None)
+
+
+@consultant_bp.route("/alerts", methods=["GET"])
+@require_auth
+@require_role("consultor")
+@require_permission("consultor")
+def alerts_dashboard():
+    """Las alertas de todos sus clientes con su nivel de hoy: 3 cumplida, 2 al 80% del umbral, 1 al 60%."""
+    rows = []
+    for client in _clients():
+        view = build_portfolio_view(client["username"], settle=False)
+        rows += [{**a, "username": client["username"], "client": client["name"]}
+                 for a in alerts.evaluate(client["username"], view)]
+    return jsonify({
+        "counts": {level: sum(r["level"] == level for r in rows) for level in (3, 2, 1, 0)},
+        "alerts": sorted(rows, key=lambda r: (-r["level"], r["client"])),
+    })
+
+
+@consultant_bp.route("/clients/<username>/plan", methods=["GET"])
+@require_auth
+@require_role("consultor")
+@require_permission("consultor")
+def client_plan(username):
+    _, error = _client_or_404(username)
+    if error:
+        return error
+    view = build_portfolio_view(username, settle=False)
+    return jsonify({
+        "goals": records.items(GOALS, username),
+        "notes": list(reversed(records.items(NOTES, username))),
+        "private_notes": list(reversed(records.items(PRIVATE_NOTES, _private_key(username)))),
+        "alerts": alerts.evaluate(username, view),
+        "portfolio_total": view["portfolio_total"],
+    })
+
+
+@consultant_bp.route("/clients/<username>/private-notes", methods=["POST"])
+@require_auth
+@require_role("consultor")
+@require_permission("consultor")
+def add_private_note(username):
+    _, error = _client_or_404(username)
+    if error:
+        return error
+    note, error = parse_note(request.get_json(silent=True) or {})
+    if error:
+        return jsonify({"error": error}), 400
+    return jsonify(records.add(PRIVATE_NOTES, _private_key(username), note)), 201
+
+
+@consultant_bp.route("/clients/<username>/private-notes/<note_id>", methods=["DELETE"])
+@require_auth
+@require_role("consultor")
+@require_permission("consultor")
+def delete_private_note(username, note_id):
+    if _client(username) is None or not records.remove(PRIVATE_NOTES, _private_key(username), note_id):
+        return jsonify({"error": "La nota no existe"}), 404
+    return jsonify({"id": note_id})
+
+
+@consultant_bp.route("/clients/<username>/alerts", methods=["POST"])
+@require_auth
+@require_role("consultor")
+@require_permission("consultor")
+def add_client_alert(username):
+    """Alerta puesta por el consultor: solo la ve el, el cliente no recibe aviso al cumplirse."""
+    _, error = _client_or_404(username)
+    if error:
+        return error
+    body = request.get_json(silent=True) or {}
+    alert, error = alerts.create(username, g.current_user, body.get("symbol"), body.get("kind"),
+                                 body.get("percent"), body.get("indication") or "aviso")
+    if error:
+        return jsonify({"error": error}), 400
+    return jsonify(alert), 201
+
+
+@consultant_bp.route("/clients/<username>/alerts/<alert_id>", methods=["DELETE"])
+@require_auth
+@require_role("consultor")
+@require_permission("consultor")
+def delete_client_alert(username, alert_id):
+    if _client(username) is None or not alerts.remove(username, alert_id, g.current_user):
+        return jsonify({"error": "La alerta no existe o la puso el cliente"}), 404
+    return jsonify({"id": alert_id})
+
+
+@consultant_bp.route("/clients/<username>/report", methods=["GET"])
+@require_auth
+@require_role("consultor")
+@require_permission("consultor")
+def client_report(username):
+    _, error = _client_or_404(username)
+    if error:
+        return error
+    return jsonify(period_report(username, requested_period()))

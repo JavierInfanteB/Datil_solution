@@ -10,7 +10,7 @@ ROLES = ("usuario", "consultor", "admin")
 
 # Puestos de arranque mientras no exista puestos.json (p. ej. un volumen con datos anteriores).
 DEFAULT_PUESTOS = {
-    "Inversionista": ["portfolio", "trading", "risk", "avisos"],
+    "Inversionista": ["portfolio", "trading", "risk", "avisos", "plan"],
     "Consultor": ["consultor"],
 }
 

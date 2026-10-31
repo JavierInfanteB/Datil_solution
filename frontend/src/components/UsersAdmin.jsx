@@ -28,6 +28,17 @@ export default function UsersAdmin({ users, puestos, roles, reload }) {
       .finally(() => setBusy(false));
   };
 
+  // Cambia la contraseña de un usuario: se pide con prompt para no dejar un campo más en la tabla.
+  const resetPassword = (u) => {
+    const password = window.prompt(`Nueva contraseña para ${u.username} (mín. 8 caracteres)`);
+    if (password) run(() => apiClient.patch(`/api/users/${u.username}`, { password }), `Contraseña de ${u.username} cambiada.`);
+  };
+
+  const remove = (u) => {
+    if (window.confirm(`Dar de baja a ${u.username}? Solo se puede si está en cero. Puedes reactivarlo después.`))
+      run(() => apiClient.delete(`/api/users/${u.username}`), `${u.username} dado de baja.`);
+  };
+
   const update = (username, change) => run(() => apiClient.patch(`/api/users/${username}`, change), "Cambio guardado.");
 
   const create = (e) => {
@@ -94,6 +105,7 @@ export default function UsersAdmin({ users, puestos, roles, reload }) {
               <th>Rol</th>
               <th>Puesto</th>
               <th>Consultor asignado</th>
+              <th>Cuenta</th>
             </tr>
           </thead>
           <tbody>
@@ -150,6 +162,24 @@ export default function UsersAdmin({ users, puestos, roles, reload }) {
                       {u.role === "consultor" ? `${users.filter((x) => x.consultant === u.username).length} cliente(s)` : "N/A"}
                     </span>
                   )}
+                </td>
+                <td>
+                  <button className="datil-btn datil-btn-secondary" disabled={busy} onClick={() => resetPassword(u)}>
+                    Cambiar contraseña
+                  </button>{" "}
+                  <button
+                    className="datil-btn datil-btn-secondary"
+                    disabled={busy || u.username === me.username}
+                    onClick={() => update(u.username, { disabled: !u.disabled })}
+                  >
+                    {u.disabled ? "Reactivar" : "Suspender"}
+                  </button>{" "}
+                  {!u.disabled && (
+                    <button className="datil-btn datil-btn-secondary" disabled={busy || u.username === me.username} onClick={() => remove(u)}>
+                      Dar de baja
+                    </button>
+                  )}
+                  {u.deleted && <span className="datil-period-tag"> dado de baja</span>}
                 </td>
               </tr>
             ))}

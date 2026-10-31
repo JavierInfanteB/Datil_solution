@@ -31,7 +31,7 @@ def require_auth(f):
         # El rol y el puesto salen del archivo de usuarios, no del token: cambiarlos o dar de baja a
         # alguien surte efecto en su siguiente peticion, sin esperar a que venza su sesion.
         record = find_user(id=payload["sub"])
-        if record is None:
+        if record is None or record.get("disabled"):
             return jsonify({"error": "Usuario no encontrado"}), 401
 
         touch_session(payload["jti"])
@@ -46,6 +46,22 @@ def require_auth(f):
         return f(*args, **kwargs)
 
     return wrapper
+
+
+def acting_username():
+    """(usuario, error): la cartera sobre la que opera la peticion.
+
+    Un usuario opera la suya. El admin no tiene cartera propia: opera solo en nombre de un cliente
+    (parametro `client` en la URL o en el cuerpo) y sin cliente valido se le rechaza.
+    """
+    user = g.current_user
+    if user["role"] != "admin":
+        return user["username"], None
+    target = request.args.get("client") or (request.get_json(silent=True) or {}).get("client")
+    client = find_user(username=target) if target else None
+    if client is None or client["role"] != "usuario":
+        return None, (jsonify({"error": "El administrador opera solo en nombre de un cliente"}), 403)
+    return client["username"], None
 
 
 def require_role(*roles):
