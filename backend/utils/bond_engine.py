@@ -15,6 +15,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from utils import bond_math
+from utils import audit
 from utils.data_store import read_json, write_json
 from utils.market_data import get_bond_rate_at, get_current_price
 
@@ -63,7 +64,7 @@ def _append_transactions(username, events):
     if not events:
         return
     transactions = read_json("transactions.json")
-    transactions.setdefault(username, []).extend(events)
+    transactions.setdefault(username, []).extend(audit.tag(e) for e in events)
     write_json("transactions.json", transactions)
 
 
@@ -135,7 +136,10 @@ def process_due_events(username):
     for order in user_orders:
         if order["status"] != "pending" or _parse_date(order["scheduled_date"]) > today:
             continue
+        first_new = len(events)
         order["status"], order["failure_reason"] = _execute_order(portfolio, order, bonds_by_symbol, events)
+        for event in events[first_new:]:
+            event.update(by=username, by_role="usuario", origin="orden programada")
         changed = True
 
     for lot in list(portfolio["holdings"]):

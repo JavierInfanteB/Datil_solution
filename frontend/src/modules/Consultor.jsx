@@ -3,33 +3,53 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import apiClient from "../api/client";
 import ActivityFeed from "../components/ActivityFeed";
 import ClientDetail from "../components/ClientDetail";
-import { LEVEL, ruleText } from "../components/AlertsPanel";
+import CompositionPie, { holdingEntries, slices } from "../components/CompositionPie";
+import FilterBar from "../components/FilterBar";
 import Insights from "../components/Insights";
+import NotifyClient from "../components/NotifyClient";
 import { RiskBadge } from "../components/RiskParts";
-import Suggestions from "../components/Suggestions";
+import SignalsFeed from "../components/SignalsFeed";
 import { formatCurrency } from "../utils/format";
 import { apiError } from "../utils/risk";
 
 const PERIODS = [7, 30, 90];
+const trend = (v) => (v >= 0 ? "datil-up" : "datil-down");
 
-// Panel del consultor, una sección por pestaña del menú lateral: resumen de ganancias y pérdidas, clientes,
-// sugerencias y tendencias. Al abrir un cliente se ve su detalle.
-export default function Consultor({ section }) {
+// Panel del consultor, una sección por pestaña del menú: clientes (con sus ganancias y pérdidas), sugerencias y
+// alertas en un solo lugar, tendencias y, al final, los avisos que manda. El filtro por cliente se comparte.
+export default function Consultor({ section, goTo }) {
   const [selected, setSelected] = useState(null);
+  const [options, setOptions] = useState([]); // todos sus clientes, para el filtro
+  const [filter, setFilter] = useState({ consultant: "", client: "" });
+  const [draft, setDraft] = useState(null); // aviso precargado desde una sugerencia
+
+  useEffect(() => setSelected(null), [section?.id]);
+
   if (selected) return <ClientDetail username={selected} onBack={() => setSelected(null)} />;
-  switch (section?.id) {
-    case "resumen":
-      return <Insights endpoint="/api/consultant/insights" part="pnl" />;
-    case "tendencias":
-      return <Insights endpoint="/api/consultant/insights" part="market" />;
-    case "alertas":
-      return <AlertsDashboard onOpen={setSelected} />;
-    default:
-      return <Dashboard onOpen={setSelected} view={section?.id === "sugerencias" ? "sugerencias" : "clientes"} />;
-  }
+  const id = section?.id ?? "clientes";
+
+  return (
+    <>
+      {options.length > 1 && <FilterBar clients={options} value={filter} onChange={setFilter} />}
+      {id === "clientes" && <ClientsView filter={filter} onOpen={setSelected} onOptions={setOptions} />}
+      {id === "sugerencias" && (
+        <SignalsFeed
+          filter={filter}
+          onOptions={setOptions}
+          onOpen={setSelected}
+          onNotice={(d) => {
+            setDraft(d);
+            goTo("avisos");
+          }}
+        />
+      )}
+      {id === "tendencias" && <Insights endpoint="/api/consultant/insights" filter={filter} />}
+      {id === "avisos" && <Notices filter={filter} draft={draft} onOptions={setOptions} />}
+    </>
+  );
 }
 
-function Dashboard({ onOpen, view }) {
+function ClientsView({ filter, onOpen, onOptions }) {
   const [days, setDays] = useState(30);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
@@ -39,57 +59,149 @@ function Dashboard({ onOpen, view }) {
     setData(null);
     setError("");
     apiClient
-      .get("/api/consultant/dashboard", { params: { days } })
-      .then(({ data }) => !cancelled && setData(data))
+      .get("/api/consultant/dashboard", { params: { days, client: filter.client || undefined } })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setData(data);
+        if (!filter.client) onOptions(data.clients.map((c) => ({ username: c.username, name: c.client })));
+      })
       .catch((err) => !cancelled && setError(apiError(err, "No se pudo cargar el panel.")));
     return () => {
       cancelled = true;
     };
-  }, [days]);
+  }, [days, filter.client]);
 
-  const empty = data && data.clients.length === 0;
-  if (view === "sugerencias")
+  if (error) return <p className="datil-error">{error}</p>;
+  if (!data) return <p>Calculando el riesgo de tus clientes... la primera vez puede tardar unos segundos.</p>;
+  if (data.clients.length === 0)
     return (
-      <>
-        {(error || !data || empty) && (
-          <section className="datil-card">
-            <h2>Sugerencias por acción</h2>
-            {error && <p className="datil-error">{error}</p>}
-            {!error && !data && <p>Calculando el riesgo de tus clientes... la primera vez puede tardar unos segundos.</p>}
-            {empty && <p>Aún no tienes clientes asignados. El administrador los asigna desde Usuarios y permisos.</p>}
-          </section>
-        )}
-        {data && !empty && <Suggestions data={data} onOpen={onOpen} />}
-        {empty && <Suggestions data={{ suggestions: [], clients: [] }} onOpen={onOpen} />}
-      </>
+      <section className="datil-card">
+        <h2>Mis clientes</h2>
+        <p>Aún no tienes clientes asignados. El administrador los asigna desde Usuarios y permisos.</p>
+      </section>
     );
 
+  const { totals, clients } = data;
+  const result = totals.unrealized + totals.realized;
   return (
     <>
       <section className="datil-card">
         <h2>Mis clientes</h2>
         <div className="datil-lapse-bar" role="group" aria-label="Periodo">
           {PERIODS.map((p) => (
-            <button
-              key={p}
-              className={p === days ? "datil-chip active" : "datil-chip"}
-              aria-pressed={p === days}
-              onClick={() => setDays(p)}
-            >
+            <button key={p} className={p === days ? "datil-chip active" : "datil-chip"} aria-pressed={p === days} onClick={() => setDays(p)}>
               Últimos {p} días
             </button>
           ))}
         </div>
-        {error && <p className="datil-error">{error}</p>}
-        {!error && !data && <p>Calculando el riesgo de tus clientes... la primera vez puede tardar unos segundos.</p>}
-        {empty && <p>Aún no tienes clientes asignados. El administrador los asigna desde Usuarios y permisos.</p>}
-        {data && !empty && <Summary data={data} onOpen={onOpen} />}
+        <div className="datil-summary-grid">
+          <div>
+            <span className="datil-label">Patrimonio</span>
+            <strong>{formatCurrency(totals.portfolio_total)}</strong>
+          </div>
+          <div>
+            <span className="datil-label">Resultado total</span>
+            <strong className={trend(result)}>{formatCurrency(result)}</strong>
+          </div>
+          <div>
+            <span className="datil-label">Compras / ventas</span>
+            <strong>
+              {totals.buys} / {totals.sells}
+            </strong>
+          </div>
+          <div>
+            <span className="datil-label">Volumen operado</span>
+            <strong>{formatCurrency(totals.volume_mxn)}</strong>
+          </div>
+          <div>
+            <span className="datil-label">Con riesgo alto</span>
+            <strong>
+              {totals.high_risk} de {totals.clients}
+            </strong>
+          </div>
+        </div>
       </section>
 
-      {data && data.clients.length > 0 && view === "clientes" && (
+      <div className="datil-grid-2">
         <section className="datil-card">
-          <h2>Lo mejor del periodo</h2>
-          <h3 className="datil-subheading">Mejores compras (rendimiento actual de la posición)</h3>
+          <h2>Ganancias y pérdidas por cliente</h2>
+          <ResponsiveContainer width="100%" height={Math.max(150, clients.length * 44)}>
+            <BarChart data={clients} layout="vertical" margin={{ left: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--datil-border)" />
+              <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => formatCurrency(v)} />
+              <YAxis type="category" dataKey="client" width={110} tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(v) => formatCurrency(v)} />
+              <Legend />
+              <Bar dataKey="unrealized" name="Sin vender" stackId="r" fill="var(--datil-accent)" maxBarSize={26} />
+              <Bar dataKey="realized" name="Realizado" stackId="r" fill="var(--datil-text-muted)" maxBarSize={26} />
+            </BarChart>
+          </ResponsiveContainer>
+        </section>
+        <section className="datil-card">
+          <h2>Operaciones por día</h2>
+          <ResponsiveContainer width="100%" height={Math.max(150, clients.length * 44)}>
+            <BarChart data={data.activity}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--datil-border)" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} minTickGap={30} tickFormatter={(d) => d.slice(5)} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={30} />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="buys" name="Compras" stackId="ops" fill="var(--datil-accent)" />
+              <Bar dataKey="sells" name="Ventas" stackId="ops" fill="var(--datil-text-muted)" />
+            </BarChart>
+          </ResponsiveContainer>
+        </section>
+      </div>
+
+      <div className="datil-grid-2">
+        {clients.length > 1 && <CompositionPie title="Patrimonio por cliente" data={slices(clients.map((c) => ({ name: c.client, value: c.portfolio })))} />}
+        <CompositionPie title="Qué hay en las carteras" data={slices(holdingEntries(clients))} />
+      </div>
+
+      <section className="datil-card">
+        <h2>Clientes</h2>
+        <div className="datil-table-wrap">
+          <table className="datil-table">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th className="datil-col-num">Portafolio</th>
+                <th className="datil-col-num">Resultado</th>
+                <th>Riesgo de sus acciones</th>
+                <th className="datil-col-num">Compras / ventas</th>
+                <th className="datil-col-num">Volumen</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {clients.map((c) => (
+                <tr key={c.username}>
+                  <td>
+                    <strong>{c.client}</strong>
+                    <span className="datil-period-tag"> {c.username}</span>
+                  </td>
+                  <td className="datil-col-num">{formatCurrency(c.total)}</td>
+                  <td className={`datil-col-num ${trend(c.unrealized + c.realized)}`}>{formatCurrency(c.unrealized + c.realized)}</td>
+                  <td>{c.risk && c.risk.level ? <RiskBadge level={c.risk.level} score={c.risk.score} /> : <span className="datil-period-tag">N/D</span>}</td>
+                  <td className="datil-col-num">
+                    {c.buys} / {c.sells}
+                  </td>
+                  <td className="datil-col-num">{formatCurrency(c.volume_mxn)}</td>
+                  <td>
+                    <button className="datil-btn datil-btn-secondary" onClick={() => onOpen(c.username)}>
+                      Ver detalle
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div className="datil-grid-2">
+        <section className="datil-card">
+          <h2>Mejores compras</h2>
           <TopTable
             rows={data.top_positions}
             empty="Sin posiciones con rendimiento calculado."
@@ -98,7 +210,9 @@ function Dashboard({ onOpen, view }) {
               ["Rendimiento", (r) => `${formatCurrency(r.gain_mxn)} (${r.gain_percent}%)`, true],
             ]}
           />
-          <h3 className="datil-subheading">Mejores ventas (utilidad realizada en los últimos {data.days} días)</h3>
+        </section>
+        <section className="datil-card">
+          <h2>Mejores ventas de los últimos {data.days} días</h2>
           <TopTable
             rows={data.top_sales}
             empty="Sin ventas con utilidad realizada en el periodo."
@@ -108,102 +222,47 @@ function Dashboard({ onOpen, view }) {
               ["Utilidad", (r) => formatCurrency(r.realized_pnl_mxn), true],
             ]}
           />
-          <p className="datil-period-tag">
-            Son resultados ya ocurridos, para conocer a los clientes; no indican que vayan a repetirse.
-          </p>
         </section>
-      )}
-      {view === "clientes" && <ActivityFeed />}
+      </div>
+      <p className="datil-period-tag">Son resultados ya ocurridos, para conocer a los clientes; no indican que vayan a repetirse.</p>
+
+      <ActivityFeed filter={filter} />
     </>
   );
 }
 
-function Summary({ data, onOpen }) {
-  const { totals } = data;
+// Avisos, al final del menú: se mandan a un cliente (a veces desde una sugerencia) y aquí queda el registro con fecha y hora.
+function Notices({ filter, draft, onOptions }) {
+  const [options, setOptions] = useState([]);
+  const [client, setClient] = useState(draft?.username ?? filter.client ?? "");
+  const [version, setVersion] = useState(0); // al enviar, se vuelve a pedir el registro
+
+  useEffect(() => {
+    apiClient.get("/api/consultant/dashboard").then(({ data }) => {
+      const list = data.clients.map((c) => ({ username: c.username, name: c.client }));
+      setOptions(list);
+      onOptions(list);
+    });
+  }, []);
+
   return (
     <>
-      <div className="datil-summary-grid">
-        <div>
-          <span className="datil-label">Clientes</span>
-          <strong>{totals.clients}</strong>
-        </div>
-        <div>
-          <span className="datil-label">Patrimonio de tus clientes</span>
-          <strong>{formatCurrency(totals.portfolio_total)}</strong>
-        </div>
-        <div>
-          <span className="datil-label">Compras / ventas</span>
-          <strong>
-            {totals.buys} / {totals.sells}
-          </strong>
-        </div>
-        <div>
-          <span className="datil-label">Volumen operado</span>
-          <strong>{formatCurrency(totals.volume_mxn)}</strong>
-        </div>
-        <div>
-          <span className="datil-label">Clientes con riesgo alto</span>
-          <strong>{totals.high_risk}</strong>
-        </div>
-        <div>
-          <span className="datil-label">Alertas de prioridad alta</span>
-          <strong>{totals.alerts}</strong>
-        </div>
-      </div>
-
-      <h3 className="datil-subheading">Operaciones por día</h3>
-      <div className="datil-chart-wrapper">
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={data.activity}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--datil-border)" />
-            <XAxis dataKey="date" tick={{ fontSize: 11 }} minTickGap={30} tickFormatter={(d) => d.slice(5)} />
-            <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={30} />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="buys" name="Compras" stackId="ops" fill="var(--datil-accent)" />
-            <Bar dataKey="sells" name="Ventas" stackId="ops" fill="var(--datil-text-muted)" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      <h3 className="datil-subheading">Clientes</h3>
-      <div className="datil-table-wrap">
-        <table className="datil-table">
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th className="datil-col-num">Portafolio</th>
-              <th>Riesgo de sus acciones</th>
-              <th className="datil-col-num">Compras / ventas</th>
-              <th className="datil-col-num">Volumen</th>
-              <th className="datil-col-num">Alertas altas</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {data.clients.map((c) => (
-              <tr key={c.username}>
-                <td>
-                  <strong>{c.client}</strong>
-                  <span className="datil-period-tag"> {c.username}</span>
-                </td>
-                <td className="datil-col-num">{formatCurrency(c.total)}</td>
-                <td>{c.risk && c.risk.level ? <RiskBadge level={c.risk.level} score={c.risk.score} /> : <span className="datil-period-tag">N/D</span>}</td>
-                <td className="datil-col-num">
-                  {c.buys} / {c.sells}
-                </td>
-                <td className="datil-col-num">{formatCurrency(c.volume_mxn)}</td>
-                <td className="datil-col-num">{c.alerts}</td>
-                <td>
-                  <button className="datil-btn datil-btn-secondary" onClick={() => onOpen(c.username)}>
-                    Ver detalle
-                  </button>
-                </td>
-              </tr>
+      <section className="datil-card">
+        <h2>Nuevo aviso</h2>
+        <label>
+          Para qué cliente
+          <select value={client} onChange={(e) => setClient(e.target.value)}>
+            <option value="">Elige un cliente</option>
+            {options.map((c) => (
+              <option key={c.username} value={c.username}>
+                {c.name}
+              </option>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </select>
+        </label>
+        {client && <NotifyClient username={client} draft={draft && draft.username === client ? draft : null} hideSent embedded onSent={() => setVersion((v) => v + 1)} />}
+      </section>
+      <ActivityFeed key={version} kind="avisos" filter={filter} />
     </>
   );
 }
@@ -241,85 +300,5 @@ function TopTable({ rows, columns, empty }) {
         </tbody>
       </table>
     </div>
-  );
-}
-
-// Alertas de todos sus clientes de un vistazo: las cumplidas primero, luego las que van al 80% y al 60% del umbral,
-// para que el consultor se adelante a lo que puede pasar.
-function AlertsDashboard({ onOpen }) {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    apiClient
-      .get("/api/consultant/alerts")
-      .then(({ data }) => setData(data))
-      .catch((err) => setError(apiError(err, "No se pudieron cargar las alertas.")));
-  }, []);
-
-  if (error) return <p className="datil-error">{error}</p>;
-  if (!data) return <p>Revisando las alertas de tus clientes...</p>;
-
-  const watched = data.alerts.filter((a) => a.level > 0);
-  return (
-    <section className="datil-card">
-      <h2>Alertas de mis clientes</h2>
-      <div className="datil-summary-grid">
-        {[3, 2, 1].map((level) => (
-          <div key={level}>
-            <span className="datil-label">{LEVEL[level].label}</span>
-            <strong>{data.counts[level]}</strong>
-          </div>
-        ))}
-        <div>
-          <span className="datil-label">Lejos de cumplirse</span>
-          <strong>{data.counts[0]}</strong>
-        </div>
-      </div>
-      {watched.length === 0 ? (
-        <p>Ninguna alerta está cerca de cumplirse. Los clientes pueden ponerlas en Mi plan, y tú desde el detalle de cada uno.</p>
-      ) : (
-        <div className="datil-table-wrap">
-          <table className="datil-table">
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Activo</th>
-                <th>Regla</th>
-                <th className="datil-col-num">Hoy</th>
-                <th>Estado</th>
-                <th>Indicación</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {watched.map((a) => (
-                <tr key={a.id}>
-                  <td>{a.client}</td>
-                  <td>
-                    <strong>{a.symbol === "*" ? "Portafolio" : a.symbol}</strong>
-                  </td>
-                  <td>{ruleText(a)}</td>
-                  <td className={`datil-col-num ${a.move >= 0 ? "datil-up" : "datil-down"}`}>{a.move}%</td>
-                  <td>
-                    <span className={`datil-risk ${LEVEL[a.level].cls}`}>{LEVEL[a.level].label}</span>
-                  </td>
-                  <td>{a.indication === "aviso" ? "Solo avisar" : a.indication === "vender" ? "Considerar vender" : "Considerar comprar más"}</td>
-                  <td>
-                    <button className="datil-btn datil-btn-secondary" onClick={() => onOpen(a.username)}>
-                      Ver cliente
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <p className="datil-period-tag">
-        Con una alerta de 10% de pérdida, ves el aviso desde el 6% (atención) y el 8% (cerca); al llegar al 10% también se le avisa al
-        cliente. Se revisan cuando abres esta pantalla.
-      </p>
-    </section>
   );
 }

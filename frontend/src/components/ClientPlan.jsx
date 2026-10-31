@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import apiClient from "../api/client";
 import { apiError } from "../utils/risk";
-import AlertsPanel from "./AlertsPanel";
 import NotesBox from "./NotesBox";
 import Report, { Goals, withProgress } from "./Report";
 
 // Lo que el consultor ve y escribe de un cliente: sus metas, las notas que le dejó, sus notas personales
-// (solo él las lee), las alertas y el reporte por periodo.
+// (solo él las lee) y el reporte por periodo. Las alertas viven con las sugerencias.
 export default function ClientPlan({ username }) {
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState("");
@@ -36,15 +35,6 @@ export default function ClientPlan({ username }) {
         <NotesBox notes={plan.notes} />
         <h3 className="datil-subheading">Mis notas personales (el cliente no las ve)</h3>
         <NotesBox notes={plan.private_notes} url={`${base}/private-notes`} reload={load} placeholder="Cómo es el cliente, qué conviene hablar con él..." />
-      </section>
-
-      <section className="datil-card">
-        <h2>Alertas del cliente</h2>
-        <AlertsPanel
-          url={`${base}/alerts`}
-          listUrl={`${base}/plan`}
-          hint="Las del cliente avisan a él al cumplirse; tú las ves desde el 60% y el 80% de su umbral. Las que pongas tú solo las ves tú."
-        />
       </section>
 
       <section className="datil-card">

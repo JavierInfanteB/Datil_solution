@@ -39,7 +39,7 @@ export default function DashboardPage() {
       <div className="datil-content-area">
         <main className="datil-content">
           {ActiveModule ? (
-            <ActiveModule section={activeSection} onUnreadChange={setUnread} />
+            <ActiveModule section={activeSection} onUnreadChange={setUnread} goTo={(sectionId) => open(activeModule, sectionId)} />
           ) : (
             <p>No tienes módulos habilitados todavía.</p>
           )}

@@ -19,8 +19,8 @@ MODULES = {
     "risk": [],
     "avisos": [],
     "plan": ["alertas", "metas", "notas", "reporte"],
-    "consultor": ["resumen", "clientes", "alertas", "sugerencias", "tendencias"],
-    "clientes": ["resumen", "lista", "tendencias"],
+    "consultor": ["clientes", "sugerencias", "tendencias", "avisos"],
+    "clientes": ["resumen", "lista", "tendencias", "avisos"],
     "permissions": [],
 }
 # Modulos personales de un rol: solo ese rol los usa ("Mis clientes" es del consultor y la bandeja de

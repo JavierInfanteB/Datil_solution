@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import apiClient from "../api/client";
 import ActivityFeed from "../components/ActivityFeed";
 import ConsultantsOverview from "../components/ConsultantsOverview";
+import FilterBar from "../components/FilterBar";
 import Insights from "../components/Insights";
 import { formatCurrency } from "../utils/format";
 import { apiError } from "../utils/risk";
@@ -14,19 +15,46 @@ const TABS = [
   { id: "bono", name: "Comprar / vender bonos y CETES" },
 ];
 
-// Módulo del admin sobre los clientes de Datil: todos sus clientes, resultados y tendencias. El admin no tiene
-// cartera propia: compra y vende solo en nombre de un cliente, y cada operación queda en la bitácora.
+// Módulo del admin sobre los clientes de Datil. El filtro por consultor y por cliente se comparte entre sus pestañas; sin
+// filtro se ve todo. El admin no tiene cartera propia: compra y vende solo en nombre de un cliente y queda registrado.
 export default function AdminClients({ section }) {
   const [selected, setSelected] = useState(null);
-  if (section?.id === "resumen") return <ConsultantsOverview />;
-  if (section?.id === "tendencias") return <Insights endpoint="/api/admin/insights" part="market" />;
-  return selected ? <ClientOperate client={selected} onBack={() => setSelected(null)} /> : <ClientList onOpen={setSelected} />;
+  const [people, setPeople] = useState(null);
+  const [filter, setFilter] = useState({ consultant: "", client: "" });
+
+  useEffect(() => {
+    apiClient.get("/api/users").then(({ data }) => setPeople(data.users));
+  }, []);
+  useEffect(() => setSelected(null), [section?.id]);
+
+  if (selected) return <ClientOperate client={selected} onBack={() => setSelected(null)} />;
+  const id = section?.id ?? "lista";
+  return (
+    <>
+      {people && (
+        <FilterBar
+          consultants={people.filter((u) => u.role === "consultor")}
+          clients={people.filter((u) => u.role === "usuario" && !u.deleted).map((u) => ({ username: u.username, name: u.name, consultant: u.consultant }))}
+          value={filter}
+          onChange={setFilter}
+        />
+      )}
+      {id === "resumen" && <ConsultantsOverview filter={filter} />}
+      {id === "tendencias" && <Insights endpoint="/api/admin/insights" filter={filter} />}
+      {id === "avisos" && <ActivityFeed kind="avisos" filter={filter} />}
+      {id === "lista" && (
+        <>
+          <ClientList onOpen={setSelected} filter={filter} />
+          <ActivityFeed filter={filter} />
+        </>
+      )}
+    </>
+  );
 }
 
-function ClientList({ onOpen }) {
+function ClientList({ onOpen, filter }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
 
   useEffect(() => {
     apiClient
@@ -38,15 +66,11 @@ function ClientList({ onOpen }) {
   if (error) return <p className="datil-error">{error}</p>;
   if (!data) return <p>Cargando clientes...</p>;
 
-  const rows = data.clients.filter((c) => `${c.name} ${c.username}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const rows = data.clients.filter((c) => (!filter.client || c.username === filter.client) && (!filter.consultant || c.consultant_username === filter.consultant));
   return (
     <>
       <section className="datil-card">
         <h2>Clientes de Datil Solution</h2>
-        <label>
-          Buscar
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nombre o usuario" />
-        </label>
         <div className="datil-table-wrap">
           <table className="datil-table">
             <thead>
@@ -83,7 +107,6 @@ function ClientList({ onOpen }) {
         <p className="datil-period-tag">Cambiar contraseñas, suspender cuentas o asignar consultor se hace en Usuarios y permisos.</p>
       </section>
 
-      <ActivityFeed />
     </>
   );
 }

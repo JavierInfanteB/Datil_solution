@@ -53,7 +53,8 @@ def pnl_row(client, view, transactions):
     realized = sum(t["realized_pnl_mxn"] for t in transactions if t.get("realized_pnl_mxn") is not None)
     return {"username": client["username"], "client": client["name"], "unrealized": round(unrealized, 2),
             "realized": round(realized, 2), "total": round(unrealized + realized, 2),
-            "cost": round(sum(h["value"] - h["gain_mxn"] for h in held), 2), "portfolio": view["portfolio_total"]}
+            "cost": round(sum(h["value"] - h["gain_mxn"] for h in held), 2), "portfolio": view["portfolio_total"],
+            "cash": view["cash"], "holdings": [{"symbol": h["symbol"], "value": h["value"]} for h in view["holdings"] if h.get("value")]}
 
 
 def build_insights(clients, days=30):

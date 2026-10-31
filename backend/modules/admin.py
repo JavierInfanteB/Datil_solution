@@ -19,7 +19,10 @@ MAX_DAYS = 365
 
 
 def _clients():
-    return [u for u in load_users() if u["role"] == "usuario"]
+    """Todos los clientes, o los que pidan los filtros `consultant` y `client` de la pantalla."""
+    only, boss = request.args.get("client"), request.args.get("consultant")
+    return [u for u in load_users() if u["role"] == "usuario" and (not only or u["username"] == only)
+            and (not boss or u.get("consultant") == boss)]
 
 
 @admin_bp.route("/clients", methods=["GET"])
@@ -31,7 +34,7 @@ def list_clients():
     for c in _clients():
         view = build_portfolio_view(c["username"], settle=False)
         rows.append({"username": c["username"], "name": c["name"], "disabled": bool(c.get("disabled")),
-                     "consultant": names.get(c.get("consultant")), "total": view["portfolio_total"],
+                     "consultant": names.get(c.get("consultant")), "consultant_username": c.get("consultant"), "total": view["portfolio_total"],
                      "cash": view["cash"], "holdings_count": view["holdings_count"],
                      "gain_mxn": round(sum(h["gain_mxn"] for h in view["holdings"] if h.get("gain_mxn") is not None), 2)})
     return jsonify({"clients": sorted(rows, key=lambda r: -r["total"]), "audit": audit.load()[-AUDIT_LIMIT:][::-1]})

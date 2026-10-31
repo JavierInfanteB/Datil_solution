@@ -9,9 +9,9 @@ const sign = (v) => (v >= 0 ? "var(--datil-up)" : "var(--datil-down)");
 const trend = (v) => (v == null ? "" : v >= 0 ? "datil-up" : "datil-down");
 const pctText = (v) => (v == null ? "N/D" : `${v > 0 ? "+" : ""}${v}%`);
 
-// Ganancias y pérdidas (part="pnl") o activos en tendencia y movimiento de las acciones (part="market")
-// de un grupo de clientes. `endpoint` decide de quién: los del consultor o todos los del admin.
-export default function Insights({ endpoint, part }) {
+// Activos en tendencia y movimiento mes a mes y año a año de las acciones de un grupo de clientes. `endpoint` decide de
+// quién: los del consultor o los del admin; `filter` ({consultant, client}) los acota.
+export default function Insights({ endpoint, filter = {} }) {
   const [days, setDays] = useState(30);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
@@ -21,96 +21,27 @@ export default function Insights({ endpoint, part }) {
     setData(null);
     setError("");
     apiClient
-      .get(endpoint, { params: { days } })
+      .get(endpoint, { params: { days, consultant: filter.consultant || undefined, client: filter.client || undefined } })
       .then(({ data }) => !cancelled && setData(data))
       .catch((err) => !cancelled && setError(apiError(err, "No se pudo cargar el resumen.")));
     return () => {
       cancelled = true;
     };
-  }, [endpoint, days]);
+  }, [endpoint, days, filter.consultant, filter.client]);
 
   return (
     <>
-      {part === "market" && (
-        <div className="datil-lapse-bar" role="group" aria-label="Periodo">
-          {PERIODS.map((p) => (
-            <button key={p} className={p === days ? "datil-chip active" : "datil-chip"} aria-pressed={p === days} onClick={() => setDays(p)}>
-              Últimos {p} días
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="datil-lapse-bar" role="group" aria-label="Periodo">
+        {PERIODS.map((p) => (
+          <button key={p} className={p === days ? "datil-chip active" : "datil-chip"} aria-pressed={p === days} onClick={() => setDays(p)}>
+            Últimos {p} días
+          </button>
+        ))}
+      </div>
       {error && <p className="datil-error">{error}</p>}
       {!error && !data && <p>Calculando... la primera vez puede tardar unos segundos.</p>}
-      {data && (part === "pnl" ? <Pnl pnl={data.pnl} /> : <Market data={data} />)}
+      {data && <Market data={data} />}
     </>
-  );
-}
-
-function Pnl({ pnl }) {
-  const { totals, clients, realized_by_month: months } = pnl;
-  if (clients.length === 0)
-    return (
-      <section className="datil-card">
-        <p>Aún no hay clientes.</p>
-      </section>
-    );
-  return (
-    <section className="datil-card">
-      <h2>Ganancias y pérdidas</h2>
-      <div className="datil-summary-grid">
-        <div>
-          <span className="datil-label">Resultado total</span>
-          <strong className={trend(totals.total)}>{formatCurrency(totals.total)}</strong>
-        </div>
-        <div>
-          <span className="datil-label">En posiciones abiertas</span>
-          <strong className={trend(totals.unrealized)}>{formatCurrency(totals.unrealized)}</strong>
-        </div>
-        <div>
-          <span className="datil-label">Ya realizado (ventas)</span>
-          <strong className={trend(totals.realized)}>{formatCurrency(totals.realized)}</strong>
-        </div>
-      </div>
-
-      <h3 className="datil-subheading">Resultado por cliente</h3>
-      <div className="datil-chart-wrapper">
-        <ResponsiveContainer width="100%" height={Math.max(120, clients.length * 44)}>
-          <BarChart data={clients} layout="vertical" margin={{ left: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--datil-border)" />
-            <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => formatCurrency(v)} />
-            <YAxis type="category" dataKey="client" width={110} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v) => formatCurrency(v)} />
-            <Bar dataKey="total" name="Resultado" maxBarSize={28}>
-              {clients.map((c) => (
-                <Cell key={c.username} fill={sign(c.total)} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      <h3 className="datil-subheading">Utilidad realizada por mes</h3>
-      {months.length === 0 ? (
-        <p className="datil-period-tag">Aún no hay ventas con utilidad o pérdida realizada.</p>
-      ) : (
-        <div className="datil-chart-wrapper">
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={months}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--datil-border)" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} width={70} tickFormatter={(v) => formatCurrency(v)} />
-              <Tooltip formatter={(v) => formatCurrency(v)} />
-              <Bar dataKey="realized" name="Realizado" maxBarSize={48}>
-                {months.map((m) => (
-                  <Cell key={m.month} fill={sign(m.realized)} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </section>
   );
 }
 

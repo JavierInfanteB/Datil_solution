@@ -1079,3 +1079,42 @@ h1, h2, h3 {
 .datil-section-note {
   margin: 0.75rem 0 0;
 }
+
+/* ---------- Filtros de pantalla ---------- */
+
+.datil-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.25rem;
+  align-items: flex-end;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  background: var(--datil-surface);
+  border: 1px solid var(--datil-border);
+  border-radius: 8px;
+}
+
+.datil-filter-bar label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 220px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--datil-text-muted);
+}
+
+.datil-filter-bar select {
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--datil-border);
+  background: var(--datil-bg);
+  color: var(--datil-text);
+  font-size: 0.86rem;
+  font-family: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
