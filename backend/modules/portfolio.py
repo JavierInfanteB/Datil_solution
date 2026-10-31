@@ -12,11 +12,11 @@ la fila lo indica (value_basis).
 """
 from datetime import date
 
-from flask import Blueprint, g, jsonify
+from flask import Blueprint, jsonify
 
 from utils import bond_engine, bond_math, stock_engine
 from utils.data_store import read_json
-from utils.decorators import require_auth, require_permission
+from utils.decorators import acting_username, require_auth, require_permission
 from utils.market_data import get_bond_curve, get_current_price, get_fx_to_mxn
 
 portfolio_bp = Blueprint("portfolio", __name__, url_prefix="/api/portfolio")
@@ -26,7 +26,10 @@ portfolio_bp = Blueprint("portfolio", __name__, url_prefix="/api/portfolio")
 @require_auth
 @require_permission("portfolio")
 def get_portfolio():
-    return jsonify(build_portfolio_view(g.current_user["username"]))
+    username, error = acting_username()
+    if error:
+        return error
+    return jsonify(build_portfolio_view(username))
 
 
 def build_portfolio_view(username, settle=True):

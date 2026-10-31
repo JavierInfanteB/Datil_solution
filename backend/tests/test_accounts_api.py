@@ -16,7 +16,7 @@ from flask import Flask  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 
 from routes import register_routes  # noqa: E402
-from utils import data_store  # noqa: E402
+from utils import alerts, data_store  # noqa: E402
 
 PASSWORD = "clave-de-prueba-1"
 PASSWORD_HASH = generate_password_hash(PASSWORD)  # scrypt es lento a proposito: una sola vez para todas las pruebas
@@ -44,6 +44,12 @@ def fake_risk(username, view=None):
     }
 
 
+def losing_view(username, settle=True):
+    """AAPL costo $1,000 y vale $900: -10%."""
+    return {"portfolio_total": 900.0, "holdings_count": 1, "cash": 0.0, "holdings": [
+        {"symbol": "AAPL", "name": "Apple", "type": "accion", "value": 900.0, "gain_mxn": -100.0, "gain_percent": -10.0}]}
+
+
 class AccountsApiTest(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -57,6 +63,9 @@ class AccountsApiTest(unittest.TestCase):
         files = {
             "users.json": {"users": users},
             "permissions.json": {},
+            "orders.json": {},
+            "assets.json": [],
+            "portfolios.json": {"beto": {"cash": 100, "holdings": []}},
             # Sin puestos.json: se usan los puestos de arranque.
             "transactions.json": {"beto": [
                 {"id": "t1", "date": now, "type": "accion", "side": "buy", "symbol": "AAPL", "name": "Apple",
@@ -82,7 +91,7 @@ class AccountsApiTest(unittest.TestCase):
 
     def test_el_puesto_da_los_modulos_y_el_usuario_no_ve_permisos(self):
         modules = self.http.get("/api/permissions/me", headers=self.as_user("beto")).get_json()["modules"]
-        self.assertEqual(set(modules), {"portfolio", "trading", "risk", "avisos"})
+        self.assertEqual(set(modules), {"portfolio", "trading", "risk", "avisos", "plan"})
         self.assertEqual(self.http.get("/api/permissions", headers=self.as_user("beto")).status_code, 403)
 
     def test_cada_rol_ve_solo_sus_modulos_personales(self):
@@ -220,6 +229,100 @@ class AccountsApiTest(unittest.TestCase):
         # El consultor no tiene bandeja y el usuario no puede mandar avisos.
         self.assertEqual(self.http.get("/api/notifications", headers=ana).status_code, 403)
         self.assertEqual(self.http.post(url, headers=self.as_user("beto"), json={"title": "x", "message": "y"}).status_code, 403)
+
+    def test_el_admin_cambia_contrasena_y_suspende(self):
+        root, beto = self.as_user("root"), self.as_user("beto")
+        self.assertEqual(self.http.patch("/api/users/beto", headers=root, json={"password": "corta"}).status_code, 400)
+        self.assertEqual(self.http.patch("/api/users/beto", headers=root, json={"password": "otra-clave-9"}).status_code, 200)
+        login = lambda pw: self.http.post("/api/auth/login", json={"username": "beto", "password": pw}).status_code
+        self.assertEqual((login(PASSWORD), login("otra-clave-9")), (401, 200))
+
+        self.assertEqual(self.http.patch("/api/users/root", headers=root, json={"disabled": True}).status_code, 400)
+        self.assertEqual(self.http.patch("/api/users/beto", headers=root, json={"disabled": True}).status_code, 200)
+        self.assertEqual(login("otra-clave-9"), 403)
+        self.assertEqual(self.http.get("/api/permissions/me", headers=beto).status_code, 401)  # su sesion abierta cae
+
+    def test_el_admin_opera_solo_en_nombre_de_un_cliente(self):
+        root = self.as_user("root")
+        order = {"symbol": "AAPL", "quantity": 1}
+        self.assertEqual(self.http.post("/api/trading/buy", headers=root, json=order).status_code, 403)  # no tiene cartera
+        self.assertEqual(self.http.get("/api/portfolio", headers=root).status_code, 403)
+        self.assertEqual(self.http.post("/api/trading/buy", headers=root, json={**order, "client": "ana"}).status_code, 403)
+
+        with mock.patch("modules.trading.get_current_price", return_value={"price": 10.0, "currency": "MXN"}),                 mock.patch("modules.trading.get_fx_to_mxn", return_value=1.0):
+            bought = self.http.post("/api/trading/buy", headers=root, json={**order, "client": "beto"})
+        self.assertEqual(bought.status_code, 200)
+        with mock.patch("modules.admin.build_portfolio_view", fake_view):
+            self.assertEqual(self.http.get("/api/admin/clients", headers=root).get_json()["audit"][0]["client"], "beto")
+        # Un usuario sigue operando solo lo suyo, aunque mande `client`.
+        self.assertEqual(self.http.get("/api/admin/clients", headers=self.as_user("beto")).status_code, 403)
+
+    def test_el_admin_ve_a_todos_los_clientes(self):
+        with mock.patch("modules.admin.build_portfolio_view", fake_view):
+            rows = self.http.get("/api/admin/clients", headers=self.as_user("root")).get_json()["clients"]
+        self.assertEqual({r["username"] for r in rows}, {"beto", "carla"})
+
+    def test_niveles_de_alerta(self):
+        loss = {"kind": "loss", "percent": 10}
+        self.assertEqual([alerts.level_of(loss, m) for m in (None, 3, -5, -6, -8, -10)], [0, 0, 0, 1, 2, 3])
+        self.assertEqual([alerts.level_of({"kind": "gain", "percent": 20}, m) for m in (-30, 12, 16, 20)], [0, 1, 2, 3])
+
+    def test_alerta_del_cliente_avisa_al_cliente_y_el_consultor_la_ve_antes(self):
+        beto, ana = self.as_user("beto"), self.as_user("ana")
+        bad = {"symbol": "aapl", "kind": "loss", "percent": 0}
+        self.assertEqual(self.http.post("/api/plan/alerts", headers=beto, json=bad).status_code, 400)
+        mine = self.http.post("/api/plan/alerts", headers=beto, json={**bad, "percent": 10, "indication": "vender"})
+        self.assertEqual(mine.status_code, 201)
+        self.http.post("/api/consultant/clients/beto/alerts", headers=ana, json={**bad, "percent": 20})
+
+        with mock.patch("modules.consultant.build_portfolio_view", losing_view):
+            dashboard = self.http.get("/api/consultant/alerts", headers=ana).get_json()
+        self.assertEqual(dashboard["counts"]["3"], 1)  # la de 10% ya se cumplio; la de 20% va a la mitad
+        self.assertEqual([a["level"] for a in dashboard["alerts"]], [3, 0])
+
+        inbox = self.http.get("/api/notifications", headers=beto).get_json()["items"]
+        self.assertEqual(inbox[0]["title"], "Alerta cumplida: AAPL")
+        self.assertIn("vender", inbox[0]["message"])
+        # La que puso el consultor no es del cliente, ni al reves; y el aviso no se repite.
+        alert_ids = {a["by"]: a["id"] for a in dashboard["alerts"]}
+        self.assertEqual(self.http.delete(f"/api/plan/alerts/{alert_ids['ana']}", headers=beto).status_code, 404)
+        self.assertEqual(self.http.delete(f"/api/consultant/clients/beto/alerts/{alert_ids['beto']}", headers=ana).status_code, 404)
+        with mock.patch("modules.consultant.build_portfolio_view", losing_view):
+            self.http.get("/api/consultant/alerts", headers=ana)
+        self.assertEqual(len(self.http.get("/api/notifications", headers=beto).get_json()["items"]), 1)
+
+    def test_metas_y_notas_llegan_al_consultor_y_las_privadas_no_salen(self):
+        beto, ana = self.as_user("beto"), self.as_user("ana")
+        self.assertEqual(self.http.post("/api/plan/goals", headers=beto, json={"title": "Casa", "target_mxn": -5}).status_code, 400)
+        self.http.post("/api/plan/goals", headers=beto, json={"title": "Casa", "target_mxn": 5000, "target_date": "2030-01-01"})
+        self.http.post("/api/plan/notes", headers=beto, json={"text": "Quiero menos riesgo"})
+        self.http.post("/api/consultant/clients/beto/private-notes", headers=ana, json={"text": "Se pone nervioso"})
+
+        with mock.patch("modules.consultant.build_portfolio_view", losing_view):
+            plan = self.http.get("/api/consultant/clients/beto/plan", headers=ana).get_json()
+        self.assertEqual((plan["goals"][0]["title"], plan["notes"][0]["text"], plan["private_notes"][0]["text"]),
+                         ("Casa", "Quiero menos riesgo", "Se pone nervioso"))
+        self.assertEqual(self.http.get("/api/consultant/clients/beto/plan", headers=self.as_user("dora")).status_code, 404)
+        # El cliente no tiene ruta para leer las notas privadas de su consultor.
+        self.assertNotIn("Se pone nervioso", self.http.get("/api/plan/notes", headers=beto).get_data(as_text=True))
+
+    def test_reporte_del_periodo(self):
+        with mock.patch("modules.plan.build_portfolio_view", losing_view), mock.patch("modules.plan.portfolio_risk_for", fake_risk):
+            report = self.http.get("/api/plan/report?period=quarter", headers=self.as_user("beto")).get_json()
+        self.assertEqual((report["period"], report["realized"]), ("quarter", 100.0))
+        self.assertEqual(report["unrealized"], -100.0)
+        self.assertTrue(report["series"] and report["achievements"] and report["improvements"])
+
+    def test_baja_solo_en_cero_y_reactivar_avisa(self):
+        root = self.as_user("root")
+        self.assertEqual(self.http.delete("/api/users/beto", headers=root).status_code, 409)  # tiene efectivo
+        self.assertEqual(self.http.delete("/api/users/root", headers=root).status_code, 400)
+        self.assertEqual(self.http.delete("/api/users/carla", headers=root).status_code, 200)
+        self.assertEqual(self.http.post("/api/auth/login", json={"username": "carla", "password": PASSWORD}).status_code, 403)
+
+        self.assertEqual(self.http.patch("/api/users/carla", headers=root, json={"disabled": False}).status_code, 200)
+        inbox = self.http.get("/api/notifications", headers=self.as_user("carla")).get_json()["items"]
+        self.assertEqual(inbox[0]["title"], "Tu cuenta fue reactivada")
 
 
 if __name__ == "__main__":

@@ -13,10 +13,16 @@ def _path(filename):
     return os.path.join(DATA_DIR, filename)
 
 
-def read_json(filename):
+def read_json(filename, default=None):
+    """El contenido del archivo; `default` si todavia no existe (archivos que nacen con el primer uso)."""
     with _lock:
-        with open(_path(filename), "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(_path(filename), "r", encoding="utf-8") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            if default is None:
+                raise
+            return default
 
 
 def write_json(filename, data):

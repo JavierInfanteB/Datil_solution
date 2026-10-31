@@ -1,9 +1,10 @@
-"""Alta de usuarios y asignacion de rol, puesto y consultor (solo admin)."""
+"""Alta de usuarios, cambio de contrasena y nombre, suspension y asignacion de rol, puesto y consultor (solo admin)."""
 import re
 
 from flask import Blueprint, g, jsonify, request
 from werkzeug.security import generate_password_hash
 
+from utils import notifications
 from utils.accounts import ROLES, load_puestos
 from utils.data_store import read_json, write_json
 from utils.decorators import require_auth, require_role
@@ -12,7 +13,7 @@ users_bp = Blueprint("users", __name__, url_prefix="/api/users")
 
 USERNAME = re.compile(r"^[a-z0-9_.-]{3,32}$")
 MIN_PASSWORD = 8
-PUBLIC_FIELDS = ("id", "username", "name", "role", "puesto", "consultant")
+PUBLIC_FIELDS = ("id", "username", "name", "role", "puesto", "consultant", "disabled", "deleted")
 
 
 def _public(user):
@@ -92,6 +93,24 @@ def update_user(username):
     if user is None:
         return jsonify({"error": "El usuario no existe"}), 404
 
+    if "password" in body:
+        if len(body["password"] or "") < MIN_PASSWORD:
+            return jsonify({"error": f"La contraseña necesita al menos {MIN_PASSWORD} caracteres"}), 400
+        user["password_hash"] = generate_password_hash(body["password"])
+    if "name" in body:
+        if not (body["name"] or "").strip():
+            return jsonify({"error": "El nombre no puede quedar vacío"}), 400
+        user["name"] = body["name"].strip()
+    if "disabled" in body:
+        if username == g.current_user["username"]:
+            return jsonify({"error": "No puedes suspender tu propia cuenta"}), 400
+        reactivated = user.get("disabled") and not body["disabled"]
+        user["disabled"] = bool(body["disabled"])
+        if reactivated:  # volver a activar tambien levanta al usuario dado de baja
+            was_deleted = user.pop("deleted", False)
+            notifications.add(username, g.current_user, "aviso", "Tu cuenta fue reactivada",
+                              "Tu cuenta de Datil Solution volvió a estar activa." + (" Tu cartera empieza en cero." if was_deleted else ""))
+
     new_role = body.get("role", user["role"])
     if new_role not in ROLES:
         return jsonify({"error": "Rol inválido"}), 400
@@ -111,5 +130,33 @@ def update_user(username):
     if error:
         return jsonify({"error": error}), 400
 
+    write_json("users.json", data)
+    return jsonify(_public(user))
+
+
+def _balance(username):
+    """Efectivo, posiciones y ordenes pendientes de un usuario: lo que le queda dentro de Datil."""
+    portfolio = read_json("portfolios.json").get(username, {"cash": 0, "holdings": []})
+    pending = [o for o in read_json("orders.json", {}).get(username, []) if o["status"] == "pending"]
+    return portfolio["cash"], len(portfolio["holdings"]), len(pending)
+
+
+@users_bp.route("/<username>", methods=["DELETE"])
+@require_auth
+@require_role("admin")
+def delete_user(username):
+    """Dar de baja: en realidad suspende la cuenta, y solo si no tiene dinero, posiciones ni ordenes pendientes.
+    Reactivarla (PATCH disabled=false) la levanta de nuevo y le avisa al usuario."""
+    data = read_json("users.json")
+    user = next((u for u in data["users"] if u["username"] == username), None)
+    if user is None:
+        return jsonify({"error": "El usuario no existe"}), 404
+    if username == g.current_user["username"]:
+        return jsonify({"error": "No puedes darte de baja a ti mismo"}), 400
+    cash, holdings, pending = _balance(username)
+    if abs(cash) >= 0.005 or holdings or pending:
+        return jsonify({"error": "Solo se da de baja a quien está en cero: sin efectivo, posiciones ni órdenes pendientes"}), 409
+
+    user["disabled"] = user["deleted"] = True
     write_json("users.json", data)
     return jsonify(_public(user))

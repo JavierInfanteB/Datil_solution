@@ -14,7 +14,8 @@ from flask import Blueprint, g, jsonify, request
 
 from utils import bond_engine, stock_engine
 from utils.data_store import read_json, write_json
-from utils.decorators import has_permission, require_auth, require_permission
+from utils import audit
+from utils.decorators import acting_username, has_permission, require_auth, require_permission
 from utils.market_data import get_bond_curve, get_current_price, get_fx_to_mxn, list_bonds, search_stocks
 
 trading_bp = Blueprint("trading", __name__, url_prefix="/api/trading")
@@ -51,7 +52,9 @@ def search_available_stocks():
 @require_auth
 @require_permission("trading")
 def get_orders():
-    username = g.current_user["username"]
+    username, error = acting_username()
+    if error:
+        return error
     bond_engine.process_due_events(username)
     return jsonify(bond_engine.list_orders(username))
 
@@ -60,7 +63,10 @@ def get_orders():
 @require_auth
 @require_permission("trading")
 def cancel_order(order_id):
-    order = bond_engine.cancel_order(g.current_user["username"], order_id)
+    username, error = acting_username()
+    if error:
+        return error
+    order = bond_engine.cancel_order(username, order_id)
     if order is None:
         return jsonify({"error": "La orden no existe o ya no se puede cancelar"}), 404
     return jsonify(order)
@@ -70,7 +76,10 @@ def cancel_order(order_id):
 @require_auth
 @require_permission("trading")
 def get_transactions():
-    transactions = read_json("transactions.json").get(g.current_user["username"], [])
+    username, error = acting_username()
+    if error:
+        return error
+    transactions = read_json("transactions.json").get(username, [])
     return jsonify(sorted(transactions, key=lambda t: t["date"], reverse=True))
 
 
@@ -100,8 +109,11 @@ def buy_asset():
     order, error = _validate_order(request.get_json(silent=True) or {})
     if error:
         return error
+    audit.record_admin_trade(request.path.rsplit("/", 1)[-1], order)
 
-    username = g.current_user["username"]
+    username, error = acting_username()
+    if error:
+        return error
     bond_engine.process_due_events(username)
 
     if order["asset_type"] == "bono":
@@ -151,8 +163,11 @@ def sell_asset():
     order, error = _validate_order(request.get_json(silent=True) or {})
     if error:
         return error
+    audit.record_admin_trade(request.path.rsplit("/", 1)[-1], order)
 
-    username = g.current_user["username"]
+    username, error = acting_username()
+    if error:
+        return error
     bond_engine.process_due_events(username)
     portfolios = read_json("portfolios.json")
     portfolio = portfolios.setdefault(username, {"cash": 0, "holdings": []})

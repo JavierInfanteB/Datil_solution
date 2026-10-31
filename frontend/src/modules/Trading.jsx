@@ -17,8 +17,10 @@ const signed = (value) => `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
 const trendClass = (value) => (value >= 0 ? "datil-up" : "datil-down");
 
 // La sección (Acciones / Bonos y CETES) se elige en el menú lateral; ver moduleRegistry.
-export default function Trading({ section }) {
+// `client`: solo cuando el admin opera en nombre de un cliente (el admin no tiene cartera propia).
+export default function Trading({ section, client }) {
   const tab = section.id;
+  const params = client ? { client } : undefined;
   const [holdings, setHoldings] = useState([]);
   const [bonds, setBonds] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -30,13 +32,15 @@ export default function Trading({ section }) {
   const [historyError, setHistoryError] = useState("");
   const [lapseId, setLapseId] = useState("1M");
   const [chosenGrain, setChosenGrain] = useState("dia");
+  // Alertas opcionales al comprar (% de pérdida y de ganancia); vacías = no se crea ninguna.
+  const [alertForm, setAlertForm] = useState({ loss: "", gain: "", indication: "aviso" });
 
   const loadOrders = () => {
-    apiClient.get("/api/trading/orders").then(({ data }) => setOrders(data));
+    apiClient.get("/api/trading/orders", { params }).then(({ data }) => setOrders(data));
   };
 
   useEffect(() => {
-    apiClient.get("/api/portfolio").then(({ data }) => {
+    apiClient.get("/api/portfolio", { params }).then(({ data }) => {
       const owned = data.holdings.filter((h) => h.type === "accion");
       setHoldings(owned);
       if (owned[0]) setStockSymbol({ symbol: owned[0].symbol, name: owned[0].name });
@@ -46,7 +50,7 @@ export default function Trading({ section }) {
       setBondSymbol(data[0]?.symbol ?? "");
     });
     loadOrders();
-  }, []);
+  }, [client]);
 
   const activeSymbol = tab === "accion" ? stockSymbol?.symbol : bondSymbol;
   const activeBond = bonds.find((b) => b.symbol === bondSymbol);
@@ -74,9 +78,22 @@ export default function Trading({ section }) {
         quantity: Number(quantity),
         asset_type: tab,
         name: tab === "accion" ? stockSymbol?.name : undefined,
+        client,
       });
+      let alertInfo = "";
+      if (action === "buy" && !client) {
+        const wanted = [["loss", alertForm.loss], ["gain", alertForm.gain]].filter(([, percent]) => Number(percent) > 0);
+        try {
+          for (const [kind, percent] of wanted)
+            await apiClient.post("/api/plan/alerts", { symbol, kind, percent: Number(percent), indication: alertForm.indication });
+          if (wanted.length) alertInfo = " Alerta creada: la ves en Mi plan.";
+        } catch {
+          alertInfo = " No se pudo crear la alerta; puedes ponerla en Mi plan.";
+        }
+        setAlertForm({ loss: "", gain: "", indication: "aviso" });
+      }
       const cashInfo = data.cash != null ? ` Efectivo disponible: ${formatCurrency(data.cash)}` : "";
-      setMessage({ type: "ok", text: `${data.message}.${cashInfo}` });
+      setMessage({ type: "ok", text: `${data.message}.${cashInfo}${alertInfo}` });
       fetchHistory(symbol, tab).then(({ data }) => setHistory(data));
       loadOrders();
     } catch (err) {
@@ -86,7 +103,7 @@ export default function Trading({ section }) {
 
   const cancelOrder = async (orderId) => {
     try {
-      await apiClient.post(`/api/trading/orders/${orderId}/cancel`);
+      await apiClient.post(`/api/trading/orders/${orderId}/cancel`, null, { params });
       loadOrders();
     } catch {
       setMessage({ type: "error", text: "No se pudo cancelar la orden." });
@@ -194,6 +211,26 @@ export default function Trading({ section }) {
         </div>
       )}
 
+      {!client && (
+        <div className="datil-form-row">
+          <label>
+            Avisarme si pierdo (%) <span className="datil-period-tag">opcional</span>
+            <input type="number" min="0.1" step="0.1" value={alertForm.loss} onChange={(e) => setAlertForm({ ...alertForm, loss: e.target.value })} />
+          </label>
+          <label>
+            Avisarme si gano (%) <span className="datil-period-tag">opcional</span>
+            <input type="number" min="0.1" step="0.1" value={alertForm.gain} onChange={(e) => setAlertForm({ ...alertForm, gain: e.target.value })} />
+          </label>
+          <label>
+            Indicación
+            <select value={alertForm.indication} onChange={(e) => setAlertForm({ ...alertForm, indication: e.target.value })}>
+              <option value="aviso">Solo avisar</option>
+              <option value="vender">Considerar vender</option>
+              <option value="comprar">Considerar comprar más</option>
+            </select>
+          </label>
+        </div>
+      )}
       <div className="datil-actions">
         <button className="datil-btn datil-btn-primary" onClick={() => submit("buy")}>
           Comprar

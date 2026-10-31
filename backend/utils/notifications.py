@@ -6,6 +6,7 @@ from utils.data_store import read_json, write_json
 
 FILE = "notifications.json"
 KINDS = ("aviso", "riesgo", "accion")  # aviso general, alerta de riesgo, accion sugerida
+ALERT = "alerta"  # lo genera el sistema cuando se cumple una alerta del cliente; el consultor no lo manda
 
 
 def load():

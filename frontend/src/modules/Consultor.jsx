@@ -2,24 +2,33 @@ import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import apiClient from "../api/client";
 import ClientDetail from "../components/ClientDetail";
-import { RiskBadge, SeverityTag } from "../components/RiskParts";
+import { LEVEL, ruleText } from "../components/AlertsPanel";
+import Insights from "../components/Insights";
+import { RiskBadge } from "../components/RiskParts";
+import Suggestions from "../components/Suggestions";
 import { formatCurrency } from "../utils/format";
 import { apiError } from "../utils/risk";
 
 const PERIODS = [7, 30, 90];
 
-// Panel del consultor: sus clientes asignados, qué hicieron los últimos días, cómo están de riesgo y
-// qué decisiones conviene tomar. Al abrir un cliente se ve su detalle.
-export default function Consultor() {
+// Panel del consultor, una sección por pestaña del menú lateral: resumen de ganancias y pérdidas, clientes,
+// sugerencias y tendencias. Al abrir un cliente se ve su detalle.
+export default function Consultor({ section }) {
   const [selected, setSelected] = useState(null);
-  return selected ? (
-    <ClientDetail username={selected} onBack={() => setSelected(null)} />
-  ) : (
-    <Dashboard onOpen={setSelected} />
-  );
+  if (selected) return <ClientDetail username={selected} onBack={() => setSelected(null)} />;
+  switch (section?.id) {
+    case "resumen":
+      return <Insights endpoint="/api/consultant/insights" part="pnl" />;
+    case "tendencias":
+      return <Insights endpoint="/api/consultant/insights" part="market" />;
+    case "alertas":
+      return <AlertsDashboard onOpen={setSelected} />;
+    default:
+      return <Dashboard onOpen={setSelected} view={section?.id === "sugerencias" ? "sugerencias" : "clientes"} />;
+  }
 }
 
-function Dashboard({ onOpen }) {
+function Dashboard({ onOpen, view }) {
   const [days, setDays] = useState(30);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
@@ -40,7 +49,7 @@ function Dashboard({ onOpen }) {
   return (
     <>
       <section className="datil-card">
-        <h2>Mis clientes</h2>
+        <h2>{view === "sugerencias" ? "Sugerencias" : "Mis clientes"}</h2>
         <div className="datil-lapse-bar" role="group" aria-label="Periodo">
           {PERIODS.map((p) => (
             <button
@@ -58,57 +67,36 @@ function Dashboard({ onOpen }) {
         {data && data.clients.length === 0 && (
           <p>Aún no tienes clientes asignados. El administrador los asigna desde Usuarios y permisos.</p>
         )}
-        {data && data.clients.length > 0 && <Summary data={data} onOpen={onOpen} />}
+        {data && data.clients.length > 0 && view === "clientes" && <Summary data={data} onOpen={onOpen} />}
+        {data && data.clients.length > 0 && view === "sugerencias" && <Suggestions data={data} onOpen={onOpen} />}
       </section>
 
-      {data && data.clients.length > 0 && (
-        <>
-          <section className="datil-card">
-            <h2>Sugerencias para reducir riesgo</h2>
-            {data.suggestions.length === 0 ? (
-              <p>Ningún cliente tiene alertas por ahora.</p>
-            ) : (
-              <ul className="datil-suggestions">
-                {data.suggestions.map((s, i) => (
-                  <li key={`${s.username}-${s.id}-${i}`}>
-                    <SeverityTag severity={s.severity} />{" "}
-                    <button className="datil-link" onClick={() => onOpen(s.username)}>
-                      {s.client}
-                    </button>
-                    : <strong>{s.title}</strong>
-                    <span className="datil-period-tag"> {s.detail}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          <section className="datil-card">
-            <h2>Lo mejor del periodo</h2>
-            <h3 className="datil-subheading">Mejores compras (rendimiento actual de la posición)</h3>
-            <TopTable
-              rows={data.top_positions}
-              empty="Sin posiciones con rendimiento calculado."
-              columns={[
-                ["Posición", (r) => `${r.symbol} · ${r.name}`],
-                ["Rendimiento", (r) => `${formatCurrency(r.gain_mxn)} (${r.gain_percent}%)`, true],
-              ]}
-            />
-            <h3 className="datil-subheading">Mejores ventas (utilidad realizada en los últimos {data.days} días)</h3>
-            <TopTable
-              rows={data.top_sales}
-              empty="Sin ventas con utilidad realizada en el periodo."
-              columns={[
-                ["Venta", (r) => `${r.symbol} · ${r.name}`],
-                ["Fecha", (r) => r.date],
-                ["Utilidad", (r) => formatCurrency(r.realized_pnl_mxn), true],
-              ]}
-            />
-            <p className="datil-period-tag">
-              Son resultados ya ocurridos, para conocer a los clientes; no indican que vayan a repetirse.
-            </p>
-          </section>
-        </>
+      {data && data.clients.length > 0 && view === "clientes" && (
+        <section className="datil-card">
+          <h2>Lo mejor del periodo</h2>
+          <h3 className="datil-subheading">Mejores compras (rendimiento actual de la posición)</h3>
+          <TopTable
+            rows={data.top_positions}
+            empty="Sin posiciones con rendimiento calculado."
+            columns={[
+              ["Posición", (r) => `${r.symbol} · ${r.name}`],
+              ["Rendimiento", (r) => `${formatCurrency(r.gain_mxn)} (${r.gain_percent}%)`, true],
+            ]}
+          />
+          <h3 className="datil-subheading">Mejores ventas (utilidad realizada en los últimos {data.days} días)</h3>
+          <TopTable
+            rows={data.top_sales}
+            empty="Sin ventas con utilidad realizada en el periodo."
+            columns={[
+              ["Venta", (r) => `${r.symbol} · ${r.name}`],
+              ["Fecha", (r) => r.date],
+              ["Utilidad", (r) => formatCurrency(r.realized_pnl_mxn), true],
+            ]}
+          />
+          <p className="datil-period-tag">
+            Son resultados ya ocurridos, para conocer a los clientes; no indican que vayan a repetirse.
+          </p>
+        </section>
       )}
     </>
   );
@@ -237,5 +225,85 @@ function TopTable({ rows, columns, empty }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+// Alertas de todos sus clientes de un vistazo: las cumplidas primero, luego las que van al 80% y al 60% del umbral,
+// para que el consultor se adelante a lo que puede pasar.
+function AlertsDashboard({ onOpen }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    apiClient
+      .get("/api/consultant/alerts")
+      .then(({ data }) => setData(data))
+      .catch((err) => setError(apiError(err, "No se pudieron cargar las alertas.")));
+  }, []);
+
+  if (error) return <p className="datil-error">{error}</p>;
+  if (!data) return <p>Revisando las alertas de tus clientes...</p>;
+
+  const watched = data.alerts.filter((a) => a.level > 0);
+  return (
+    <section className="datil-card">
+      <h2>Alertas de mis clientes</h2>
+      <div className="datil-summary-grid">
+        {[3, 2, 1].map((level) => (
+          <div key={level}>
+            <span className="datil-label">{LEVEL[level].label}</span>
+            <strong>{data.counts[level]}</strong>
+          </div>
+        ))}
+        <div>
+          <span className="datil-label">Lejos de cumplirse</span>
+          <strong>{data.counts[0]}</strong>
+        </div>
+      </div>
+      {watched.length === 0 ? (
+        <p>Ninguna alerta está cerca de cumplirse. Los clientes pueden ponerlas en Mi plan, y tú desde el detalle de cada uno.</p>
+      ) : (
+        <div className="datil-table-wrap">
+          <table className="datil-table">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Activo</th>
+                <th>Regla</th>
+                <th className="datil-col-num">Hoy</th>
+                <th>Estado</th>
+                <th>Indicación</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {watched.map((a) => (
+                <tr key={a.id}>
+                  <td>{a.client}</td>
+                  <td>
+                    <strong>{a.symbol === "*" ? "Portafolio" : a.symbol}</strong>
+                  </td>
+                  <td>{ruleText(a)}</td>
+                  <td className={`datil-col-num ${a.move >= 0 ? "datil-up" : "datil-down"}`}>{a.move}%</td>
+                  <td>
+                    <span className={`datil-risk ${LEVEL[a.level].cls}`}>{LEVEL[a.level].label}</span>
+                  </td>
+                  <td>{a.indication === "aviso" ? "Solo avisar" : a.indication === "vender" ? "Considerar vender" : "Considerar comprar más"}</td>
+                  <td>
+                    <button className="datil-btn datil-btn-secondary" onClick={() => onOpen(a.username)}>
+                      Ver cliente
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="datil-period-tag">
+        Con una alerta de 10% de pérdida, ves el aviso desde el 6% (atención) y el 8% (cerca); al llegar al 10% también se le avisa al
+        cliente. Se revisan cuando abres esta pantalla.
+      </p>
+    </section>
   );
 }
