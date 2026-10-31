@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import apiClient from "../api/client";
+import ActivityFeed from "../components/ActivityFeed";
+import ConsultantsOverview from "../components/ConsultantsOverview";
 import Insights from "../components/Insights";
 import { formatCurrency } from "../utils/format";
 import { apiError } from "../utils/risk";
@@ -11,13 +13,12 @@ const TABS = [
   { id: "accion", name: "Comprar / vender acciones" },
   { id: "bono", name: "Comprar / vender bonos y CETES" },
 ];
-const ACTION_LABEL = { buy: "Compra", sell: "Venta" };
 
 // Módulo del admin sobre los clientes de Datil: todos sus clientes, resultados y tendencias. El admin no tiene
 // cartera propia: compra y vende solo en nombre de un cliente, y cada operación queda en la bitácora.
 export default function AdminClients({ section }) {
   const [selected, setSelected] = useState(null);
-  if (section?.id === "resumen") return <Insights endpoint="/api/admin/insights" part="pnl" />;
+  if (section?.id === "resumen") return <ConsultantsOverview />;
   if (section?.id === "tendencias") return <Insights endpoint="/api/admin/insights" part="market" />;
   return selected ? <ClientOperate client={selected} onBack={() => setSelected(null)} /> : <ClientList onOpen={setSelected} />;
 }
@@ -82,38 +83,7 @@ function ClientList({ onOpen }) {
         <p className="datil-period-tag">Cambiar contraseñas, suspender cuentas o asignar consultor se hace en Usuarios y permisos.</p>
       </section>
 
-      <section className="datil-card">
-        <h2>Operaciones hechas por el administrador</h2>
-        {data.audit.length === 0 ? (
-          <p className="datil-period-tag">Aún no se ha operado en nombre de ningún cliente.</p>
-        ) : (
-          <div className="datil-table-wrap">
-            <table className="datil-table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Administrador</th>
-                  <th>Cliente</th>
-                  <th>Operación</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.audit.map((a, i) => (
-                  <tr key={i}>
-                    <td>{a.date.slice(0, 16).replace("T", " ")}</td>
-                    <td>{a.admin}</td>
-                    <td>{a.client}</td>
-                    <td>
-                      {ACTION_LABEL[a.action] ?? a.action} {a.quantity} × <strong>{a.symbol}</strong>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <p className="datil-period-tag">Se anota cada intento, aunque el mercado o el saldo lo rechacen.</p>
-      </section>
+      <ActivityFeed />
     </>
   );
 }

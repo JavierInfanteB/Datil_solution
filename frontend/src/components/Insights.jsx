@@ -75,13 +75,13 @@ function Pnl({ pnl }) {
 
       <h3 className="datil-subheading">Resultado por cliente</h3>
       <div className="datil-chart-wrapper">
-        <ResponsiveContainer width="100%" height={Math.max(160, clients.length * 34)}>
+        <ResponsiveContainer width="100%" height={Math.max(120, clients.length * 44)}>
           <BarChart data={clients} layout="vertical" margin={{ left: 10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--datil-border)" />
             <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => formatCurrency(v)} />
             <YAxis type="category" dataKey="client" width={110} tick={{ fontSize: 11 }} />
             <Tooltip formatter={(v) => formatCurrency(v)} />
-            <Bar dataKey="total" name="Resultado">
+            <Bar dataKey="total" name="Resultado" maxBarSize={28}>
               {clients.map((c) => (
                 <Cell key={c.username} fill={sign(c.total)} />
               ))}
@@ -101,7 +101,7 @@ function Pnl({ pnl }) {
               <XAxis dataKey="month" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} width={70} tickFormatter={(v) => formatCurrency(v)} />
               <Tooltip formatter={(v) => formatCurrency(v)} />
-              <Bar dataKey="realized" name="Realizado">
+              <Bar dataKey="realized" name="Realizado" maxBarSize={48}>
                 {months.map((m) => (
                   <Cell key={m.month} fill={sign(m.realized)} />
                 ))}
@@ -185,7 +185,7 @@ function Market({ data }) {
                   <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
                   <YAxis type="category" dataKey="symbol" width={70} tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(v) => `${v}%`} />
-                  <Bar dataKey="pct" name={by === "month" ? "Último mes" : "Últimos 12 meses"}>
+                  <Bar dataKey="pct" name={by === "month" ? "Último mes" : "Últimos 12 meses"} maxBarSize={24}>
                     {extremes.map((r) => (
                       <Cell key={r.symbol} fill={sign(value(r))} />
                     ))}

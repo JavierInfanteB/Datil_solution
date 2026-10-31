@@ -63,20 +63,16 @@ function GoalsSection() {
   const field = (name) => ({ value: form[name], onChange: (e) => setForm({ ...form, [name]: e.target.value }) });
 
   return (
-    <section className="datil-card">
-      <h2>Mis metas</h2>
-      <p className="datil-period-tag">Tu consultor ve tus metas para ayudarte a llegar a ellas.</p>
-      {goals && goals.length === 0 && <p>Todavía no tienes metas.</p>}
-      {goals && goals.length > 0 && <Goals goals={goals} />}
-      {goals &&
-        goals.map((g) => (
-          <button key={g.id} className="datil-link" onClick={() => apiClient.delete(`/api/plan/goals/${g.id}`).then(load)}>
-            Quitar «{g.title}»{" "}
-          </button>
-        ))}
-      <form onSubmit={create}>
-        <h3 className="datil-subheading">Nueva meta</h3>
-        <div className="datil-form-row">
+    <div className="datil-grid-2">
+      <section className="datil-card">
+        <h2>Mis metas</h2>
+        <p className="datil-period-tag">Tu consultor ve tus metas para ayudarte a llegar a ellas.</p>
+        {goals && goals.length === 0 && <p>Todavía no tienes metas.</p>}
+        {goals && goals.length > 0 && <Goals goals={goals} onRemove={(g) => apiClient.delete(`/api/plan/goals/${g.id}`).then(load)} />}
+      </section>
+      <section className="datil-card">
+        <h2>Nueva meta</h2>
+        <form onSubmit={create}>
           <label>
             Meta
             <input {...field("title")} required maxLength={80} placeholder="Enganche de una casa" />
@@ -89,13 +85,13 @@ function GoalsSection() {
             Fecha (opcional)
             <input type="date" {...field("target_date")} />
           </label>
-        </div>
-        <div className="datil-actions">
-          <button className="datil-btn datil-btn-primary">Guardar meta</button>
-        </div>
-      </form>
-      {error && <p className="datil-error">{error}</p>}
-    </section>
+          <div className="datil-actions">
+            <button className="datil-btn datil-btn-primary">Guardar meta</button>
+          </div>
+        </form>
+        {error && <p className="datil-error">{error}</p>}
+      </section>
+    </div>
   );
 }
 

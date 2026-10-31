@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import apiClient from "../api/client";
+import ActivityFeed from "../components/ActivityFeed";
 import ClientDetail from "../components/ClientDetail";
 import { LEVEL, ruleText } from "../components/AlertsPanel";
 import Insights from "../components/Insights";
@@ -46,10 +47,27 @@ function Dashboard({ onOpen, view }) {
     };
   }, [days]);
 
+  const empty = data && data.clients.length === 0;
+  if (view === "sugerencias")
+    return (
+      <>
+        {(error || !data || empty) && (
+          <section className="datil-card">
+            <h2>Sugerencias por acción</h2>
+            {error && <p className="datil-error">{error}</p>}
+            {!error && !data && <p>Calculando el riesgo de tus clientes... la primera vez puede tardar unos segundos.</p>}
+            {empty && <p>Aún no tienes clientes asignados. El administrador los asigna desde Usuarios y permisos.</p>}
+          </section>
+        )}
+        {data && !empty && <Suggestions data={data} onOpen={onOpen} />}
+        {empty && <Suggestions data={{ suggestions: [], clients: [] }} onOpen={onOpen} />}
+      </>
+    );
+
   return (
     <>
       <section className="datil-card">
-        <h2>{view === "sugerencias" ? "Sugerencias" : "Mis clientes"}</h2>
+        <h2>Mis clientes</h2>
         <div className="datil-lapse-bar" role="group" aria-label="Periodo">
           {PERIODS.map((p) => (
             <button
@@ -64,11 +82,8 @@ function Dashboard({ onOpen, view }) {
         </div>
         {error && <p className="datil-error">{error}</p>}
         {!error && !data && <p>Calculando el riesgo de tus clientes... la primera vez puede tardar unos segundos.</p>}
-        {data && data.clients.length === 0 && (
-          <p>Aún no tienes clientes asignados. El administrador los asigna desde Usuarios y permisos.</p>
-        )}
-        {data && data.clients.length > 0 && view === "clientes" && <Summary data={data} onOpen={onOpen} />}
-        {data && data.clients.length > 0 && view === "sugerencias" && <Suggestions data={data} onOpen={onOpen} />}
+        {empty && <p>Aún no tienes clientes asignados. El administrador los asigna desde Usuarios y permisos.</p>}
+        {data && !empty && <Summary data={data} onOpen={onOpen} />}
       </section>
 
       {data && data.clients.length > 0 && view === "clientes" && (
@@ -98,6 +113,7 @@ function Dashboard({ onOpen, view }) {
           </p>
         </section>
       )}
+      {view === "clientes" && <ActivityFeed />}
     </>
   );
 }

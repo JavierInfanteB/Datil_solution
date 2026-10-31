@@ -16,7 +16,7 @@ from flask import Flask  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 
 from routes import register_routes  # noqa: E402
-from utils import alerts, data_store  # noqa: E402
+from utils import alerts, data_store, ideas  # noqa: E402
 
 PASSWORD = "clave-de-prueba-1"
 PASSWORD_HASH = generate_password_hash(PASSWORD)  # scrypt es lento a proposito: una sola vez para todas las pruebas
@@ -32,7 +32,7 @@ USERS = [
 def fake_view(username, settle=True):
     assert settle is False, "el consultor no debe ejecutar ordenes de sus clientes"
     return {"portfolio_total": 1000.0, "holdings_count": 1, "cash": 100.0, "holdings": [
-        {"symbol": "AAPL", "name": "Apple", "type": "accion", "gain_percent": 12.5, "gain_mxn": 100.0}]}
+        {"symbol": "AAPL", "name": "Apple", "type": "accion", "value": 1100.0, "gain_percent": 12.5, "gain_mxn": 100.0}]}
 
 
 def fake_risk(username, view=None):
@@ -323,6 +323,41 @@ class AccountsApiTest(unittest.TestCase):
         self.assertEqual(self.http.patch("/api/users/carla", headers=root, json={"disabled": False}).status_code, 200)
         inbox = self.http.get("/api/notifications", headers=self.as_user("carla")).get_json()["items"]
         self.assertEqual(inbox[0]["title"], "Tu cuenta fue reactivada")
+
+    def test_el_admin_compara_consultores_con_resultados_y_constancia(self):
+        ana = self.as_user("ana")
+        self.http.post("/api/consultant/clients/beto/notifications", headers=ana, json={"title": "Hola", "message": "x"})
+        with mock.patch("modules.admin.build_portfolio_view", fake_view):
+            data = self.http.get("/api/admin/consultants", headers=self.as_user("root")).get_json()
+        by_name = {c["name"]: c for c in data["consultants"]}
+        self.assertEqual(set(by_name), {"Ana", "Dora"})
+        ana_kpi = by_name["Ana"]
+        self.assertEqual((ana_kpi["clients"], ana_kpi["total"], ana_kpi["in_profit"]), (1, 200.0, 1))  # 100 sin vender + 100 vendido
+        self.assertEqual((ana_kpi["actions_30d"], ana_kpi["consistency"]), (1, 8))  # 1 de 12 semanas
+        self.assertEqual(by_name["Dora"]["actions_30d"], 0)
+        self.assertEqual(self.http.get("/api/admin/consultants", headers=ana).status_code, 403)
+
+    def test_la_actividad_se_filtra_por_rol(self):
+        self.http.post("/api/consultant/clients/beto/notifications", headers=self.as_user("ana"), json={"title": "Hola", "message": "x"})
+
+        def roles(who):
+            rows = self.http.get("/api/activity", headers=self.as_user(who)).get_json()
+            return {r["role"] for r in rows}
+
+        self.assertEqual(roles("root"), {"usuario", "consultor"})
+        self.assertEqual(roles("ana"), {"usuario", "consultor"})
+        self.assertEqual(roles("beto"), {"usuario"})  # el cliente solo ve operaciones de clientes: las suyas
+        self.assertEqual(roles("dora"), set())  # Beto no es su cliente ni Ana es ella
+
+    def test_ideas_de_acciones_solo_con_motivo(self):
+        flat = [("d", 100.0)] * 250
+        self.assertEqual(ideas.reasons(ideas.facts(flat)), [f"Cerca de su mínimo de 1.0 años (+0.0%)"])
+        up = [("d", 50.0 + i * 0.1) for i in range(300)]
+        self.assertTrue(any("Buena tendencia" in r for r in ideas.reasons(ideas.facts(up))))
+        down = [("d", 200.0 - i * 0.3) for i in range(300)]
+        self.assertEqual(ideas.reasons(ideas.facts(down)), ["Cerca de su mínimo de 1.2 años (+0.0%)"])
+        middle = [("d", 100.0)] * 100 + [("d", 300.0)] * 100 + [("d", 200.0)] * 100  # lejos del minimo y bajo su promedio
+        self.assertEqual(ideas.reasons(ideas.facts(middle)), [])
 
 
 if __name__ == "__main__":
