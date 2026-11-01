@@ -3,18 +3,33 @@ import apiClient from "../api/client";
 import CompositionPie, { slices } from "../components/CompositionPie";
 import PortfolioRisk from "../components/PortfolioRisk";
 import { formatCurrency, formatMoney, formatPeriodLabel } from "../utils/format";
+import { REINVEST_LABEL } from "../utils/reinvest";
 
 // `client`: cartera de un cliente cuando la ve el admin; sin él, la propia.
 export default function Portfolio({ client }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
-  useEffect(() => {
+  const params = client ? { client } : undefined;
+  const load = () =>
     apiClient
-      .get("/api/portfolio", { params: client ? { client } : undefined })
+      .get("/api/portfolio", { params })
       .then(({ data }) => setData(data))
       .catch(() => setError("No se pudo cargar la cartera."));
+
+  useEffect(() => {
+    load();
   }, [client]);
+
+  const setReinvest = (lot, mode) =>
+    apiClient
+      .post(`/api/trading/lots/${lot.lot_id}/reinvest`, { mode }, { params })
+      .then(() => {
+        setNotice("");
+        return load();
+      })
+      .catch((err) => setNotice(err.response?.data?.error ?? "No se pudo cambiar la reinversión."));
 
   if (error) return <p className="datil-error">{error}</p>;
   if (!data) return <p>Cargando cartera...</p>;
@@ -111,6 +126,7 @@ export default function Portfolio({ client }) {
         {bonds.length > 0 && (
           <>
             <h3 className="datil-subheading">Bonos y CETES</h3>
+            {notice && <p className="datil-error">{notice}</p>}
             <div className="datil-table-wrap">
               <table className="datil-table">
                 <thead>
@@ -126,6 +142,7 @@ export default function Portfolio({ client }) {
                     <th className="datil-col-num">Ganancia</th>
                     <th className="datil-col-num">Si lo mantienes</th>
                     <th>Próximo cupón</th>
+                    <th>Al vencer</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -163,6 +180,15 @@ export default function Portfolio({ client }) {
                       </td>
                       <td>
                         {h.next_coupon_date ? `${h.next_coupon_date} (${formatCurrency(h.coupon_amount)})` : "Sin cupones"}
+                      </td>
+                      <td>
+                        <select aria-label={`Qué hacer al vencer ${h.symbol}`} value={h.reinvest} onChange={(e) => setReinvest(h, e.target.value)}>
+                          {Object.entries(REINVEST_LABEL).map(([id, label]) => (
+                            <option key={id} value={id}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                     </tr>
                   ))}

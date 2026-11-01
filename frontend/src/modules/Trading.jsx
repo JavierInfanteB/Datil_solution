@@ -6,6 +6,7 @@ import Select from "../components/Select";
 import StockCompare from "../components/StockCompare";
 import StockSearch from "../components/StockSearch";
 import { formatCurrency, formatMoney, formatPeriodLabel } from "../utils/format";
+import { REINVEST_LABEL } from "../utils/reinvest";
 import { useStockRisk } from "../utils/risk";
 import { GRAIN_LABELS, LAPSES, lapseStart, lapseVariation, periodVariations, sliceLapse } from "../utils/variation";
 
@@ -33,6 +34,9 @@ export default function Trading({ section, client }) {
   const [lapseId, setLapseId] = useState("1M");
   const [chosenGrain, setChosenGrain] = useState("dia");
   // Alertas opcionales al comprar (% de pérdida y de ganancia); vacías = no se crea ninguna.
+  const [reinvest, setReinvest] = useState("none"); // bonos: qué hacer al vencer
+  const [amount, setAmount] = useState(1000); // bonos: se compran por monto, como en cetesdirecto
+  const [quote, setQuote] = useState(null); // bonos: lo que se recibiría hoy al vender
   const [alertForm, setAlertForm] = useState({ loss: "", gain: "", indication: "aviso" });
 
   const loadOrders = () => {
@@ -53,6 +57,16 @@ export default function Trading({ section, client }) {
   }, [client]);
 
   const activeSymbol = tab === "accion" ? stockSymbol?.symbol : bondSymbol;
+
+  // Antes de vender un bono se muestra el precio de mercado de hoy (como pide cetesdirecto).
+  useEffect(() => {
+    setQuote(null);
+    if (tab !== "bono" || !bondSymbol || !(Number(quantity) > 0)) return;
+    apiClient
+      .get(`/api/trading/bonds/${bondSymbol}/quote`, { params: { quantity: Number(quantity), client } })
+      .then(({ data }) => setQuote(data))
+      .catch(() => setQuote(null));
+  }, [tab, bondSymbol, quantity, orders]);
   const activeBond = bonds.find((b) => b.symbol === bondSymbol);
 
   useEffect(() => {
@@ -75,9 +89,11 @@ export default function Trading({ section, client }) {
     try {
       const { data } = await apiClient.post(`/api/trading/${action}`, {
         symbol,
-        quantity: Number(quantity),
+        quantity: tab === "bono" && action === "buy" ? undefined : Number(quantity),
+        amount_mxn: tab === "bono" && action === "buy" ? Number(amount) : undefined,
         asset_type: tab,
         name: tab === "accion" ? stockSymbol?.name : undefined,
+        reinvest: tab === "bono" && action === "buy" ? reinvest : undefined,
         client,
       });
       let alertInfo = "";
@@ -105,8 +121,8 @@ export default function Trading({ section, client }) {
     try {
       await apiClient.post(`/api/trading/orders/${orderId}/cancel`, null, { params });
       loadOrders();
-    } catch {
-      setMessage({ type: "error", text: "No se pudo cancelar la orden." });
+    } catch (err) {
+      setMessage({ type: "error", text: err.response?.data?.error ?? "No se pudo cancelar la orden." });
     }
   };
 
@@ -156,13 +172,45 @@ export default function Trading({ section, client }) {
             <Select value={bondSymbol} options={bondOptions} onChange={setBondSymbol} />
           )}
         </label>
+        {tab === "bono" && (
+          <label>
+            Monto a invertir (mín. $100)
+            <input type="number" min="100" step="100" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </label>
+        )}
         <label>
-          Cantidad
+          {tab === "bono" ? "Títulos a vender" : "Cantidad"}
           <input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
         </label>
       </div>
 
-      {estimatedTotal != null && (
+      {tab === "bono" && bondUnitCost != null && Number(amount) > 0 && (
+        <p className="datil-estimated-total">
+          Con {formatCurrency(Number(amount))} compras unos <strong>{Math.floor(Number(amount) / bondUnitCost)} títulos</strong>
+          <span className="datil-period-tag">
+            {" "}
+            a la tasa de la última subasta; el precio final es el de la subasta en que entre tu orden y lo que no alcance para un título queda
+            en efectivo.
+            {activeBond?.kind !== "bono_m" &&
+              ` Al vencer recibirías ${formatCurrency(Math.floor(Number(amount) / bondUnitCost) * activeBond.nominal_value)}.`}
+          </span>
+        </p>
+      )}
+      {tab === "bono" && quote && (
+        <p className="datil-estimated-total">
+          {quote.error ? (
+            <span className="datil-period-tag">{quote.error}</span>
+          ) : (
+            <>
+              Si vendes {quantity} títulos hoy recibes <strong>{formatCurrency(quote.proceeds)}</strong>
+              <span className={quote.realized_pnl_mxn >= 0 ? "datil-up" : "datil-down"}> ({formatCurrency(quote.realized_pnl_mxn)})</span>
+              <span className="datil-period-tag"> a precio de mercado. Puedes vender {quote.sellable} títulos.</span>
+            </>
+          )}
+        </p>
+      )}
+
+      {tab === "accion" && estimatedTotal != null && (
         <p className="datil-estimated-total">
           Total estimado:{" "}
           <strong>{stockInForeignCurrency && fxMxn ? formatCurrency(estimatedTotal * fxMxn) : formatCurrency(estimatedTotal)}</strong>
@@ -186,11 +234,12 @@ export default function Trading({ section, client }) {
       )}
 
       {tab === "bono" && activeBond && (
-        <p className="datil-label">
-          Este bono solo se subasta los lunes. Si compras otro día, se agenda una orden para el próximo lunes.
-          La tasa se fija al comprar. Si lo vendes antes de vencer se paga a precio de mercado: si las tasas
-          subieron desde tu compra recibes menos, y si bajaron, más. Si lo mantienes hasta el final, recibes lo
-          pactado.
+        <p className="datil-period-tag">
+          Como en cetesdirecto: Banxico subasta los martes y liquida el jueves. Tu orden entra a la subasta del próximo martes si la
+          registras a más tardar el lunes, y la puedes cancelar hasta ese día; necesitas el dinero en tu cuenta el día de la subasta. No
+          todos los instrumentos se subastan cada semana: si no sale el tuyo, la orden no se ejecuta. Puedes vender antes a precio de
+          mercado hasta 3 días hábiles antes del vencimiento: si las tasas subieron desde tu compra recibes menos, y si bajaron, más. Si lo
+          mantienes hasta el final, recibes lo pactado.
         </p>
       )}
 
@@ -211,6 +260,27 @@ export default function Trading({ section, client }) {
         </div>
       )}
 
+      {tab === "bono" && (
+        <div className="datil-form-row">
+          <label className="datil-field-wide">
+            Al vencer (solo al comprar)
+            <select value={reinvest} onChange={(e) => setReinvest(e.target.value)}>
+              {Object.entries(REINVEST_LABEL).map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+      {tab === "bono" && (
+        <p className="datil-period-tag">
+          Al vencer, la reinversión compra CETES a 28 días en la subasta de esa semana (mínimo 10 títulos; si no alcanza, queda en
+          efectivo). En el Bono M también reinvierte cada cupón si eliges reinvertir todo. La orden aparece en Órdenes pendientes y la
+          puedes cancelar o cambiar en tu cartera hasta 3 días hábiles antes del vencimiento.
+        </p>
+      )}
       {!client && (
         <div className="datil-form-row">
           <label>
@@ -389,16 +459,19 @@ export default function Trading({ section, client }) {
             <thead>
               <tr>
                 <th>Símbolo</th>
-                <th className="datil-col-num">Títulos</th>
-                <th>Se ejecuta el</th>
+                <th className="datil-col-num">Monto o títulos</th>
+                <th>Subasta</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {pendingOrders.map((order) => (
                 <tr key={order.id}>
-                  <td>{order.symbol}</td>
-                  <td className="datil-col-num">{order.quantity}</td>
+                  <td>
+                    {order.symbol}
+                    {order.source === "reinversión" && <span className="datil-period-tag"> · reinversión al vencer</span>}
+                  </td>
+                  <td className="datil-col-num">{order.amount_mxn != null ? `${formatCurrency(order.amount_mxn)}` : order.quantity}</td>
                   <td>{order.scheduled_date}</td>
                   <td className="datil-col-num">
                     <button className="datil-btn datil-btn-secondary" onClick={() => cancelOrder(order.id)}>

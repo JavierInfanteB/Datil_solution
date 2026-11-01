@@ -8,13 +8,11 @@ bonos/CETES si son un catalogo curado (necesitan un series_id de Banxico)
 y solo se subastan un dia fijo a la semana: comprar otro dia agenda una
 orden pendiente en vez de ejecutarse de inmediato (ver utils/bond_engine).
 """
-from datetime import date
 
 from flask import Blueprint, g, jsonify, request
 
-from utils import bond_engine, stock_engine
+from utils import audit, bond_engine, bond_math, stock_engine
 from utils.data_store import read_json, write_json
-from utils import audit
 from utils.decorators import acting_username, has_permission, require_auth, require_permission
 from utils.market_data import get_bond_curve, get_current_price, get_fx_to_mxn, list_bonds, search_stocks
 
@@ -66,9 +64,9 @@ def cancel_order(order_id):
     username, error = acting_username()
     if error:
         return error
-    order = bond_engine.cancel_order(username, order_id)
-    if order is None:
-        return jsonify({"error": "La orden no existe o ya no se puede cancelar"}), 404
+    order, error = bond_engine.cancel_order(username, order_id)
+    if error:
+        return jsonify({"error": error}), 400
     return jsonify(order)
 
 
@@ -83,14 +81,24 @@ def get_transactions():
     return jsonify(sorted(transactions, key=lambda t: t["date"], reverse=True))
 
 
-def _validate_order(body):
+def _positive(value):
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and value > 0
+
+
+def _validate_order(body, action):
     symbol = (body.get("symbol") or "").strip().upper()
     quantity = body.get("quantity")
+    amount = body.get("amount_mxn")
     asset_type = body.get("asset_type") if body.get("asset_type") in ("accion", "bono") else "accion"
     name = body.get("name") or symbol
 
-    if not symbol or isinstance(quantity, bool) or not isinstance(quantity, (int, float)) or quantity <= 0:
-        return None, (jsonify({"error": "Símbolo y cantidad válidos son requeridos"}), 400)
+    # Los bonos se compran por monto (como en cetesdirecto) y se venden por titulos; las acciones, por titulos.
+    by_amount = asset_type == "bono" and action == "buy"
+    if not symbol or not _positive(amount if by_amount else quantity):
+        return None, (jsonify({"error": "Símbolo y monto válidos son requeridos" if by_amount
+                               else "Símbolo y cantidad válidos son requeridos"}), 400)
+    if by_amount and amount < bond_math.MIN_INVESTMENT:
+        return None, (jsonify({"error": f"El monto mínimo de compra es ${bond_math.MIN_INVESTMENT}"}), 400)
 
     if asset_type == "bono" and symbol not in {b["symbol"] for b in list_bonds()}:
         return None, (jsonify({"error": "Bono no disponible"}), 404)
@@ -99,14 +107,19 @@ def _validate_order(body):
     if not has_permission(g.current_user, f"trading.{asset_type}"):
         return None, (jsonify({"error": "Permiso denegado"}), 403)
 
-    return {"symbol": symbol, "quantity": quantity, "asset_type": asset_type, "name": name}, None
+    reinvest = body.get("reinvest") or "none"
+    if reinvest not in bond_engine.REINVEST_MODES:
+        return None, (jsonify({"error": "Reinversión inválida"}), 400)
+
+    return {"symbol": symbol, "quantity": None if by_amount else quantity, "amount_mxn": amount if by_amount else None,
+            "asset_type": asset_type, "name": name, "reinvest": reinvest}, None
 
 
 @trading_bp.route("/buy", methods=["POST"])
 @require_auth
 @require_permission("trading")
 def buy_asset():
-    order, error = _validate_order(request.get_json(silent=True) or {})
+    order, error = _validate_order(request.get_json(silent=True) or {}, "buy")
     if error:
         return error
     audit.record_admin_trade(request.path.rsplit("/", 1)[-1], order)
@@ -118,22 +131,14 @@ def buy_asset():
 
     if order["asset_type"] == "bono":
         bond = next(b for b in list_bonds() if b["symbol"] == order["symbol"])
-        scheduled_date = bond_engine.next_scheduled_purchase_date(bond)
-
-        if scheduled_date != date.today():
-            pending = bond_engine.schedule_purchase(username, bond, order["quantity"], order["name"])
-            return jsonify({
-                "message": (
-                    f"Este bono solo se compra los lunes. "
-                    f"Se agendó tu orden para el {pending['scheduled_date']}."
-                ),
-                "order": pending,
-            })
-
-        cash, err = bond_engine.buy_bond_now(username, bond, order["quantity"], order["name"])
-        if err:
-            return jsonify({"error": err}), 400
-        return jsonify({"message": "Compra realizada", "cash": cash})
+        pending = bond_engine.schedule_purchase(username, bond, order["name"], order["amount_mxn"], order["reinvest"])
+        return jsonify({
+            "message": (
+                f"Orden registrada para la subasta del {pending['scheduled_date']} (se liquida dos días después). "
+                f"Ten el dinero en tu cuenta ese día; puedes cancelarla hasta el día anterior"
+            ),
+            "order": pending,
+        })
 
     try:
         price_data = get_current_price(order["symbol"], order["asset_type"])
@@ -160,7 +165,7 @@ def buy_asset():
 @require_auth
 @require_permission("trading")
 def sell_asset():
-    order, error = _validate_order(request.get_json(silent=True) or {})
+    order, error = _validate_order(request.get_json(silent=True) or {}, "sell")
     if error:
         return error
     audit.record_admin_trade(request.path.rsplit("/", 1)[-1], order)
@@ -213,3 +218,43 @@ def sell_asset():
     write_json("portfolios.json", portfolios)
     _log_transaction(username, transaction)
     return jsonify({"message": "Venta realizada", "cash": portfolio["cash"], "transaction": transaction})
+
+
+@trading_bp.route("/lots/<lot_id>/reinvest", methods=["POST"])
+@require_auth
+@require_permission("trading.bono")
+def set_lot_reinvest(lot_id):
+    """Que pasa con un lote de bonos al vencer: no reinvertir, reinvertir capital y ganancia, o la misma cantidad."""
+    mode = (request.get_json(silent=True) or {}).get("mode")
+    if mode not in bond_engine.REINVEST_MODES:
+        return jsonify({"error": "Reinversión inválida"}), 400
+    username, error = acting_username()
+    if error:
+        return error
+    portfolios = read_json("portfolios.json")
+    error = bond_engine.set_lot_reinvest(portfolios.get(username, {"holdings": []}), lot_id, mode)
+    if error:
+        return jsonify({"error": error}), 400
+    write_json("portfolios.json", portfolios)
+    return jsonify({"lot_id": lot_id, "mode": mode})
+
+
+@trading_bp.route("/bonds/<symbol>/quote", methods=["GET"])
+@require_auth
+@require_permission("trading.bono")
+def quote_bond_sale(symbol):
+    """Lo que se recibiria hoy por vender `quantity` titulos, antes de confirmar la venta."""
+    quantity = request.args.get("quantity", type=float)
+    if not quantity or quantity <= 0:
+        return jsonify({"error": "Cantidad inválida"}), 400
+    username, error = acting_username()
+    if error:
+        return error
+    bond_engine.process_due_events(username)
+    portfolio = read_json("portfolios.json").get(username, {"cash": 0, "holdings": []})
+    sellable = sum(h["quantity"] for h in bond_engine.sellable_lots(portfolio, symbol.upper()))
+    try:
+        proceeds, pnl, error = bond_engine.quote_sale(portfolio, symbol.upper(), quantity, get_bond_curve())
+    except Exception:
+        return jsonify({"error": "No se pudo obtener la tasa de mercado para valuar la venta"}), 502
+    return jsonify({"proceeds": proceeds, "realized_pnl_mxn": pnl, "sellable": sellable, "error": error})
