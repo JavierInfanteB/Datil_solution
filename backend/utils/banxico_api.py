@@ -87,18 +87,19 @@ def get_latest_rates(series_ids):
     return rates
 
 
-def get_rate_as_of(series_id, as_of):
-    """Tasa vigente en una fecha pasada (la ultima publicada hasta ese dia).
-    Sirve para ejecutar ordenes agendadas con la tasa de su fecha, no la de hoy."""
-    start_date = as_of - timedelta(days=30)
-    url = f"{BASE_URL}/{series_id}/datos/{start_date:%Y-%m-%d}/{as_of:%Y-%m-%d}"
+def get_rate_on(series_id, day):
+    """Tasa publicada con la fecha exacta `day`. Banxico etiqueta cada subasta con su fecha de liquidacion; si ese dia
+    no hay dato, el instrumento no se subasto esa semana o Banxico todavia no publica el resultado."""
+    start_date = day - timedelta(days=7)
+    url = f"{BASE_URL}/{series_id}/datos/{start_date:%Y-%m-%d}/{day:%Y-%m-%d}"
 
     response = requests.get(url, headers=_headers(), timeout=10)
     response.raise_for_status()
-    rate = _last_valid_rate(response.json()["bmx"]["series"][0].get("datos", []))
-    if rate is None:
-        raise ValueError(f"Sin tasa publicada para la serie {series_id} al {as_of}")
-    return rate
+    label = f"{day:%d/%m/%Y}"
+    for punto in response.json()["bmx"]["series"][0].get("datos", []):
+        if punto["fecha"] == label and punto["dato"] not in ("N/E", ""):
+            return _parse_dato(punto["dato"])
+    raise ValueError(f"Sin tasa publicada para la serie {series_id} el {day}")
 
 
 def get_bond_history(series_id, days=180):

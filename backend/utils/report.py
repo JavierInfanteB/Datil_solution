@@ -44,7 +44,7 @@ def build(period, transactions, view, goals, suggestions, today):
     series = {label: {"label": label, "realized": 0.0, "income": 0.0} for label in _buckets(period, start, today)}
     sales = []
     for t in mine:
-        row = series[_bucket_of(period, date.fromisoformat(t["date"][:10]))]
+        row = series[_bucket_of(period, min(date.fromisoformat(t["date"][:10]), today))]  # las fechas vienen en UTC y pueden ir un dia adelante
         if t.get("realized_pnl_mxn") is not None:
             row["realized"] += t["realized_pnl_mxn"]
             sales.append(t)

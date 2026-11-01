@@ -26,9 +26,32 @@ se usa la tasa del Bono M a 10 anos para cualquier plazo restante (curva plana).
 """
 from datetime import date, timedelta
 
+AUCTION_WEEKDAY = 1  # Banxico subasta los martes (0 = lunes)
+SETTLEMENT_DAYS = 2  # y liquida el jueves: de ahi corre el plazo y Banxico publica la tasa con esa fecha
+# Reglas de operacion de cetesdirecto que se simulan:
+MIN_INVESTMENT = 100  # pesos minimos por compra; se compra por monto y lo que no alcanza para un titulo queda en efectivo
+LOCK_BUSINESS_DAYS = 3  # vender o cambiar la reinversion: hasta 3 dias habiles antes del vencimiento
+REINVEST_SYMBOL = "CETES28"  # la reinversion automatica al vencimiento va a CETES a 28 dias
+REINVEST_MIN_TITLES = 10  # si alcanza para al menos 10 titulos; si no, el dinero queda en efectivo
+
 
 def to_date(value):
     return date.fromisoformat(value) if isinstance(value, str) else value
+
+
+def business_days_before(day, n):
+    """El dia que queda `n` dias habiles (lunes a viernes; no se cuentan feriados) antes de `day`."""
+    day = to_date(day)
+    while n:
+        day -= timedelta(days=1)
+        if day.weekday() < 5:
+            n -= 1
+    return day
+
+
+def last_change_day(lot):
+    """Ultimo dia para vender el lote antes de que venza o para cambiar su reinversion."""
+    return business_days_before(lot["maturity_date"], LOCK_BUSINESS_DAYS)
 
 
 def kind_of(lot):

@@ -66,6 +66,7 @@ def build_portfolio_view(username, settle=True):
         if holding["type"] == "bono":
             row["lot_id"] = holding.get("lot_id")
             row["kind"] = bond_math.kind_of(holding)
+            row["reinvest"] = holding.get("reinvest", "none")
             row["rate_at_purchase"] = holding.get("rate_at_purchase")
             row["purchase_date"] = holding.get("purchase_date")
             row["maturity_date"] = holding.get("maturity_date")

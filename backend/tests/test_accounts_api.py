@@ -7,7 +7,7 @@ import os
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -16,7 +16,7 @@ from flask import Flask  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 
 from routes import register_routes  # noqa: E402
-from utils import alerts, data_store, ideas  # noqa: E402
+from utils import alerts, bond_engine, data_store, ideas  # noqa: E402
 
 PASSWORD = "clave-de-prueba-1"
 PASSWORD_HASH = generate_password_hash(PASSWORD)  # scrypt es lento a proposito: una sola vez para todas las pruebas
@@ -64,7 +64,10 @@ class AccountsApiTest(unittest.TestCase):
             "users.json": {"users": users},
             "permissions.json": {},
             "orders.json": {},
-            "assets.json": [],
+            "assets.json": [{"symbol": "CETES28", "name": "CETES 28 días", "type": "bono", "kind": "cetes", "series_id": "SF43936",
+                             "nominal_value": 10, "term_days": 28},
+                            {"symbol": "BONOM10", "name": "Bono M 10 años", "type": "bono", "kind": "bono_m", "series_id": "SF44071",
+                             "nominal_value": 100, "term_days": 3640, "coupon_days": 182}],
             "portfolios.json": {"beto": {"cash": 100, "holdings": []}},
             # Sin puestos.json: se usan los puestos de arranque.
             "transactions.json": {"beto": [
@@ -372,6 +375,168 @@ class AccountsApiTest(unittest.TestCase):
         self.assertEqual(ideas.reasons(ideas.facts(down)), ["Cerca de su mínimo de 1.2 años (+0.0%)"])
         middle = [("d", 100.0)] * 100 + [("d", 300.0)] * 100 + [("d", 200.0)] * 100  # lejos del minimo y bajo su promedio
         self.assertEqual(ideas.reasons(ideas.facts(middle)), [])
+
+    # ---------------------------------------------------------------- bonos y CETES (reglas de cetesdirecto)
+
+    CETES28 = {"symbol": "CETES28", "nominal_value": 10, "term_days": 28, "kind": "cetes"}
+
+    def _bond_lot(self, settlement, mode, quantity=1000, lot_id="lote-1"):
+        """Un lote de CETES a 28 dias liquidado en `settlement`, con la reinversion `mode`, en la cartera de beto."""
+        from utils import bond_math
+        lot = bond_math.new_lot(self.CETES28, quantity, "CETES 28 días", 6.0, settlement, lot_id)
+        lot["reinvest"] = mode
+        data_store.write_json("portfolios.json", {"beto": {"cash": 0.0, "holdings": [lot]}})
+        data_store.write_json("orders.json", {})
+        return lot
+
+    def _pending(self):
+        return [o for o in data_store.read_json("orders.json").get("beto", []) if o["status"] == "pending"]
+
+    def test_la_orden_entra_a_la_subasta_del_proximo_martes(self):
+        monday, tuesday, wednesday = date(2026, 11, 2), date(2026, 11, 3), date(2026, 11, 4)
+        self.assertEqual(bond_engine.next_scheduled_purchase_date(monday), tuesday)  # se registra el dia anterior
+        self.assertEqual(bond_engine.next_scheduled_purchase_date(tuesday), date(2026, 11, 10))  # el martes ya no alcanza
+        self.assertEqual(bond_engine.next_scheduled_purchase_date(wednesday), date(2026, 11, 10))
+
+    def test_se_compra_por_monto_y_el_plazo_corre_desde_el_jueves(self):
+        tuesday = date(2026, 11, 3)
+        order = {"symbol": "CETES28", "name": "CETES 28", "quantity": None, "amount_mxn": 1000.0,
+                 "scheduled_date": tuesday.isoformat()}
+        portfolio, events = {"cash": 1000.0, "holdings": []}, []
+        with mock.patch.object(bond_engine, "get_bond_auction_rate", return_value=6.0) as rate:
+            status, _ = bond_engine._execute_order(portfolio, order, {"CETES28": self.CETES28}, events)
+        self.assertEqual(status, "executed")
+        rate.assert_called_once_with("CETES28", tuesday)  # la tasa es la de su subasta
+        lot = portfolio["holdings"][0]
+        self.assertEqual(lot["quantity"], 100)  # $1,000 / $9.9535 = 100 titulos enteros
+        self.assertEqual((lot["purchase_date"], lot["maturity_date"]), ("2026-11-05", "2026-12-03"))
+        self.assertAlmostEqual(portfolio["cash"], 1000 - 995.36, places=2)  # lo que no alcanza para un titulo queda
+
+    def test_sin_tasa_la_orden_espera_hasta_la_liquidacion_y_despues_falla(self):
+        portfolio = {"cash": 1000.0, "holdings": []}
+
+        def run(auction, error):
+            order = {"symbol": "CETES28", "name": "x", "quantity": None, "amount_mxn": 500.0, "scheduled_date": auction.isoformat()}
+            with mock.patch.object(bond_engine, "get_bond_auction_rate", side_effect=error):
+                return bond_engine._execute_order(portfolio, order, {"CETES28": self.CETES28}, [])
+
+        self.assertEqual(run(date.today(), ValueError("sin tasa"))[0], "pending")  # aun puede publicarse
+        self.assertEqual(run(date.today() - timedelta(days=30), ValueError("sin tasa"))[0], "failed")  # no hubo subasta
+        self.assertEqual(run(date.today() - timedelta(days=30), OSError("sin red"))[0], "pending")  # sin red se reintenta
+        self.assertEqual(portfolio["holdings"], [])
+
+    def test_comprar_bono_registra_la_orden_por_monto(self):
+        beto = self.as_user("beto")
+        buy = lambda body: self.http.post("/api/trading/buy", headers=beto, json={"symbol": "CETES28", "asset_type": "bono", **body})
+        self.assertEqual(buy({"amount_mxn": 50}).status_code, 400)  # minimo $100
+        self.assertEqual(buy({"quantity": 10}).status_code, 400)  # los bonos se compran por monto
+        reply = buy({"amount_mxn": 1000, "reinvest": "all"})
+        order = reply.get_json()["order"]
+        self.assertEqual((reply.status_code, order["status"], order["amount_mxn"], order["reinvest"]), (200, "pending", 1000, "all"))
+        self.assertGreater(date.fromisoformat(order["scheduled_date"]), date.today())
+        self.assertEqual(date.fromisoformat(order["scheduled_date"]).weekday(), 1)  # martes
+
+    def test_una_compra_se_cancela_hasta_el_dia_anterior_a_su_subasta(self):
+        data_store.write_json("orders.json", {"beto": [{"id": "o1", "symbol": "CETES28", "status": "pending", "source": "compra",
+                                                        "scheduled_date": "2026-11-10"}]})
+        _, error = bond_engine.cancel_order("beto", "o1", today=date(2026, 11, 10))
+        self.assertEqual(error, "Una compra solo se cancela hasta el día anterior a su subasta")
+        order, error = bond_engine.cancel_order("beto", "o1", today=date(2026, 11, 9))
+        self.assertEqual((order["status"], error), ("cancelled", None))
+
+    def test_al_vencer_se_reinvierte_en_cetes_28_todo_o_solo_el_capital(self):
+        settled = date.today() - timedelta(days=38)  # vencio hace 10 dias
+        for mode, titles in (("all", 1004), ("same", 1000), ("none", None)):
+            self._bond_lot(settled, mode)
+            with mock.patch.object(bond_engine, "get_bond_auction_rate", return_value=6.0):
+                bond_engine.process_due_events("beto")
+            portfolio = data_store.read_json("portfolios.json")["beto"]
+            if titles is None:
+                self.assertEqual((portfolio["holdings"], portfolio["cash"]), ([], 10000.0))
+                continue
+            (lot,) = portfolio["holdings"]
+            self.assertEqual((lot["symbol"], lot["quantity"], lot["reinvest"]), ("CETES28", titles, mode))  # sigue renovando
+            self.assertAlmostEqual(portfolio["cash"], 10000.0 - titles * 9.95355, delta=0.5)  # en "same" queda la ganancia
+
+    def test_reinversion_minima_de_10_titulos(self):
+        self._bond_lot(date.today() - timedelta(days=38), "all", quantity=5)  # paga $50: no alcanza para 10 titulos
+        with mock.patch.object(bond_engine, "get_bond_auction_rate", return_value=6.0):
+            bond_engine.process_due_events("beto")
+        portfolio = data_store.read_json("portfolios.json")["beto"]
+        self.assertEqual((portfolio["holdings"], portfolio["cash"]), ([], 50.0))
+        (order,) = data_store.read_json("orders.json")["beto"]
+        self.assertEqual(order["status"], "failed")
+
+    def test_la_reinversion_se_ve_antes_y_se_cambia_hasta_3_dias_habiles_antes(self):
+        thursday = date.today() + timedelta(days=(3 - date.today().weekday()) % 7 + 7)
+        lot = self._bond_lot(thursday, "all", quantity=100, lot_id="lote-2")  # vence otro jueves, 28 dias despues
+        bond_engine.process_due_events("beto")
+        (order,) = self._pending()
+        auction = date.fromisoformat(order["scheduled_date"])
+        self.assertEqual((auction.weekday(), auction + timedelta(days=2)), (1, date.fromisoformat(lot["maturity_date"])))
+        self.assertEqual((order["symbol"], order["source_lot_id"], order["amount_mxn"]), ("CETES28", "lote-2", 1000.0))
+
+        portfolios = data_store.read_json("portfolios.json")
+        self.assertIsNone(bond_engine.set_lot_reinvest(portfolios["beto"], "lote-2", "same"))
+        data_store.write_json("portfolios.json", portfolios)
+        bond_engine.process_due_events("beto")
+        self.assertEqual([o["amount_mxn"] for o in self._pending()], [995.36])  # solo el capital
+
+        maturity = date.fromisoformat(lot["maturity_date"])
+        late = maturity - timedelta(days=1)  # miercoles: ya no se puede cambiar
+        self.assertIn("3 días hábiles", bond_engine.set_lot_reinvest(portfolios["beto"], "lote-2", "none", today=late))
+        _, error = bond_engine.cancel_order("beto", order["id"], today=late)
+        self.assertIn("3 días hábiles", error)
+
+        order, error = bond_engine.cancel_order("beto", order["id"], today=maturity - timedelta(days=3))  # el lunes si
+        self.assertIsNone(error)
+        bond_engine.process_due_events("beto")
+        self.assertEqual(self._pending(), [])  # cancelada y el lote ya no se reinvierte
+        self.assertEqual(data_store.read_json("portfolios.json")["beto"]["holdings"][0]["reinvest"], "none")
+
+    def test_se_vende_antes_hasta_3_dias_habiles_antes_del_vencimiento(self):
+        from utils import bond_math
+        lot = self._bond_lot(date.today() - timedelta(days=20), "none", quantity=10)
+        portfolio = data_store.read_json("portfolios.json")["beto"]
+        curve = {"cetes": [(28, 6.0)], "bono_m": {}}
+        last = bond_math.last_change_day(lot)
+        self.assertEqual(bond_engine.sellable_lots(portfolio, "CETES28", today=last), portfolio["holdings"])
+        self.assertEqual(bond_engine.sellable_lots(portfolio, "CETES28", today=last + timedelta(days=1)), [])
+        _, _, _, error = bond_engine.sell_bond_lots(portfolio, "CETES28", 10, curve, today=last + timedelta(days=1))
+        self.assertIn("3 días hábiles", error)
+        self.assertEqual(bond_math.business_days_before(date(2026, 12, 3), 3), date(2026, 11, 30))  # jueves -> lunes
+
+    def test_vender_antes_cancela_la_reinversion(self):
+        self._bond_lot(date.today(), "same", quantity=100)
+        bond_engine.process_due_events("beto")
+        data_store.write_json("portfolios.json", {"beto": {"cash": 990.0, "holdings": []}})  # lo vendio todo
+        bond_engine.process_due_events("beto")
+        (order,) = data_store.read_json("orders.json")["beto"]
+        self.assertEqual((order["status"], order["failure_reason"]), ("cancelled", "Se vendió el lote antes de vencer"))
+
+    def test_ordenes_de_lunes_pasan_a_martes(self):
+        monday = date.today() + timedelta(days=(7 - date.today().weekday()) % 7 + 7)
+        data_store.write_json("portfolios.json", {"beto": {"cash": 0.0, "holdings": []}})
+        data_store.write_json("orders.json", {"beto": [{"id": "o1", "symbol": "CETES28", "name": "x", "quantity": 1,
+                                                        "scheduled_date": monday.isoformat(), "status": "pending"}]})
+        bond_engine.process_due_events("beto")
+        self.assertEqual(self._pending()[0]["scheduled_date"], (monday + timedelta(days=1)).isoformat())
+
+    def test_el_cupon_del_bono_m_se_reinvierte_si_el_lote_reinvierte_todo(self):
+        from utils import bond_math
+        bono = {"symbol": "BONOM10", "nominal_value": 100, "term_days": 3640, "coupon_days": 182, "kind": "bono_m"}
+        settled = date.today() - timedelta(days=190)  # ya pago su primer cupon hace 8 dias
+        lot = bond_math.new_lot(bono, 100, "Bono M", 9.0, settled, "bono-1")
+        lot["reinvest"] = "all"
+        data_store.write_json("portfolios.json", {"beto": {"cash": 0.0, "holdings": [lot]}})
+        data_store.write_json("orders.json", {})
+        with mock.patch.object(bond_engine, "get_bond_auction_rate", return_value=6.0):
+            bond_engine.process_due_events("beto")
+        portfolio = data_store.read_json("portfolios.json")["beto"]
+        coupon = bond_math.coupon_amount(lot)  # $455
+        cetes = [h for h in portfolio["holdings"] if h["symbol"] == "CETES28"]
+        self.assertEqual([h["quantity"] for h in cetes], [int(coupon // 9.95355)])
+        self.assertLess(portfolio["cash"], 10)  # el cupon se invirtio
 
 
 if __name__ == "__main__":

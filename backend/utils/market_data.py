@@ -6,6 +6,8 @@ Finance (no hay catalogo fijo); los bonos si estan restringidos al catalogo
 curado de series de Banxico en assets.json, porque cada uno requiere un
 series_id especifico que no se puede "buscar" igual que un ticker.
 """
+from datetime import timedelta
+
 from utils import banxico_api, bond_math, yahoo_api
 from utils.data_store import read_json
 
@@ -53,6 +55,7 @@ def get_bond_curve():
     return bond_math.build_curve({symbol_by_series[s]: r for s, r in rates.items()}, bonds)
 
 
-def get_bond_rate_at(symbol, as_of):
-    """Tasa vigente de un bono en una fecha pasada."""
-    return banxico_api.get_rate_as_of(_find_bond(symbol)["series_id"], as_of)
+def get_bond_auction_rate(symbol, auction_date):
+    """Tasa de la subasta de Banxico del dia `auction_date` (martes). ValueError si ese dia no hubo o aun no se publica."""
+    settlement = auction_date + timedelta(days=bond_math.SETTLEMENT_DAYS)
+    return banxico_api.get_rate_on(_find_bond(symbol)["series_id"], settlement)
