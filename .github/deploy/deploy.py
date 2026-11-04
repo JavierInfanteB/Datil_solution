@@ -1,7 +1,7 @@
 """Despliega Datil en el Docker de esta PC: construye la imagen con este commit y recrea el contenedor.
 
 Lo corre el runner (.github/workflows/deploy.yml) y es lo mismo que se hacia a mano:
-`docker compose up -d --build datil-solution` en web/, pero desde el checkout del commit.
+`docker compose up -d --build datil-solution` en 08_Web/, pero desde el checkout del commit.
 Recrear el contenedor cierra las sesiones abiertas (viven en memoria del proceso).
 """
 import os
@@ -13,14 +13,14 @@ import winreg
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-COMPOSE = os.environ.get("DATIL_COMPOSE", r"C:\Users\bonan\OneDrive\Documentos\Proyectos_bonais\web\docker-compose.yml")
+COMPOSE = os.environ.get("DATIL_COMPOSE", r"C:\Users\bonan\OneDrive\Documentos\Proyectos_bonais\08_Web\docker-compose.yml")
 OVERRIDE = Path(__file__).with_name("compose.override.yml")
 CONTAINER = "web-datil-solution-1"
 URL = "http://localhost:5002/"
 
 
 def banxico_token():
-    """El token vive solo como variable de usuario de Windows (no en web/.env, que se sincroniza a OneDrive).
+    """El token vive solo como variable de usuario de Windows (no en 08_Web/.env, que se sincroniza a OneDrive).
     Se lee del registro y no del entorno del proceso, que puede ser anterior a que se definiera."""
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
