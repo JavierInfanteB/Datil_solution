@@ -1,0 +1,173 @@
+/* Carta de presentación (estilo editorial: titulares grandes y ligeros, botones en píldora, tarjetas muy redondeadas) */
+
+.dl-pagina {
+  --dl-radio: 28px;
+  min-height: 100vh;
+  background: var(--datil-bg);
+  color: var(--datil-text);
+  scroll-behavior: smooth;
+}
+html:has(.dl-pagina) { scroll-behavior: smooth; scroll-padding-top: 5rem; }
+
+.dl-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem clamp(1rem, 4vw, 3rem);
+  background: color-mix(in srgb, var(--datil-bg) 86%, transparent);
+  backdrop-filter: blur(12px);
+}
+.dl-marca {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--datil-text);
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.dl-marca .datil-logo { width: 30px; height: 30px; color: var(--datil-accent); }
+.dl-nav nav { display: flex; align-items: center; gap: 1.6rem; }
+.dl-nav nav a:not(.dl-pildora) { color: var(--datil-text); text-decoration: none; font-size: 0.95rem; }
+.dl-nav nav a:not(.dl-pildora):hover { color: var(--datil-accent-dark); }
+
+.dl-pildora {
+  display: inline-block;
+  background: var(--datil-accent);
+  color: #14161c;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 0.6rem 1.3rem;
+  border-radius: 999px;
+  transition: background 0.15s, transform 0.15s;
+}
+.dl-pildora:hover { background: var(--datil-accent-dark); transform: translateY(-1px); }
+.dl-pildora-grande { padding: 0.9rem 1.8rem; font-size: 1.02rem; }
+.dl-enlace { color: var(--datil-text); text-decoration: none; font-weight: 500; }
+.dl-enlace:hover { text-decoration: underline; }
+
+/* Héroe */
+.dl-heroe {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  align-items: center;
+  gap: clamp(1.5rem, 4vw, 4rem);
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: clamp(2.5rem, 7vw, 6rem) clamp(1rem, 4vw, 3rem);
+}
+.dl-etiqueta {
+  margin: 0 0 1.2rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--datil-text-muted);
+}
+.dl-heroe h1 {
+  font-size: clamp(2.6rem, 6.4vw, 5rem);
+  font-weight: 300;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+}
+.dl-heroe h1 span { color: var(--datil-accent-dark); font-weight: 600; }
+.dl-lead { max-width: 34rem; margin: 1.6rem 0 2rem; font-size: 1.15rem; line-height: 1.55; color: var(--datil-text-muted); }
+.dl-acciones { display: flex; align-items: center; gap: 1.6rem; flex-wrap: wrap; }
+
+.dl-grafica { width: 100%; height: auto; color: var(--datil-text); }
+.dl-linea { stroke-dasharray: 1; stroke-dashoffset: 1; animation: dl-trazo 1.8s 0.2s ease-out forwards; }
+.dl-area { opacity: 0; animation: dl-aparece 1s 1.2s ease-out forwards; }
+.dl-punto { opacity: 0; animation: dl-aparece 0.4s 1.8s ease-out forwards; }
+.dl-barras rect { transform-box: fill-box; transform-origin: bottom; transform: scaleY(0); animation: dl-sube 0.7s ease-out forwards; }
+@keyframes dl-trazo { to { stroke-dashoffset: 0; } }
+@keyframes dl-aparece { to { opacity: 1; } }
+@keyframes dl-sube { to { transform: scaleY(1); } }
+
+/* Secciones */
+.dl-seccion { max-width: 1240px; margin: 0 auto; padding: clamp(2.5rem, 6vw, 5rem) clamp(1rem, 4vw, 3rem); }
+.dl-encabezado { margin-bottom: 2.4rem; }
+.dl-titulo { font-size: clamp(1.9rem, 4vw, 3rem); font-weight: 300; letter-spacing: -0.02em; line-height: 1.1; }
+.dl-sub { margin: 0.8rem 0 0; max-width: 40rem; font-size: 1.1rem; color: var(--datil-text-muted); line-height: 1.5; }
+.dl-seccion > .dl-titulo { margin-bottom: 2rem; }
+
+.dl-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+.dl-tarjeta {
+  background: var(--datil-surface);
+  border: 1px solid var(--datil-border);
+  border-radius: var(--dl-radio);
+  padding: clamp(1.5rem, 3vw, 2.4rem);
+}
+.dl-tarjeta h3 { font-size: 1.5rem; font-weight: 500; margin: 1.2rem 0 0.7rem; letter-spacing: -0.01em; }
+.dl-tarjeta p { margin: 0; line-height: 1.65; color: var(--datil-text-muted); }
+.dl-tarjeta-oscura { background: #14161c; border-color: #14161c; }
+.dl-tarjeta-oscura h3 { color: #fff; }
+.dl-tarjeta-oscura p { color: #b7bac4; }
+.dl-tarjeta-oscura .dl-icono { background: rgba(217, 171, 44, 0.16); }
+
+.dl-icono {
+  display: inline-grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--datil-accent) 16%, transparent);
+  color: var(--datil-accent);
+}
+.dl-icono svg { width: 30px; height: 30px; }
+.dl-icono-chico { width: 44px; height: 44px; border-radius: 14px; flex-shrink: 0; }
+.dl-icono-chico svg { width: 24px; height: 24px; }
+
+/* Objetivos */
+.dl-objetivos { display: grid; grid-template-columns: minmax(220px, 320px) 1fr; gap: clamp(1.5rem, 4vw, 4rem); align-items: center; }
+.dl-dona { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+.dl-dona svg { width: 100%; max-width: 260px; }
+.dl-dona-num { font-size: 20px; font-weight: 600; fill: var(--datil-text); }
+.dl-dona-sub { font-size: 8px; fill: var(--datil-text-muted); }
+.dl-dona figcaption { text-align: center; }
+.dl-dona ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.92rem; }
+.dl-dona li { display: flex; align-items: center; gap: 0.5rem; justify-content: center; }
+.dl-dona li i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.dl-dona small { display: block; margin-top: 0.6rem; color: var(--datil-text-muted); }
+
+.dl-lista-obj { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.dl-lista-obj li { display: flex; gap: 1.1rem; padding: 1.2rem 0; border-top: 1px solid var(--datil-border); }
+.dl-lista-obj li:first-child { border-top: 0; padding-top: 0; }
+.dl-lista-obj h3 { font-size: 1.15rem; font-weight: 600; margin-bottom: 0.25rem; }
+.dl-lista-obj p { margin: 0; color: var(--datil-text-muted); line-height: 1.55; }
+
+/* Equipo */
+.dl-equipo { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; }
+.dl-tarjeta-equipo h3 { font-size: 1.2rem; font-weight: 600; }
+
+/* Acceso: la tarjeta de inicio de sesión vive dentro de la carta de presentación */
+.dl-acceso { background: #14161c; color: #fff; border-radius: 40px; max-width: calc(1240px - 2rem); margin: 2rem auto; }
+.dl-acceso .dl-sub { color: #b7bac4; }
+.dl-acceso .datil-login-page { min-height: 0; background: transparent; padding: 0; }
+.dl-acceso .datil-login-card { max-width: 480px; margin: 0 auto; border-radius: var(--dl-radio); }
+.dl-acceso .datil-login-card, .dl-acceso .datil-login-card h1 { color: var(--datil-text); }
+
+.dl-pie { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding: 2rem clamp(1rem, 4vw, 3rem) 3rem; color: var(--datil-text-muted); font-size: 0.9rem; }
+.dl-pie span:first-child { font-weight: 700; color: var(--datil-text); }
+
+@media (min-width: 861px) {
+  .dl-acceso .datil-login-card:has(.datil-demo-hint) { max-width: 900px; }
+}
+
+@media (max-width: 860px) {
+  .dl-nav nav a:not(.dl-pildora) { display: none; }
+  .dl-heroe, .dl-duo, .dl-objetivos { grid-template-columns: 1fr; }
+  .dl-equipo { grid-template-columns: 1fr 1fr; }
+  .dl-acceso { border-radius: 28px; margin: 1rem; }
+}
+@media (max-width: 560px) {
+  .dl-equipo { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dl-linea, .dl-area, .dl-punto, .dl-barras rect { animation: none; stroke-dashoffset: 0; opacity: 1; transform: none; }
+  html:has(.dl-pagina) { scroll-behavior: auto; }
+}

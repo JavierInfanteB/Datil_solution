@@ -9,7 +9,7 @@ const DEMO_ACCOUNTS = [
   { role: "Usuario", username: "usuario", password: "usuario", about: "Compra y vende, y ve su cartera, sus riesgos y los avisos de su consultor." },
 ];
 
-export default function LoginForm() {
+export default function LoginForm({ enfocar = true }) {
   const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -38,7 +38,7 @@ export default function LoginForm() {
         </div>
         <label>
           Usuario
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+          <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus={enfocar} />
         </label>
         <label>
           Contraseña
