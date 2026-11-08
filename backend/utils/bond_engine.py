@@ -83,12 +83,13 @@ def _pay_coupons(portfolio, lot, today, events, reinvestments):
     (se agrega la orden a `reinvestments`). Devuelve True si pago alguno."""
     paid = False
     last_date = min(today, _parse_date(lot["maturity_date"]))
-    while _parse_date(lot["next_coupon_date"]) <= last_date:
-        pay_date = _parse_date(lot["next_coupon_date"])
-        amount = bond_math.coupon_amount(lot)
+    schedule = bond_math.coupon_schedule(lot)  # fechas de pago ya corridas por dias inhabiles
+    while lot["coupons_paid"] < len(schedule) and schedule[lot["coupons_paid"]] <= last_date:
+        pay_date = schedule[lot["coupons_paid"]]
+        amount = bond_math.coupon_amount(lot)  # dias reales del periodo
         portfolio["cash"] = round(portfolio["cash"] + amount, 2)
         lot["coupons_paid"] += 1
-        lot["next_coupon_date"] = (pay_date + timedelta(days=lot["coupon_days"])).isoformat()
+        lot["next_coupon_date"] = schedule[min(lot["coupons_paid"], len(schedule) - 1)].isoformat()
         events.append(_event("coupon", lot, lot["quantity"], amount, pay_date))
         if lot.get("reinvest") == "all":
             reinvestments.append(_new_order(bond_math.REINVEST_SYMBOL, "CETES 28 días", None, _auction_settling_on(pay_date),

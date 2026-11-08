@@ -3,5 +3,10 @@
   { "symbol": "CETES91", "name": "CETES 91 días", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43939", "term_series_id": "SF43938", "nominal_value": 10, "term_days": 91 },
   { "symbol": "CETES182", "name": "CETES 182 días", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43942", "term_series_id": "SF43941", "nominal_value": 10, "term_days": 182 },
   { "symbol": "CETES364", "name": "CETES 364 días", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43945", "term_series_id": "SF43944", "nominal_value": 10, "term_days": 364 },
-  { "symbol": "BONOM10", "name": "Bono M tasa fija 10 años", "type": "bono", "kind": "bono_m", "source": "banxico", "series_id": "SF44071", "nominal_value": 100, "term_days": 3640, "coupon_days": 182 }
+  { "symbol": "CETES728", "name": "CETES 728 días", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF349785", "term_series_id": "SF349778", "nominal_value": 10, "term_days": 728 },
+  { "symbol": "BONOM3", "name": "Bono M tasa fija 3 años", "type": "bono", "kind": "bono_m", "source": "banxico", "series_id": "SF43883", "nominal_value": 100, "term_days": 1092, "coupon_days": 182 },
+  { "symbol": "BONOM5", "name": "Bono M tasa fija 5 años", "type": "bono", "kind": "bono_m", "source": "banxico", "series_id": "SF43886", "nominal_value": 100, "term_days": 1820, "coupon_days": 182 },
+  { "symbol": "BONOM10", "name": "Bono M tasa fija 10 años", "type": "bono", "kind": "bono_m", "source": "banxico", "series_id": "SF44071", "nominal_value": 100, "term_days": 3640, "coupon_days": 182 },
+  { "symbol": "BONOM20", "name": "Bono M tasa fija 20 años", "type": "bono", "kind": "bono_m", "source": "banxico", "series_id": "SF45384", "nominal_value": 100, "term_days": 7280, "coupon_days": 182 },
+  { "symbol": "BONOM30", "name": "Bono M tasa fija 30 años", "type": "bono", "kind": "bono_m", "source": "banxico", "series_id": "SF60696", "nominal_value": 100, "term_days": 10920, "coupon_days": 182 }
 ]

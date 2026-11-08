@@ -13,21 +13,22 @@ Dos instrumentos:
   menos que su devengado (y se puede perder); si bajaron, vale mas.
 
 - Bono M (kind "bono_m"): tasa fija con cupon cada `coupon_days` dias (182).
-  Cada subasta se modela como un bono nuevo a la par: el cupon es la tasa del
-  dia de compra, y el precio inicial es el nominal. El cupon se abona al
-  efectivo en cada fecha de pago y el nominal al vencer. Su precio de mercado
-  es el valor presente de los cupones y el nominal que faltan a la tasa de hoy
-  (precio sucio: incluye el cupon corrido), asi que sube cuando las tasas bajan
-  y baja cuando suben, y mas cuanto mas largo es el plazo.
+  Cada compra se simula como un bono nuevo a la par: el cupon es la tasa del dia de compra y el precio inicial es el
+  nominal (simulacion: el cupon real de cada emision viene en la convocatoria). El cupon se abona al efectivo en cada
+  fecha de pago (si cae en dia inhabil, el habil anterior) por los dias reales del periodo, y el nominal al vencer. Su
+  precio de mercado es el sucio con la formula de Banxico: valor presente de los cupones y el nominal que faltan al
+  rendimiento de mercado del plazo restante, asi que sube cuando las tasas bajan y baja cuando suben.
 
-Aproximaciones conocidas: la tasa de mercado de un CETE a un plazo intermedio
-se interpola entre las cuatro subastas (28/91/182/364 dias), y para el Bono M
-se usa la tasa del Bono M a 10 anos para cualquier plazo restante (curva plana).
+Mercado de cada dia: el vector de precios "on the run" de Banxico (utils/market_vector.py). De los CETES se toma su
+rendimiento y plazo por vencer; de los Bonos M, el rendimiento que da su precio limpio (bono_yield_from_clean_price), y
+los lotes se valuan a la tasa interpolada en su plazo restante. Estas cuentas reproducen los precios publicados.
+shortcut: la formula de Bono M (bono_clean_price) supone periodos de 182 dias, como la formula reducida de Banxico; los
+periodos reales con dias inhabiles difieren por unos dias. Revisar si se necesita el calendario exacto de cada emision.
 """
 from datetime import date, timedelta
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 
-from utils import calendar_mx
+from utils import calendar_mx, market_vector
 
 # Subastas: Banxico coloca (liquida) los jueves y subasta dos dias habiles antes; ver utils/calendar_mx.py.
 # Reglas de operacion de cetesdirecto que se simulan:
@@ -80,9 +81,12 @@ def titles_for_amount(amount_mxn, unit_price):
 
 def new_lot(bond, quantity, name, rate_pct, purchase_date, lot_id, term_days=None):
     """Lote recien comprado de un bono del catalogo a la tasa de subasta. `term_days` es el plazo real de esa
-    emision (Banxico lo publica por subasta: un CETE de 182 dias puede salir a 175); sin el, el plazo nominal del catalogo."""
-    term_days = term_days or bond["term_days"]
+    emision (Banxico lo publica por subasta: un CETE de 182 dias puede salir a 175) y ya trae su vencimiento; con el
+    plazo nominal del catalogo, un vencimiento inhabil se paga el dia habil inmediato anterior."""
     purchase_date = to_date(purchase_date)
+    maturity = purchase_date + timedelta(days=term_days or bond["term_days"])
+    if not term_days:
+        maturity = calendar_mx.previous_business_day(maturity)
     kind = bond.get("kind", "cetes")
     lot = {
         "symbol": bond["symbol"],
@@ -93,17 +97,39 @@ def new_lot(bond, quantity, name, rate_pct, purchase_date, lot_id, term_days=Non
         "nominal_value": bond["nominal_value"],
         "rate_at_purchase": rate_pct,
         "purchase_date": purchase_date.isoformat(),
-        "maturity_date": (purchase_date + timedelta(days=term_days)).isoformat(),
+        "maturity_date": maturity.isoformat(),
         "lot_id": lot_id,
     }
     if kind == "bono_m":
         lot["purchase_price"] = bond["nominal_value"]
         lot["coupon_days"] = bond["coupon_days"]
-        lot["next_coupon_date"] = (purchase_date + timedelta(days=bond["coupon_days"])).isoformat()
         lot["coupons_paid"] = 0
+        lot["next_coupon_date"] = coupon_schedule(lot)[0].isoformat()
     else:
-        lot["purchase_price"] = cetes_price(bond["nominal_value"], rate_pct, term_days)
+        lot["purchase_price"] = cetes_price(bond["nominal_value"], rate_pct, (maturity - purchase_date).days)
     return lot
+
+
+def coupon_schedule(lot):
+    """Fechas de pago de cupon de un Bono M, de la primera al vencimiento. Cada pago cae a `coupon_days` de la compra y,
+    si ese dia es inhabil, se corre al dia habil inmediato anterior; el ultimo pago es el vencimiento."""
+    start, maturity, period = to_date(lot["purchase_date"]), to_date(lot["maturity_date"]), lot["coupon_days"]
+    dates, k = [], 1
+    while True:
+        pay = calendar_mx.previous_business_day(start + timedelta(days=k * period))
+        if pay >= maturity:
+            return dates + [maturity]
+        dates.append(pay)
+        k += 1
+
+
+def _coupon_periods(lot):
+    """(inicio, pago) de cada periodo de cupon; los intereses corren por los dias reales entre fechas de pago."""
+    previous, periods = to_date(lot["purchase_date"]), []
+    for pay in coupon_schedule(lot):
+        periods.append((previous, pay))
+        previous = pay
+    return periods
 
 
 def cost(lot):
@@ -111,11 +137,13 @@ def cost(lot):
     return round(purchase_price(lot) * lot["quantity"], 2)
 
 
-def coupon_amount(lot):
-    """Cupon por pago de todo el lote (solo Bono M)."""
-    return round(
-        lot["nominal_value"] * lot["quantity"] * lot["rate_at_purchase"] / 100 * lot["coupon_days"] / 360, 2
-    )
+def coupon_amount(lot, number=None):
+    """Cupon del periodo `number` (1 es el primero; por defecto el siguiente por pagar) de todo el lote (solo Bono M):
+    valor nominal x dias reales del periodo x tasa / 360."""
+    periods = _coupon_periods(lot)
+    start, pay = periods[min(number or lot.get("coupons_paid", 0) + 1, len(periods)) - 1]
+    rate = lot.get("coupon_rate", lot["rate_at_purchase"])
+    return round(lot["nominal_value"] * lot["quantity"] * rate / 100 * (pay - start).days / 360, 2)
 
 
 def maturity_value(lot):
@@ -131,11 +159,11 @@ def accrued_value(lot, as_of):
     fijo al comprar (sube en linea recta, sin mirar el mercado)."""
     if kind_of(lot) == "bono_m":
         # Cupon corrido desde el ultimo pago; los cupones ya pagados estan en efectivo.
-        last_coupon = to_date(lot["next_coupon_date"]) - timedelta(days=lot["coupon_days"])
-        days = max(0, min((as_of - last_coupon).days, lot["coupon_days"]))
-        return round(
-            lot["nominal_value"] * lot["quantity"] * (1 + lot["rate_at_purchase"] / 100 * days / 360), 2
-        )
+        periods = _coupon_periods(lot)
+        start, pay = periods[min(lot.get("coupons_paid", 0), len(periods) - 1)]
+        days = max(0, min((as_of - start).days, (pay - start).days))
+        rate = lot.get("coupon_rate", lot["rate_at_purchase"])
+        return round(lot["nominal_value"] * lot["quantity"] * (1 + rate / 100 * days / 360), 2)
     purchase = to_date(lot["purchase_date"])
     maturity = to_date(lot["maturity_date"])
     elapsed = max(0, min((as_of - purchase).days, (maturity - purchase).days))
@@ -145,7 +173,8 @@ def accrued_value(lot, as_of):
 
 
 def build_curve(rates, bonds):
-    """Curva de tasas de hoy a partir de {simbolo: tasa} y el catalogo de bonos."""
+    """Curva de tasas a partir de {simbolo: tasa} y el catalogo de bonos (tasas de la ultima subasta de cada uno).
+    La curva de mercado de cada dia sale del vector de precios de Banxico: ver utils/market_data.get_bond_curve."""
     return {
         "cetes": sorted(
             (b["term_days"], rates[b["symbol"]])
@@ -156,19 +185,74 @@ def build_curve(rates, bonds):
     }
 
 
-def cetes_yield(curve, remaining_days):
-    """Tasa de mercado de un CETE al plazo restante: interpolacion lineal entre
-    las subastas; fuera del rango se usa la tasa del plazo mas cercano."""
-    points = curve["cetes"]
-    if not points:
+def curve_from_vector(values):
+    """Curva de mercado del dia a partir de {serie: valor} del vector de Banxico: los CETES con su rendimiento y su plazo
+    por vencer, y los Bonos M con el rendimiento que da su precio limpio (los rangos que hoy no cotizan se omiten)."""
+    cetes = sorted((values[term], values[rate]) for term, rate in market_vector.CETES if term in values and rate in values)
+    bonos = sorted(
+        (values[term], bono_yield_from_clean_price(values[price], values[coupon], int(values[term])))
+        for term, price, coupon in market_vector.BONOS_M if term in values and price in values and coupon in values
+    )
+    if not cetes:
         raise ValueError("Sin tasas de CETES para valuar a mercado")
-    if remaining_days <= points[0][0]:
+    return {"cetes": cetes, "bono_m": {}, "bono_m_curve": bonos}
+
+
+def interpolate(points, x):
+    """Interpolacion lineal entre nodos (x, y) ordenados; fuera del rango se usa el nodo mas cercano."""
+    if x <= points[0][0]:
         return points[0][1]
-    if remaining_days >= points[-1][0]:
+    if x >= points[-1][0]:
         return points[-1][1]
-    for (t0, y0), (t1, y1) in zip(points, points[1:]):
-        if t0 <= remaining_days <= t1:
-            return y0 + (y1 - y0) * (remaining_days - t0) / (t1 - t0)
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        if x0 <= x <= x1:
+            return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+
+
+def cetes_yield(curve, remaining_days):
+    """Tasa de mercado de un CETE al plazo restante: interpolacion lineal entre los CETES 'on the run' del dia."""
+    if not curve["cetes"]:
+        raise ValueError("Sin tasas de CETES para valuar a mercado")
+    return interpolate(curve["cetes"], remaining_days)
+
+
+def bono_m_yield(curve, lot, remaining_days):
+    """Rendimiento de mercado de un Bono M al plazo restante: de la curva del dia si la hay, o la tasa de su subasta."""
+    if curve.get("bono_m_curve"):
+        return interpolate(curve["bono_m_curve"], remaining_days)
+    if lot["symbol"] not in curve["bono_m"]:
+        raise ValueError(f"Sin tasa de mercado para {lot['symbol']}")
+    return curve["bono_m"][lot["symbol"]]
+
+
+def bono_clean_price(coupon_pct, yield_pct, days_to_maturity, nominal=100, period=182):
+    """Precio limpio de un Bono M por titulo, con la formula de Banxico (cupones iguales de `period` dias, un solo
+    rendimiento). Sirve para cotizar con el vector de precios y para sacar el rendimiento de un precio."""
+    k = -(-days_to_maturity // period)  # cupones por pagar, incluyendo el vigente
+    to_next = days_to_maturity - (k - 1) * period
+    coupon = nominal * coupon_pct / 100 * period / 360
+    r = yield_pct / 100 * period / 360
+    exponent = to_next / period
+    dirty = sum(coupon / (1 + r) ** (j - 1 + exponent) for j in range(1, k + 1)) + nominal / (1 + r) ** (k - 1 + exponent)
+    return dirty - coupon * (period - to_next) / period
+
+
+def bono_accrued(coupon_pct, days_to_maturity, nominal=100, period=182):
+    """Intereses devengados del cupon vigente por titulo (la diferencia entre precio sucio y limpio)."""
+    to_next = days_to_maturity - (-(-days_to_maturity // period) - 1) * period
+    return nominal * coupon_pct / 100 * (period - to_next) / 360
+
+
+def bono_yield_from_clean_price(clean_price, coupon_pct, days_to_maturity, nominal=100, period=182):
+    """Rendimiento anual (%) que da un precio limpio de Bono M; el precio baja cuando sube el rendimiento (biseccion)."""
+    low, high = 0.0, 100.0
+    for _ in range(200):
+        mid = (low + high) / 2
+        if bono_clean_price(coupon_pct, mid, days_to_maturity, nominal, period) > clean_price:
+            low = mid
+        else:
+            high = mid
+    return (low + high) / 2
 
 
 def market_value(lot, as_of, curve, shift=0.0):
@@ -182,16 +266,18 @@ def market_value(lot, as_of, curve, shift=0.0):
         y = max(cetes_yield(curve, remaining) + shift, 0.0)
         return round(maturity_value(lot) / (1 + y / 100 * remaining / 360), 2)
 
-    if lot["symbol"] not in curve["bono_m"]:
-        raise ValueError(f"Sin tasa de mercado para {lot['symbol']}")
-    y = max(curve["bono_m"][lot["symbol"]] + shift, 0.0)
-    period = lot["coupon_days"]
-    q = 1 + y / 100 * period / 360
-    nominal = lot["nominal_value"]
-    coupon = nominal * lot["rate_at_purchase"] / 100 * period / 360
-    next_coupon = to_date(lot["next_coupon_date"])
-    n = max(1, (to_date(lot["maturity_date"]) - next_coupon).days // period + 1)
-    f = max(0, (next_coupon - as_of).days) / period
-
-    dirty = sum((coupon + (nominal if k == n else 0)) / q ** (k - 1 + f) for k in range(1, n + 1))
+    # Bono M, formula general de Banxico: cada cupon y el principal se descuentan con (1 + r*Nj/360)^-(j - d/N1), donde
+    # Nj son los dias reales de cada periodo, d los dias corridos del vigente y j cuenta los pagos por recibir.
+    y = max(bono_m_yield(curve, lot, remaining) + shift, 0.0) / 100
+    periods = _coupon_periods(lot)
+    paid = min(lot.get("coupons_paid", 0), len(periods) - 1)
+    first_start = periods[paid][0]
+    n1 = (periods[paid][1] - first_start).days
+    elapsed = max(0, min((as_of - first_start).days, n1))
+    nominal, rate = lot["nominal_value"], lot.get("coupon_rate", lot["rate_at_purchase"]) / 100
+    dirty = 0.0
+    for j, (start, pay) in enumerate(periods[paid:], 1):
+        days = (pay - start).days
+        flow = nominal * rate * days / 360 + (nominal if j == len(periods) - paid else 0)
+        dirty += flow / (1 + y * days / 360) ** (j - elapsed / n1)
     return round(dirty * lot["quantity"], 2)

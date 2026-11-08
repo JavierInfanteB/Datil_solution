@@ -7,7 +7,7 @@ curado de series de Banxico en assets.json, porque cada uno requiere un
 series_id especifico que no se puede "buscar" igual que un ticker.
 """
 
-from utils import banxico_api, bond_math, calendar_mx, yahoo_api
+from utils import banxico_api, bond_math, calendar_mx, market_vector, yahoo_api
 from utils.data_store import read_json
 
 
@@ -46,12 +46,12 @@ def list_bonds():
 
 
 def get_bond_curve():
-    """Tasas de mercado de hoy de todos los bonos (una consulta a Banxico),
-    listas para valuar a mercado: ver bond_math.build_curve."""
-    bonds = list_bonds()
-    symbol_by_series = {b["series_id"]: b["symbol"] for b in bonds}
-    rates = banxico_api.get_latest_rates(list(symbol_by_series))
-    return bond_math.build_curve({symbol_by_series[s]: r for s, r in rates.items()}, bonds)
+    """Curva de mercado de hoy para valuar los lotes: el vector de precios 'on the run' de Banxico (mercado secundario de
+    cada dia, no las tasas de la ultima subasta). Ver bond_math.curve_from_vector y utils/market_vector.py."""
+    ids, values = market_vector.all_series(), {}
+    for i in range(0, len(ids), 10):  # pocas series por consulta; cada grupo tiene su cache de 30 minutos
+        values.update(banxico_api.get_latest_rates(ids[i:i + 10]))
+    return bond_math.curve_from_vector(values)
 
 
 def get_bond_auction_rate(symbol, auction_date):

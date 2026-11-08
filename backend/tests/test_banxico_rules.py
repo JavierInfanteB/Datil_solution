@@ -119,5 +119,100 @@ class PlazoRealTest(unittest.TestCase):
         self.assertEqual(portfolio["holdings"][0]["maturity_date"], "2026-12-03")
 
 
+class DiasInhabilesTest(unittest.TestCase):
+    BONO = {"symbol": "BONOM3", "nominal_value": 100, "term_days": 1092, "coupon_days": 182, "kind": "bono_m"}
+
+    def test_el_1_de_octubre_solo_es_inhabil_cada_seis_anios(self):
+        self.assertIn(date(2030, 10, 1), calendar_mx.bank_holidays(2030))
+        self.assertIn(date(2024, 10, 1), calendar_mx.bank_holidays(2024))
+        self.assertNotIn(date(2026, 10, 1), calendar_mx.bank_holidays(2026))
+        self.assertNotIn(date(2027, 10, 1), calendar_mx.bank_holidays(2027))
+
+    def test_lo_que_cae_en_inhabil_se_paga_el_dia_habil_anterior(self):
+        self.assertEqual(calendar_mx.previous_business_day(date(2026, 12, 25)), date(2026, 12, 24))  # viernes inhabil
+        self.assertEqual(calendar_mx.previous_business_day(date(2026, 11, 2)), date(2026, 10, 30))  # lunes inhabil: el viernes
+        self.assertEqual(calendar_mx.previous_business_day(date(2026, 11, 5)), date(2026, 11, 5))
+
+    def test_un_vencimiento_nominal_inhabil_se_paga_el_dia_habil_anterior(self):
+        cetes = {"symbol": "CETES28", "nominal_value": 10, "term_days": 28, "kind": "cetes"}
+        lot = bond_math.new_lot(cetes, 100, "CETES 28", 6.0, date(2026, 11, 27), "l")  # 27 nov. + 28 dias = viernes 25 de dic.
+        self.assertEqual(lot["maturity_date"], "2026-12-24")
+
+    def test_el_cupon_que_cae_en_inhabil_se_corre_y_cuenta_los_dias_reales(self):
+        # Compra el 26 de junio de 2026: 182 dias despues es el 25 de diciembre (inhabil), el cupon se paga el 24.
+        lot = bond_math.new_lot(self.BONO, 1000, "Bono M 3", 8.0, date(2026, 6, 26), "l")
+        schedule = bond_math.coupon_schedule(lot)
+        self.assertEqual((schedule[0], lot["next_coupon_date"]), (date(2026, 12, 24), "2026-12-24"))
+        self.assertEqual(schedule[-1], date.fromisoformat(lot["maturity_date"]))
+        self.assertEqual(bond_math.coupon_amount(lot), round(100 * 1000 * 0.08 * 181 / 360, 2))  # 181 dias, no 182
+        self.assertEqual(bond_math.coupon_amount(lot, 2), round(100 * 1000 * 0.08 * (schedule[1] - schedule[0]).days / 360, 2))
+
+    def test_el_motor_paga_el_cupon_en_la_fecha_corrida(self):
+        lot = bond_math.new_lot(self.BONO, 1000, "Bono M 3", 8.0, date(2026, 6, 26), "l")
+        portfolio, events = {"cash": 0.0, "holdings": [lot]}, []
+        bond_engine._pay_coupons(portfolio, lot, date(2026, 12, 23), events, [])  # un dia antes: nada
+        self.assertEqual((portfolio["cash"], lot["coupons_paid"]), (0.0, 0))
+        bond_engine._pay_coupons(portfolio, lot, date(2026, 12, 24), events, [])
+        self.assertEqual((portfolio["cash"], lot["coupons_paid"]), (round(100 * 1000 * 0.08 * 181 / 360, 2), 1))
+        self.assertEqual(lot["next_coupon_date"], bond_math.coupon_schedule(lot)[1].isoformat())
+
+
+class MercadoTest(unittest.TestCase):
+    """Vector de precios 'on the run' de Banxico del 6 de noviembre de 2026 (estructura CF300 del SIE)."""
+    VECTOR = {
+        "SF45422": 27, "SF45470": 6.300028, "SF45423": 90, "SF45471": 6.469986, "SF45424": 174, "SF45472": 6.532553,
+        "SF45425": 342, "SF45473": 6.802247, "SF349886": 692, "SF349889": 7.64,
+        "SF45427": 1210, "SF45448": 101.867622, "SF45475": 8.5,
+        "SF45428": 1987, "SF45450": 98.039385, "SF45476": 8.0,
+        "SF45430": 3394, "SF45454": 93.0567, "SF45478": 8.0,
+        "SF45431": 5851, "SF45456": 84.556731, "SF45479": 7.75,
+        "SF60720": 10401, "SF60721": 83.023065, "SF60723": 8.0,
+    }
+
+    def test_los_cetes_del_vector_cuadran_con_su_precio_publicado(self):
+        for term, rate, published in ((27, 6.300028, 9.952972), (90, 6.469986, 9.840825), (174, 6.532553, 9.693924),
+                                      (342, 6.802247, 9.393011), (692, 7.64, 8.719477)):
+            self.assertAlmostEqual(10 / (1 + rate / 100 * term / 360), published, places=6)
+
+    def test_los_intereses_devengados_del_vector_cuadran_con_la_formula(self):
+        # precio sucio - precio limpio publicado, por titulo
+        for coupon, term, published in ((8.5, 1210, 103.378733 - 101.867622), (8.0, 1987, 98.372718 - 98.039385),
+                                        (8.0, 3394, 94.478922 - 93.0567), (7.75, 5851, 87.893537 - 84.556731),
+                                        (8.0, 10401, 86.467509 - 83.023065)):
+            self.assertAlmostEqual(bond_math.bono_accrued(coupon, term), published, places=5)
+
+    def test_el_rendimiento_que_da_un_precio_limpio_lo_regresa_a_ese_precio(self):
+        y = bond_math.bono_yield_from_clean_price(97.45968, 7.0, 1036)
+        self.assertAlmostEqual(y, 8.0, places=3)  # ejemplo de Banxico: cupon 7 %, rendimiento 8 %
+        self.assertAlmostEqual(bond_math.bono_clean_price(7.0, 8.0, 1036), 97.45968, places=5)
+
+    def test_la_curva_del_dia_sale_del_vector(self):
+        curve = bond_math.curve_from_vector(self.VECTOR)
+        self.assertEqual([t for t, _ in curve["cetes"]], [27, 90, 174, 342, 692])
+        self.assertEqual([t for t, _ in curve["bono_m_curve"]], [1210, 1987, 3394, 5851, 10401])  # el rango de 5 a 7 anios no cotiza
+        self.assertAlmostEqual(dict(curve["bono_m_curve"])[1210], 7.85, places=2)
+        self.assertEqual(sorted(y for _, y in curve["bono_m_curve"]), [y for _, y in curve["bono_m_curve"]])  # curva creciente
+
+    def test_un_bono_m_con_cupon_igual_al_rendimiento_vale_su_nominal_mas_el_devengado(self):
+        # 3 cupones de 182 dias sin inhabiles en medio: todos los periodos son iguales.
+        lot = bond_math.new_lot({**BONO_M5, "term_days": 546}, 1000, "Bono M", 8.0, date(2026, 11, 5), "l")
+        as_of = date(2027, 1, 14)
+        curve = {"cetes": [(28, 6.0)], "bono_m": {}, "bono_m_curve": [(500, 8.0), (2000, 8.0)]}
+        # El dia de la compra, con rendimiento igual al cupon, el bono vale exactamente su nominal (cada periodo es a la par).
+        self.assertAlmostEqual(bond_math.market_value(lot, date(2026, 11, 5), curve), 100_000, delta=0.5)
+        # A mitad de un periodo la formula de Banxico capitaliza la fraccion: queda a menos de 0.3 % del devengado lineal.
+        value = bond_math.market_value(lot, as_of, curve)
+        self.assertAlmostEqual(value, bond_math.accrued_value(lot, as_of), delta=300)  # sobre 100,000 de nominal
+
+    def test_con_mas_rendimiento_de_mercado_el_bono_vale_menos(self):
+        lot = bond_math.new_lot(BONO_M5, 1000, "Bono M 5", 8.0, date(2026, 11, 5), "l")
+        low = bond_math.market_value(lot, date(2027, 1, 14), {"cetes": [(28, 6.0)], "bono_m": {}, "bono_m_curve": [(1000, 7.0)]})
+        high = bond_math.market_value(lot, date(2027, 1, 14), {"cetes": [(28, 6.0)], "bono_m": {}, "bono_m_curve": [(1000, 9.0)]})
+        self.assertGreater(low, high)
+
+
+BONO_M5 = {"symbol": "BONOM5", "nominal_value": 100, "term_days": 1820, "coupon_days": 182, "kind": "bono_m"}
+
+
 if __name__ == "__main__":
     unittest.main()

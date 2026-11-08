@@ -5,8 +5,12 @@ Reglas de Banxico (capitulo II de "Mercado de valores gubernamentales" y su cale
   - La subasta se hace dos dias habiles antes de la colocacion (normalmente el martes).
   - Dias inhabiles bancarios: 1 de enero, primer lunes de febrero, tercer lunes de marzo, jueves y viernes santos,
     1 de mayo, 16 de septiembre, 2 de noviembre, tercer lunes de noviembre, 12 y 25 de diciembre, sabados y domingos.
-shortcut: estas reglas solo estan contrastadas con el calendario de Banxico de 2026; otros anios pueden traer dias
-extra, asi que hay que revisar su calendario antes de cada anio (en el modelo de datos es la tabla dias_inhabiles).
+  - Ademas el 1 de octubre de cada seis anios (2024, 2030, 2036...), descanso obligatorio por la transmision del Poder
+    Ejecutivo Federal (fraccion VII del articulo 74 de la Ley Federal del Trabajo, reforma de septiembre de 2024).
+  - Si una fecha de pago o de vencimiento cae en dia inhabil, se paga el dia habil inmediato anterior (titulo multiple de
+    los Bondes F: "dando preferencia al dia habil inmediato anterior").
+shortcut: la lista esta contrastada con el calendario de Banxico de 2026; para otros anios sale de las mismas reglas y
+hay que contrastarla con el calendario que publique Banxico cada anio (en el modelo de datos es la tabla dias_inhabiles).
 """
 from datetime import date, timedelta
 from functools import lru_cache
@@ -37,7 +41,8 @@ def _nth_monday(year, month, n):
 @lru_cache(maxsize=None)
 def bank_holidays(year):
     easter = _easter(year)
-    return frozenset({
+    extra = {date(year, 10, 1)} if year >= 2024 and (year - 2024) % 6 == 0 else set()
+    return frozenset(extra | {
         date(year, 1, 1), _nth_monday(year, 2, 1), _nth_monday(year, 3, 3),
         easter - timedelta(days=3), easter - timedelta(days=2),  # jueves y viernes santos
         date(year, 5, 1), date(year, 9, 16), date(year, 11, 2), _nth_monday(year, 11, 3),
@@ -47,6 +52,13 @@ def bank_holidays(year):
 
 def is_business_day(day):
     return day.weekday() < 5 and day not in bank_holidays(day.year)
+
+
+def previous_business_day(day):
+    """`day` si es habil; si no, el dia habil inmediato anterior (asi se paga lo que cae en inhabil)."""
+    while not is_business_day(day):
+        day -= timedelta(days=1)
+    return day
 
 
 def business_days_before(day, n):
