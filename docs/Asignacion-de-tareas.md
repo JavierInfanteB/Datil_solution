@@ -2,7 +2,7 @@
 
 Las tareas y los roles se asignaron el **31/10/2026** por WhatsApp, en el mismo grupo donde se compartió el documento "Plan de entregas y Modelo E-R".
 
-Fechas límite (ambas a las 8:00 PM): **Entrega 1** sábado 7 de noviembre de 2026, **Entrega 2** sábado 14 de noviembre de 2026.
+Fechas límite (todas a las 8:00 PM): **Entrega 1** sábado 7 de noviembre de 2026, **Entrega 2** sábado 14 de noviembre de 2026. La auditoría del frontend (Luna) es un entregable final, a unos 15 días: **domingo 22 de noviembre de 2026**.
 
 ## Equipo y rol
 
@@ -26,7 +26,7 @@ Fechas límite (ambas a las 8:00 PM): **Entrega 1** sábado 7 de noviembre de 20
 | 2 (14 nov) | Modelo relacional (tipos, PK, FK, restricciones, 3FN) | Paulina y Nikole, sobre los grupos que dibujó cada una |
 | 2 (14 nov) | Sugerencias de seguridad con documentación de implementación y funcionamiento | Héctor |
 | 2 (14 nov) | Modelo de IA en la nube respondiendo con la documentación | Nate |
-| 2 (14 nov) | Auditoría del frontend y propuesta de mejoras, documentadas (ver sección "Frontend: auditoría y mejoras") | Luna |
+| Final (22 nov) | Auditoría del frontend y propuesta de mejoras, documentadas (ver sección "Frontend: auditoría y mejoras") | Luna |
 | 2 (14 nov) | Documentación del proyecto y reparto de la exposición | Carlos |
 | 2 (14 nov) | Documentación técnica (arquitectura, base de datos, despliegue) | Por confirmar (propuesta: Javier) |
 
