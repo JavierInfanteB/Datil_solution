@@ -22,7 +22,7 @@ Fechas límite (todas a las 8:00 PM): **Entrega 1** sábado 7 de noviembre de 20
 |---|---|---|
 | 1 (7 nov) | Ideas de implementación de alertas (medios de envío, costos, disparadores, preferencias del cliente) | Nate |
 | 1 (7 nov) | Misión, visión y documentación de identidad (objetivos, motivaciones, origen, necesidades, versión corta para la web) | Carlos |
-| 2 (14 nov) | Modelo entidad-relación (45 tablas, 6 grupos) | Paulina (grupos A a C) y Nikole (grupos D a F) |
+| 2 (14 nov) | Modelo entidad-relación (27 tablas, 6 grupos) | Paulina (grupos A a C) y Nikole (grupos D a F) |
 | 2 (14 nov) | Modelo relacional (tipos, PK, FK, restricciones, 3FN) | Paulina y Nikole, sobre los grupos que dibujó cada una |
 | 2 (14 nov) | Sugerencias de seguridad con documentación de implementación y funcionamiento | Héctor |
 | 2 (14 nov) | Modelo de IA en la nube respondiendo con la documentación | Nate |
