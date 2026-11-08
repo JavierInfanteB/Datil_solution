@@ -36,7 +36,7 @@ const TABS = [
 
 // Módulo del admin sobre los clientes de Datil. El filtro por consultor y por cliente se comparte entre sus pestañas; sin
 // filtro se ve todo. El admin no tiene cartera propia: compra y vende solo en nombre de un cliente y queda registrado.
-export default function AdminClients({ section }) {
+export default function AdminClients({ section, goTo }) {
   const [selected, setSelected] = useState(null);
   const [people, setPeople] = useState(null);
   const [filter, setFilter] = useState({ consultant: "", client: "" });
@@ -58,7 +58,15 @@ export default function AdminClients({ section }) {
           onChange={setFilter}
         />
       )}
-      {id === "resumen" && <ConsultantsOverview filter={filter} />}
+      {id === "resumen" && (
+        <ConsultantsOverview
+          filter={filter}
+          onOpenClients={(consultant) => {
+            setFilter({ consultant, client: "" });
+            goTo("lista");
+          }}
+        />
+      )}
       {id === "tendencias" && <Insights endpoint="/api/admin/insights" filter={filter} />}
       {id === "avisos" && <ActivityFeed kind="avisos" filter={filter} />}
       {id === "lista" && (

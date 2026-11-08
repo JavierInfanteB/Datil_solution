@@ -116,3 +116,17 @@ body { letter-spacing: -0.005em; }
 .datil-triage-sort { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--datil-text-muted); }
 .datil-triage-sort select { padding: 0.55rem 0.9rem; border-radius: var(--dl-r-input); border: 1px solid var(--datil-border); background: var(--datil-bg); color: var(--datil-text); font: inherit; }
 .datil-empty-row { padding: 1.4rem 0; text-align: center; color: var(--datil-text-muted); }
+
+/* ---------- Tarjetas de carga por consultor (admin) ---------- */
+.datil-load-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 0.9rem; }
+.datil-load-card { display: flex; flex-direction: column; gap: 0.7rem; padding: 1.3rem; border-radius: var(--dl-r-tile); background: var(--datil-bg); }
+.datil-load-card header { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.6rem; flex-wrap: wrap; }
+.datil-load-card header strong { font-size: 1.1rem; font-weight: 600; }
+.datil-load-card dl { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: 0.5rem; margin: 0.2rem 0 0; }
+.datil-load-card dt { font-size: 0.72rem; color: var(--datil-text-muted); }
+.datil-load-card dd { margin: 0.1rem 0 0; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.datil-load-card .datil-btn { align-self: flex-start; margin-top: 0.3rem; }
+.datil-load-tag { display: inline-block; padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.datil-load-tag.ok { color: var(--datil-up); background: color-mix(in srgb, var(--datil-up) 14%, transparent); }
+.datil-load-tag.warn { color: var(--datil-down); background: color-mix(in srgb, var(--datil-down) 14%, transparent); }
+.datil-card details summary { cursor: pointer; padding: 0.7rem 1rem; font-weight: 600; }
