@@ -25,9 +25,11 @@ se interpola entre las cuatro subastas (28/91/182/364 dias), y para el Bono M
 se usa la tasa del Bono M a 10 anos para cualquier plazo restante (curva plana).
 """
 from datetime import date, timedelta
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 
-AUCTION_WEEKDAY = 1  # Banxico subasta los martes (0 = lunes)
-SETTLEMENT_DAYS = 2  # y liquida el jueves: de ahi corre el plazo y Banxico publica la tasa con esa fecha
+from utils import calendar_mx
+
+# Subastas: Banxico coloca (liquida) los jueves y subasta dos dias habiles antes; ver utils/calendar_mx.py.
 # Reglas de operacion de cetesdirecto que se simulan:
 MIN_INVESTMENT = 100  # pesos minimos por compra; se compra por monto y lo que no alcanza para un titulo queda en efectivo
 LOCK_BUSINESS_DAYS = 3  # vender o cambiar la reinversion: hasta 3 dias habiles antes del vencimiento
@@ -40,13 +42,8 @@ def to_date(value):
 
 
 def business_days_before(day, n):
-    """El dia que queda `n` dias habiles (lunes a viernes; no se cuentan feriados) antes de `day`."""
-    day = to_date(day)
-    while n:
-        day -= timedelta(days=1)
-        if day.weekday() < 5:
-            n -= 1
-    return day
+    """El dia que queda `n` dias habiles antes de `day` (no cuenta fines de semana ni inhabiles bancarios)."""
+    return calendar_mx.business_days_before(to_date(day), n)
 
 
 def last_change_day(lot):
@@ -65,12 +62,26 @@ def purchase_price(lot):
 
 
 def cetes_price(nominal, rate_pct, term_days):
-    """Precio con descuento de un CETE al plazo y tasa de rendimiento dados."""
-    return round(nominal / (1 + rate_pct / 100 * term_days / 360), 6)
+    """Precio con descuento de un CETE: VN / (1 + r*t/360), a 7 decimales como lo calcula Banxico."""
+    price = Decimal(str(nominal)) / (1 + Decimal(str(rate_pct)) / 100 * term_days / 360)
+    return float(price.quantize(Decimal("1e-7"), ROUND_HALF_UP))
 
 
-def new_lot(bond, quantity, name, rate_pct, purchase_date, lot_id):
-    """Lote recien comprado de un bono del catalogo a la tasa de subasta."""
+def titles_for_amount(amount_mxn, unit_price):
+    """Titulos enteros que alcanzan para un monto: el monto entre el precio de cada uno, truncado, como asigna Banxico.
+    El importe se liquida en centavos, asi que un titulo mas alcanza si su costo redondeado a centavos no pasa del monto
+    (un monto que sale de un costo ya redondeado, como el de una reinversion, no pierde un titulo por medio centavo)."""
+    amount, price = Decimal(str(amount_mxn)), Decimal(str(unit_price))
+    titles = int((amount / price).to_integral_value(ROUND_DOWN))
+    while (price * (titles + 1)).quantize(Decimal("0.01"), ROUND_HALF_UP) <= amount:
+        titles += 1
+    return titles
+
+
+def new_lot(bond, quantity, name, rate_pct, purchase_date, lot_id, term_days=None):
+    """Lote recien comprado de un bono del catalogo a la tasa de subasta. `term_days` es el plazo real de esa
+    emision (Banxico lo publica por subasta: un CETE de 182 dias puede salir a 175); sin el, el plazo nominal del catalogo."""
+    term_days = term_days or bond["term_days"]
     purchase_date = to_date(purchase_date)
     kind = bond.get("kind", "cetes")
     lot = {
@@ -82,7 +93,7 @@ def new_lot(bond, quantity, name, rate_pct, purchase_date, lot_id):
         "nominal_value": bond["nominal_value"],
         "rate_at_purchase": rate_pct,
         "purchase_date": purchase_date.isoformat(),
-        "maturity_date": (purchase_date + timedelta(days=bond["term_days"])).isoformat(),
+        "maturity_date": (purchase_date + timedelta(days=term_days)).isoformat(),
         "lot_id": lot_id,
     }
     if kind == "bono_m":
@@ -91,7 +102,7 @@ def new_lot(bond, quantity, name, rate_pct, purchase_date, lot_id):
         lot["next_coupon_date"] = (purchase_date + timedelta(days=bond["coupon_days"])).isoformat()
         lot["coupons_paid"] = 0
     else:
-        lot["purchase_price"] = cetes_price(bond["nominal_value"], rate_pct, bond["term_days"])
+        lot["purchase_price"] = cetes_price(bond["nominal_value"], rate_pct, term_days)
     return lot
 
 

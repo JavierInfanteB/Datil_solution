@@ -6,9 +6,8 @@ Finance (no hay catalogo fijo); los bonos si estan restringidos al catalogo
 curado de series de Banxico en assets.json, porque cada uno requiere un
 series_id especifico que no se puede "buscar" igual que un ticker.
 """
-from datetime import timedelta
 
-from utils import banxico_api, bond_math, yahoo_api
+from utils import banxico_api, bond_math, calendar_mx, yahoo_api
 from utils.data_store import read_json
 
 
@@ -56,6 +55,18 @@ def get_bond_curve():
 
 
 def get_bond_auction_rate(symbol, auction_date):
-    """Tasa de la subasta de Banxico del dia `auction_date` (martes). ValueError si ese dia no hubo o aun no se publica."""
-    settlement = auction_date + timedelta(days=bond_math.SETTLEMENT_DAYS)
-    return banxico_api.get_rate_on(_find_bond(symbol)["series_id"], settlement)
+    """Tasa de la subasta de Banxico del dia `auction_date`. Banxico la etiqueta con la fecha de colocacion (el jueves o
+    el dia habil que lo sustituye). ValueError si ese dia no hubo subasta o aun no se publica."""
+    placement = calendar_mx.placement_of_auction(auction_date)
+    return banxico_api.get_rate_on(_find_bond(symbol)["series_id"], placement)
+
+
+def get_bond_auction_term(symbol, auction_date):
+    """Plazo real en dias de lo colocado en la subasta (serie `term_series_id` del catalogo). ValueError si no hay."""
+    series_id = _find_bond(symbol).get("term_series_id")
+    if not series_id:
+        raise ValueError(f"{symbol} no tiene serie de plazo")
+    term = int(round(banxico_api.get_rate_on(series_id, calendar_mx.placement_of_auction(auction_date))))
+    if term <= 0:
+        raise ValueError(f"Plazo invalido para {symbol}: {term}")
+    return term
