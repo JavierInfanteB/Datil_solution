@@ -131,10 +131,13 @@ export default function Trading({ section, client }) {
   // En bonos, history.current.price es la tasa vigente (%), no un precio. Un CETE se compra con
   // descuento (nominal / (1 + tasa * dias/360)); el Bono M se compra a la par y paga cupones.
   const bondRate = tab === "bono" ? history?.current?.price : null;
+  // Los Udibonos valen UDIS (100 por título): su precio en pesos depende de la UDI del día, así que aquí no se estima.
   const bondUnitCost =
-    activeBond && bondRate != null && activeBond.kind !== "bono_m"
+    activeBond && bondRate != null && activeBond.kind === "cetes"
       ? activeBond.nominal_value / (1 + (bondRate / 100) * (activeBond.term_days / 360))
-      : activeBond?.nominal_value;
+      : activeBond?.kind === "udibono"
+        ? null
+        : activeBond?.nominal_value;
   const unitPrice = tab === "accion" ? history?.current?.price : bondUnitCost;
   const estimatedTotal = unitPrice != null && quantity > 0 ? unitPrice * Number(quantity) : null;
   // Las acciones cotizan en la moneda de su bolsa; el dinero de la cuenta es en pesos.
@@ -191,7 +194,7 @@ export default function Trading({ section, client }) {
             {" "}
             a la tasa de la última subasta; el precio final es el de la subasta en que entre tu orden y lo que no alcance para un título queda
             en efectivo.
-            {activeBond?.kind !== "bono_m" &&
+            {activeBond?.kind === "cetes" &&
               ` Al vencer recibirías ${formatCurrency(Math.floor(Number(amount) / bondUnitCost) * activeBond.nominal_value)}.`}
           </span>
         </p>
@@ -221,7 +224,7 @@ export default function Trading({ section, client }) {
               {fxMxn ? ` a ${stockCurrency}/MXN ${fxMxn}` : ""})
             </span>
           )}
-          {tab === "bono" && activeBond?.kind !== "bono_m" && activeBond && (
+          {tab === "bono" && activeBond?.kind === "cetes" && (
             <span className="datil-period-tag">
               {" "}
               (con descuento; al vencer recibes {formatCurrency(activeBond.nominal_value * Number(quantity))})
@@ -229,6 +232,18 @@ export default function Trading({ section, client }) {
           )}
           {tab === "bono" && activeBond?.kind === "bono_m" && (
             <span className="datil-period-tag"> (a la par; paga cupón cada {activeBond.coupon_days} días)</span>
+          )}
+          {tab === "bono" && activeBond?.kind === "udibono" && (
+            <span className="datil-period-tag">
+              {" "}
+              (vale 100 UDIS por título, convertidas a pesos con la UDI del día; paga cupón cada {activeBond.coupon_days} días)
+            </span>
+          )}
+          {tab === "bono" && activeBond?.kind === "bpa" && (
+            <span className="datil-period-tag">
+              {" "}
+              (tasa variable: paga cupón cada {activeBond.coupon_days} días con la tasa de ese periodo; cotiza cerca de la par)
+            </span>
           )}
         </p>
       )}

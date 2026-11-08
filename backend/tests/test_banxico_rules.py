@@ -212,6 +212,150 @@ class MercadoTest(unittest.TestCase):
 
 
 BONO_M5 = {"symbol": "BONOM5", "nominal_value": 100, "term_days": 1820, "coupon_days": 182, "kind": "bono_m"}
+UDIBONO = {"symbol": "UDIBONO3", "nominal_value": 100, "term_days": 1092, "coupon_days": 182, "kind": "udibono"}
+BPAG28 = {"symbol": "BPAG28", "nominal_value": 100, "term_days": 1092, "coupon_days": 28, "kind": "bpa",
+          "cetes_series_id": "SF43936", "tpfg_series_id": "SF43774", "price_series_id": "SF165598"}
+BPA182 = {"symbol": "BPA182", "nominal_value": 100, "term_days": 2548, "coupon_days": 182, "kind": "bpa",
+          "cetes_series_id": "SF43942", "price_series_id": "SF45462", "udi_protection": True}
+
+
+class UdibonoTest(unittest.TestCase):
+    def test_precio_del_udibono_del_ejemplo_de_banxico(self):
+        # Nota tecnica de Udibonos: cupon 8 %, rendimiento 8.25 % en UDIS, 3619 dias por vencer, 21 corridos del cupon.
+        self.assertEqual(round(bond_math.bono_clean_price(8.0, 8.25, 3619), 5), 98.30596)
+        self.assertAlmostEqual(bond_math.bono_clean_price(8.0, 8.25, 3619) + bond_math.bono_accrued(8.0, 3619), 98.77262, places=4)
+
+    def test_se_compra_y_cuesta_en_udis_convertidos_a_pesos(self):
+        lot = bond_math.new_lot(UDIBONO, 1000, "Udibono", 4.0, date(2026, 4, 30), "u", udi=8.834487)
+        self.assertEqual(lot["udi_at_purchase"], 8.834487)
+        self.assertEqual(bond_math.cost(lot), round(100 * 1000 * 8.834487, 2))  # 100 UDIS por titulo
+        self.assertEqual(bond_math.unit_cost(lot), 100 * 8.834487)
+
+    def test_el_cupon_y_el_vencimiento_se_pagan_en_pesos_con_la_udi_del_dia(self):
+        lot = bond_math.new_lot(UDIBONO, 1000, "Udibono", 4.0, date(2026, 4, 30), "u", udi=8.834487)
+        udis = 100 * 1000 * 0.04 * 182 / 360  # 2022.22 UDIS
+        self.assertEqual(bond_math.coupon_amount(lot, udi=8.870416), round(udis * 8.870416, 2))
+        self.assertEqual(bond_math.maturity_value(lot, 9.5), round(100 * 1000 * 9.5, 2))
+        portfolio, events = {"cash": 0.0, "holdings": [lot]}, []
+        with mock.patch.object(bond_engine, "get_udi", return_value=8.870416):
+            bond_engine._pay_coupons(portfolio, lot, date(2026, 10, 29), events, [], UDIBONO)
+        self.assertEqual((portfolio["cash"], lot["coupons_paid"]), (round(udis * 8.870416, 2), 1))
+
+    def test_al_vencer_el_udibono_paga_100_udis_por_titulo_con_la_udi_del_vencimiento(self):
+        lot = bond_math.new_lot(UDIBONO, 1000, "Udibono", 4.0, date(2023, 4, 28), "u", udi=7.5)
+        portfolio, events = {"cash": 0.0, "holdings": [lot]}, []
+        bond_engine._redeem_lot(portfolio, lot, events, 8.9)
+        self.assertEqual(portfolio["cash"], round(100 * 1000 * 8.9, 2))
+        self.assertEqual(events[0]["realized_pnl_mxn"], round(100 * 1000 * 8.9 - 100 * 1000 * 7.5, 2))  # ganancia por inflacion
+
+    def test_sin_la_udi_del_dia_el_cupon_espera(self):
+        lot = bond_math.new_lot(UDIBONO, 1000, "Udibono", 4.0, date(2026, 4, 30), "u", udi=8.834487)
+        portfolio = {"cash": 0.0, "holdings": [lot]}
+        with mock.patch.object(bond_engine, "get_udi", side_effect=ValueError("sin dato")):
+            paid = bond_engine._pay_coupons(portfolio, lot, date(2026, 10, 29), [], [], UDIBONO)
+        self.assertEqual((paid, portfolio["cash"], lot["coupons_paid"]), (False, 0.0, 0))
+
+    def test_el_valor_de_mercado_usa_el_rendimiento_real_y_la_udi_de_hoy(self):
+        lot = bond_math.new_lot(UDIBONO, 1000, "Udibono", 4.0, date(2026, 11, 5), "u", udi=8.886305)
+        curve = {"cetes": [(28, 6.0)], "bono_m": {}, "udibono_curve": [(500, 4.0), (2000, 4.0)], "udi": 9.0}
+        # cupon igual al rendimiento, el dia de la compra: vale su nominal en UDIS, a la UDI de hoy
+        self.assertAlmostEqual(bond_math.market_value(lot, date(2026, 11, 5), curve), 100 * 1000 * 9.0, delta=20)  # periodos reales (con inhabiles) difieren unos dias de los iguales
+        with self.assertRaises(ValueError):
+            bond_math.market_value(lot, date(2026, 11, 5), {"cetes": [(28, 6.0)], "bono_m": {}})
+
+    def test_la_curva_real_sale_del_vector_con_la_udi_de_su_dia(self):
+        values = {"SF61784": 1028, "SF61785": 898.461113, "SF61787": 4.0, "SF45432": 3821, "SF45458": 831.604205, "SF45480": 4.0,
+                  "SF45422": 27, "SF45470": 6.3}
+        curve = bond_math.curve_from_vector(values, vector_udi=8.888577, udi=8.893123)  # UDI del 6 de nov. de 2026
+        nodes = dict(curve["udibono_curve"])
+        self.assertAlmostEqual(nodes[1028], 3.597, delta=0.01)
+        self.assertAlmostEqual(nodes[3821], 4.781, delta=0.01)
+        self.assertEqual(curve["udi"], 8.893123)
+
+
+class BpaTest(unittest.TestCase):
+    def test_bpag28_paga_la_mayor_entre_cetes_y_tpfg(self):
+        self.assertEqual(bond_math.bpa_rate(4.08, 4.47), 4.47)  # emision de julio de 2011 de la ficha de Banxico
+        self.assertEqual(bond_math.bpa_rate(6.5, 6.26), 6.5)
+        self.assertEqual(bond_math.bpa_rate(6.504, 6.26), 6.5)  # dos decimales
+
+    def test_bpa182_compara_cetes_con_el_cambio_de_la_udi_del_periodo(self):
+        # Sin inflacion alta paga CETES; si la UDI sube mas que CETES en el periodo, paga el cambio de la UDI.
+        self.assertEqual(bond_math.bpa_rate(6.85, None, 8.834487, 8.870416, 182), 6.85)
+        self.assertEqual(bond_math.bpa_rate(6.0, None, 8.0, 8.4, 182), round(36000 * 0.05 / 182, 2))  # 9.89
+
+    def test_el_cupon_es_valor_nominal_por_tasa_por_dias_reales_entre_36000(self):
+        lot = bond_math.new_lot(BPAG28, 1000, "BPAG28", 6.5, date(2026, 10, 8), "b", price=99.4964)
+        self.assertEqual(lot["current_rate"], 6.5)
+        self.assertEqual(bond_math.cost(lot), round(99.4964 * 1000, 2))
+        self.assertEqual(bond_math.coupon_amount(lot), round(100 * 1000 * 6.5 * 28 / 36000, 2))
+        self.assertEqual(lot["next_coupon_date"], "2026-11-05")
+
+    def test_al_pagar_se_fija_la_tasa_del_siguiente_periodo(self):
+        lot = bond_math.new_lot(BPAG28, 1000, "BPAG28", 6.5, date(2026, 10, 8), "b", price=99.4964)
+        portfolio, events = {"cash": 0.0, "holdings": [lot]}, []
+        with mock.patch.object(bond_engine, "get_bpa_start_rate", return_value=6.9) as rate:
+            bond_engine._pay_coupons(portfolio, lot, date(2026, 11, 5), events, [], BPAG28)
+        rate.assert_called_once_with(BPAG28, date(2026, 11, 5))  # tasas vigentes al inicio del periodo que empieza
+        self.assertEqual(portfolio["cash"], round(100 * 1000 * 6.5 * 28 / 36000, 2))  # el cupon pagado fue a la tasa anterior
+        self.assertEqual((lot["current_rate"], lot["coupons_paid"], lot["next_coupon_date"]), (6.9, 1, "2026-12-03"))
+
+    def test_sin_las_tasas_del_nuevo_periodo_el_cupon_espera(self):
+        lot = bond_math.new_lot(BPAG28, 1000, "BPAG28", 6.5, date(2026, 10, 8), "b", price=99.4964)
+        portfolio = {"cash": 0.0, "holdings": [lot]}
+        with mock.patch.object(bond_engine, "get_bpa_start_rate", side_effect=ValueError("sin tasa")):
+            paid = bond_engine._pay_coupons(portfolio, lot, date(2026, 11, 5), [], [], BPAG28)
+        self.assertEqual((paid, portfolio["cash"], lot["current_rate"]), (False, 0.0, 6.5))
+
+    def test_bpa182_paga_la_proteccion_de_la_udi_si_supera_a_cetes(self):
+        lot = bond_math.new_lot(BPA182, 1000, "BPA182", 6.0, date(2026, 4, 30), "b", price=99.0, udi=8.0)
+        portfolio, events = {"cash": 0.0, "holdings": [lot]}, []
+        with mock.patch.object(bond_engine, "get_udi", return_value=8.4), \
+                mock.patch.object(bond_engine, "get_bpa_start_rate", return_value=6.1):
+            bond_engine._pay_coupons(portfolio, lot, date(2026, 10, 29), events, [], BPA182)
+        rate = round(36000 * 0.05 / 182, 2)  # la UDI subio 5 % en el periodo: 9.89 % anual
+        self.assertEqual(portfolio["cash"], round(100 * 1000 * rate / 100 * 182 / 360, 2))
+        self.assertEqual((lot["current_rate"], lot["udi_period_start"]), (6.1, 8.4))
+
+    def test_valor_de_mercado_converge_a_la_par_con_los_intereses_corridos(self):
+        lot = bond_math.new_lot(BPAG28, 1000, "BPAG28", 6.5, date(2026, 10, 8), "b", price=99.4964)
+        curve = {"cetes": [(28, 6.0)], "bono_m": {}, "floaters": {"BPAG28": (1000.0, 99.5451)}}
+        value = bond_math.market_value(lot, date(2026, 10, 8), curve)  # el dia de la compra, sin intereses corridos
+        remaining = (date.fromisoformat(lot["maturity_date"]) - date(2026, 10, 8)).days
+        self.assertAlmostEqual(value / 1000, 100 - (100 - 99.5451) * min(1, remaining / 1000), places=4)
+        later = bond_math.market_value(lot, date(2026, 10, 22), curve)  # 14 dias despues: 14 dias de cupon corrido
+        self.assertGreater(later, value)
+        with self.assertRaises(ValueError):
+            bond_math.market_value(lot, date(2026, 10, 8), {"cetes": [(28, 6.0)], "bono_m": {}, "floaters": {}})
+
+
+class CatalogoTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import json
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "assets.json")
+        with open(path, encoding="utf8") as f:
+            cls.assets = json.load(f)
+
+    def test_el_plazo_de_los_bonos_con_cupon_es_multiplo_de_su_periodo(self):
+        for bond in self.assets:
+            if bond["kind"] != "cetes":
+                self.assertEqual(bond["term_days"] % bond["coupon_days"], 0, bond["symbol"])
+
+    def test_cada_tipo_trae_las_series_que_su_motor_necesita(self):
+        from utils import market_vector
+        for bond in self.assets:
+            self.assertTrue(bond["series_id"].startswith("SF"), bond["symbol"])
+            if bond["kind"] == "bpa":
+                self.assertIn(bond["symbol"], market_vector.FLOATERS)
+                self.assertTrue(bond["cetes_series_id"] and bond["price_series_id"])
+                self.assertEqual(bool(bond.get("tpfg_series_id")), not bond.get("udi_protection"))  # BPAG: TPFG; BPA182: UDI
+            if bond["kind"] == "udibono":
+                self.assertEqual((bond["nominal_value"], bond["unit"]), (100, "UDI"))
+
+    def test_los_simbolos_no_se_repiten(self):
+        symbols = [b["symbol"] for b in self.assets]
+        self.assertEqual(len(symbols), len(set(symbols)))
 
 
 if __name__ == "__main__":

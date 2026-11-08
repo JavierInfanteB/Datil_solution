@@ -7,6 +7,9 @@ curado de series de Banxico en assets.json, porque cada uno requiere un
 series_id especifico que no se puede "buscar" igual que un ticker.
 """
 
+import time
+from datetime import date
+
 from utils import banxico_api, bond_math, calendar_mx, market_vector, yahoo_api
 from utils.data_store import read_json
 
@@ -45,13 +48,45 @@ def list_bonds():
     return [a for a in read_json("assets.json") if a["type"] == "bono"]
 
 
+_CURVE_TTL_SECONDS = 30 * 60
+_curve_cache = []  # [(momento, curva)]
+
+
+def get_udi(day):
+    """Valor de la UDI en pesos del dia `day`. Banxico la publica todos los dias, tambien sabados y domingos."""
+    return banxico_api.get_rate_on(market_vector.UDI, day)
+
+
 def get_bond_curve():
     """Curva de mercado de hoy para valuar los lotes: el vector de precios 'on the run' de Banxico (mercado secundario de
     cada dia, no las tasas de la ultima subasta). Ver bond_math.curve_from_vector y utils/market_vector.py."""
+    if _curve_cache and time.monotonic() - _curve_cache[0][0] < _CURVE_TTL_SECONDS:
+        return _curve_cache[0][1]
     ids, values = market_vector.all_series(), {}
     for i in range(0, len(ids), 10):  # pocas series por consulta; cada grupo tiene su cache de 30 minutos
         values.update(banxico_api.get_latest_rates(ids[i:i + 10]))
-    return bond_math.curve_from_vector(values)
+    try:  # el precio de los Udibonos va en pesos: se pasa a UDIS con la UDI del dia del vector
+        vector_day = date.fromisoformat(banxico_api.get_latest_dated(market_vector.CETES[0][1])[1])
+        vector_udi, udi = get_udi(vector_day), get_udi(date.today())
+    except Exception:
+        vector_udi = udi = None  # sin UDI los Udibonos se valuan devengados
+    curve = bond_math.curve_from_vector(values, vector_udi, udi)
+    _curve_cache[:] = [(time.monotonic(), curve)]
+    return curve
+
+
+def get_bpa_start_rate(bond, start):
+    """Tasa del cupon de un BPA que empieza en la colocacion `start`: la mayor entre los CETES del plazo del cupon en esa
+    fecha y la TPFG del dia de la subasta (BPAG28 y BPAG91), o solo los CETES a 182 dias (BPA182, que ademas compara la UDI
+    al final del periodo). ValueError si Banxico aun no publica esas tasas."""
+    cetes = banxico_api.get_rate_on(bond["cetes_series_id"], start)
+    tpfg = banxico_api.get_rate_on(bond["tpfg_series_id"], calendar_mx.auction_date(start)) if bond.get("tpfg_series_id") else None
+    return bond_math.bpa_rate(cetes, tpfg)
+
+
+def get_bond_price_on(bond, placement):
+    """Precio limpio por titulo de un bono de tasa variable en la colocacion `placement` (vector on the run de Banxico)."""
+    return banxico_api.get_rate_on(bond["price_series_id"], placement)
 
 
 def get_bond_auction_rate(symbol, auction_date):

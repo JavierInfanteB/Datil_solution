@@ -70,13 +70,14 @@ def build_portfolio_view(username, settle=True):
             row["rate_at_purchase"] = holding.get("rate_at_purchase")
             row["purchase_date"] = holding.get("purchase_date")
             row["maturity_date"] = holding.get("maturity_date")
-            row["accrued_value"] = bond_math.accrued_value(holding, today)
-            row["maturity_value"] = bond_math.maturity_value(holding)
+            udi = (curve or {}).get("udi")  # Udibonos: se pasan a pesos con la UDI de hoy
+            row["accrued_value"] = bond_math.accrued_value(holding, today, udi)
+            row["maturity_value"] = bond_math.maturity_value(holding, udi)
             row["cost"] = bond_math.cost(holding)
-            if row["kind"] == "bono_m":
+            if row["kind"] in bond_math.COUPON_KINDS:
                 row["next_coupon_date"] = holding.get("next_coupon_date")
                 row["coupons_paid"] = holding.get("coupons_paid", 0)
-                row["coupon_amount"] = bond_math.coupon_amount(holding)
+                row["coupon_amount"] = bond_math.coupon_amount(holding, udi=udi)
 
             row["value_basis"] = "mercado"
             try:

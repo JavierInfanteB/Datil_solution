@@ -18,7 +18,22 @@ BONOS_M = [("SF45427", "SF45448", "SF45475"),  # 0 a 3 anios
            ("SF60720", "SF60721", "SF60723")]  # 20 a 30
 
 
+# Udibonos: (plazo por vencer en dias, precio limpio en PESOS, cupon vigente en %). El precio del vector va en pesos:
+# se pasa a UDIS con el valor de la UDI de ese dia.
+UDIBONOS = [("SF61784", "SF61785", "SF61787"),  # 3 anios
+            ("SF45432", "SF45458", "SF45480"),  # 10
+            ("SF50761", "SF50765", "SF50763"),  # 20
+            ("SF50762", "SF50767", "SF50764")]  # 30
+
+# Bonos de tasa variable on the run: simbolo del catalogo -> (plazo por vencer en dias, precio limpio por titulo de 100)
+FLOATERS = {"BPAG28": ("SF165596", "SF165598"), "BPAG91": ("SF165597", "SF165599"), "BPA182": ("SF45434", "SF45462")}
+
+UDI = "SP68257"  # valor diario de la UDI en pesos
+
+
 def all_series():
     ids = [s for pair in CETES for s in pair]
     ids += [s for triple in BONOS_M for s in triple]
+    ids += [s for triple in UDIBONOS for s in triple]
+    ids += [s for pair in FLOATERS.values() for s in pair]
     return ids
