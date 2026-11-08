@@ -5,5 +5,12 @@ import Presentacion from "./Presentacion";
 // "display:none", el arbol de React simplemente no lo incluye en el DOM.
 export default function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
-  return isAuthenticated ? children : <Presentacion />;
+  if (!isAuthenticated) return <Presentacion />;
+  return (
+    <>
+      {/* La etiqueta de solo lectura va dentro de la plataforma, no en la carta de presentación */}
+      {import.meta.env.VITE_DEMO && <div className="datil-demo-badge">Modo de pruebas · solo lectura</div>}
+      {children}
+    </>
+  );
 }

@@ -279,9 +279,9 @@ export default function Presentacion() {
         <section className="dl-seccion dl-acceso" id="acceso" aria-labelledby="t-acceso">
           <div className="dl-encabezado">
             <h2 id="t-acceso" className="dl-titulo">Iniciar sesión</h2>
-            <p className="dl-sub">Entra con una cuenta de prueba para recorrer cada rol.</p>
+            <p className="dl-sub">Entra con tu usuario y contraseña para ver tu cartera.</p>
           </div>
-          <LoginForm enfocar={false} />
+          <LoginForm enfocar={false} mostrarDemo={false} />
         </section>
       </main>
 

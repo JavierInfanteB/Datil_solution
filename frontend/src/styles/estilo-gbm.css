@@ -1,0 +1,87 @@
+/* Capa de estilo inspirada en gbm.com para la plataforma: titulares ligeros, botones en píldora,
+   tarjetas muy redondeadas y barra lateral flotante. Solo diseño: se carga después de datil-theme.css. */
+
+:root {
+  --datil-bg: #f5f5f2;
+  --datil-border: #e6e6e1;
+  --dl-r-card: 24px;
+  --dl-r-tile: 20px;
+  --dl-r-input: 14px;
+}
+[data-theme="dark"] {
+  --datil-bg: #0b0d12;
+  --datil-border: #262a35;
+}
+
+body { letter-spacing: -0.005em; }
+
+/* Barra lateral: tarjeta oscura flotante, menú en píldoras */
+@media (min-width: 861px) {
+  .datil-sidebar {
+    top: 0.75rem;
+    height: calc(100vh - 1.5rem);
+    margin: 0.75rem 0 0.75rem 0.75rem;
+    border-radius: 28px;
+    padding: 1.6rem 1rem;
+  }
+}
+.datil-nav-btn { border-left: 0; border-radius: 999px; padding: 0.65rem 1rem; }
+.datil-nav-btn.active { background: var(--datil-accent); color: #14161c; font-weight: 600; }
+.datil-nav-sub { border-left-color: rgba(255, 255, 255, 0.12); }
+.datil-nav-sub-btn { border-radius: 999px; }
+.datil-nav-sub-btn.active { background: rgba(217, 171, 44, 0.16); color: var(--datil-accent); }
+.datil-menu-toggle, .datil-theme-toggle { border-radius: 999px; }
+
+/* Tarjetas: más aire, esquinas grandes y titulares ligeros en vez de rótulos en mayúsculas */
+.datil-card { border-radius: var(--dl-r-card); padding: 2rem; }
+.datil-card h2 {
+  font-size: 1.6rem;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--datil-text);
+  border-bottom: 0;
+  padding-bottom: 0;
+  margin-bottom: 1.5rem;
+}
+.datil-subheading { font-size: 0.95rem; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--datil-text); }
+
+/* Cifras resumen */
+.datil-summary-grid > div { border-radius: var(--dl-r-tile); padding: 1.15rem 1.4rem; background: var(--datil-bg); border-color: transparent; }
+.datil-summary-grid strong { font-size: 1.7rem; font-weight: 300; letter-spacing: -0.02em; }
+.datil-history-summary strong { font-size: 1.7rem; font-weight: 300; letter-spacing: -0.02em; }
+.datil-label { font-weight: 600; }
+
+/* Tablas más limpias */
+.datil-table th { border-bottom-width: 1px; font-weight: 600; }
+.datil-table tbody tr:last-child td { border-bottom: 0; }
+.datil-table-scroll { border-radius: 18px; }
+.datil-chart-wrapper { border-radius: var(--dl-r-tile); border-color: transparent; }
+
+/* Controles */
+.datil-btn { border-radius: 999px; padding: 0.7rem 1.4rem; }
+.datil-form-row select,
+.datil-table select,
+.datil-form-row input,
+.datil-form-row textarea,
+.datil-search-input,
+.datil-login-card input,
+.datil-select-trigger { border-radius: var(--dl-r-input); padding: 0.65rem 0.9rem; }
+.datil-select-list { border-radius: 18px; padding: 0.4rem; }
+.datil-select-option { border-radius: 12px; }
+.datil-chip { border-radius: 999px; padding: 0.4rem 0.95rem; }
+.datil-risk { border-radius: 999px; padding: 0.2rem 0.75rem; }
+.datil-meter { border-radius: 999px; }
+.datil-meter-low { border-radius: 999px 0 0 999px; }
+.datil-meter-high { border-radius: 0 999px 999px 0; }
+.datil-swatch { border-radius: 50%; }
+
+/* Login y avisos */
+.datil-login-card { border-radius: var(--dl-r-card); }
+.datil-modal { border-radius: var(--dl-r-card); padding: 2rem 2.2rem; }
+.datil-demo-badge { border-radius: 999px; }
+
+@media (max-width: 860px) {
+  .datil-card { padding: 1.3rem; border-radius: 20px; }
+  .datil-card h2 { font-size: 1.35rem; }
+}

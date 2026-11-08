@@ -9,7 +9,7 @@ const DEMO_ACCOUNTS = [
   { role: "Usuario", username: "usuario", password: "usuario", about: "Compra y vende, y ve su cartera, sus riesgos y los avisos de su consultor." },
 ];
 
-export default function LoginForm({ enfocar = true }) {
+export default function LoginForm({ enfocar = true, mostrarDemo = true }) {
   const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -48,7 +48,7 @@ export default function LoginForm({ enfocar = true }) {
         <button className="datil-btn datil-btn-primary" type="submit" disabled={loading}>
           {loading ? "Ingresando..." : "Iniciar sesión"}
         </button>
-        {import.meta.env.VITE_DEMO && (
+        {mostrarDemo && import.meta.env.VITE_DEMO && (
           <div className="datil-demo-hint">
             <p>Cuentas de prueba, solo lectura. Toca una para llenar los datos:</p>
             <ul className="datil-demo-accounts">
