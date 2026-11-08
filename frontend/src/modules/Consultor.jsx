@@ -19,6 +19,17 @@ const trend = (v) => (v >= 0 ? "datil-up" : "datil-down");
 // Situaciones que el consultor quiere ver de un vistazo, y cómo ordenar su lista.
 const result = (c) => c.unrealized + c.realized;
 const NO_ROWS = [];
+
+// Aviso que se prepara con un clic según la situación del cliente. Solo precarga el formulario de Avisos:
+// el consultor lo lee, lo ajusta y lo envía él. No recomienda comprar ni vender.
+function noticeFor(c) {
+  if (c.risk?.level === "alto")
+    return { username: c.username, kind: "riesgo", title: "Revisemos el riesgo de tu cartera", message: "Hoy tu cartera tiene un nivel de riesgo alto. Conviene que lo revisemos juntos; escríbeme y vemos tus opciones." };
+  if (result(c) < 0)
+    return { username: c.username, kind: "aviso", title: "Revisemos cómo van tus inversiones", message: "Tus posiciones están por debajo de lo que costaron. Platiquemos para entender qué pasó y qué te conviene hacer." };
+  return { username: c.username, kind: "aviso", title: "", message: "" };
+}
+
 const TRIAGE = {
   tags: [
     { id: "alto", label: "Con riesgo alto", short: "con riesgo alto", attention: true, test: (c) => c.risk?.level === "alto" },
@@ -50,7 +61,17 @@ export default function Consultor({ section, goTo }) {
   return (
     <>
       {options.length > 1 && <FilterBar clients={options} value={filter} onChange={setFilter} />}
-      {id === "clientes" && <ClientsView filter={filter} onOpen={setSelected} onOptions={setOptions} />}
+      {id === "clientes" && (
+        <ClientsView
+          filter={filter}
+          onOpen={setSelected}
+          onOptions={setOptions}
+          onNotice={(d) => {
+            setDraft(d);
+            goTo("avisos");
+          }}
+        />
+      )}
       {id === "sugerencias" && (
         <SignalsFeed
           filter={filter}
@@ -68,7 +89,7 @@ export default function Consultor({ section, goTo }) {
   );
 }
 
-function ClientsView({ filter, onOpen, onOptions }) {
+function ClientsView({ filter, onOpen, onOptions, onNotice }) {
   const [days, setDays] = useState(30);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
@@ -224,9 +245,14 @@ function ClientsView({ filter, onOpen, onOptions }) {
                   </td>
                   <td className="datil-col-num">{formatCurrency(c.volume_mxn)}</td>
                   <td>
-                    <button className="datil-btn datil-btn-secondary" onClick={() => onOpen(c.username)}>
-                      Ver detalle
-                    </button>
+                    <div className="datil-actions">
+                      <button className="datil-btn datil-btn-secondary" onClick={() => onOpen(c.username)}>
+                        Ver detalle
+                      </button>
+                      <button className="datil-btn datil-btn-primary" onClick={() => onNotice(noticeFor(c))}>
+                        Avisar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
