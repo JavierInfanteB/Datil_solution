@@ -213,8 +213,7 @@ export default function Presentacion() {
               Diseñamos, estructuramos y construimos proyectos tecnológicos a la medida, de principio a fin: datos, automatización e inteligencia artificial en un solo lugar.
             </p>
             <div className="dl-acciones">
-              <a className="dl-pildora dl-pildora-grande" href="#acceso">Probar la plataforma</a>
-              <a className="dl-enlace" href="#vision">Conocer más <span aria-hidden="true">↓</span></a>
+              <a className="dl-pildora dl-pildora-grande" href="#vision">Conocer más <span aria-hidden="true">↓</span></a>
             </div>
           </div>
           <GraficaHeroe />
@@ -279,8 +278,8 @@ export default function Presentacion() {
 
         <section className="dl-seccion dl-acceso" id="acceso" aria-labelledby="t-acceso">
           <div className="dl-encabezado">
-            <h2 id="t-acceso" className="dl-titulo">Prueba la plataforma</h2>
-            <p className="dl-sub">Inicia sesión con una cuenta de prueba para recorrer cada rol.</p>
+            <h2 id="t-acceso" className="dl-titulo">Iniciar sesión</h2>
+            <p className="dl-sub">Entra con una cuenta de prueba para recorrer cada rol.</p>
           </div>
           <LoginForm enfocar={false} />
         </section>
