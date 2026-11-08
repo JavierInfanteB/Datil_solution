@@ -143,29 +143,77 @@ html:has(.dl-pagina) { scroll-behavior: smooth; scroll-padding-top: 5rem; }
 .dl-equipo { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; }
 .dl-tarjeta-equipo h3 { font-size: 1.2rem; font-weight: 600; }
 
-/* Acceso: la tarjeta de inicio de sesión vive dentro de la carta de presentación */
-.dl-acceso { background: #14161c; color: #fff; border-radius: 40px; max-width: calc(1240px - 2rem); margin: 2rem auto; }
-.dl-acceso .dl-sub { color: #b7bac4; }
-.dl-acceso .datil-login-page { min-height: 0; background: transparent; padding: 0; }
-.dl-acceso .datil-login-card { max-width: 480px; margin: 0 auto; border-radius: var(--dl-radio); }
-.dl-acceso .datil-login-card, .dl-acceso .datil-login-card h1 { color: var(--datil-text); }
+/* Acceso estilo plataforma de inversión: formulario a la izquierda, panel visual a la derecha */
+.dl-acceso { padding-top: 1rem; }
+.dl-login {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  min-height: min(720px, calc(100vh - 6rem));
+}
+.dl-login-form {
+  display: grid;
+  place-items: center;
+  background: var(--datil-surface);
+  border: 1px solid var(--datil-border);
+  border-radius: 32px;
+  padding: 2rem 1.5rem;
+}
+.dl-login-form .datil-login-page { min-height: 0; background: transparent; width: 100%; }
+.dl-login-form .datil-login-card { max-width: 420px; margin: 0 auto; border: 0; box-shadow: none; padding: 0; background: transparent; }
+.dl-login-form .datil-brand-center { margin-bottom: 1.8rem; }
+.dl-login-form .datil-login-card h1 { margin-top: 0.4rem; font-size: 1rem; }
+.datil-login-title { font-size: 1.9rem; font-weight: 500; text-align: center; letter-spacing: -0.02em; margin: 0 0 0.4rem; }
+.datil-login-card label { text-transform: none; letter-spacing: 0; font-size: 0.9rem; color: var(--datil-text); font-weight: 600; }
+.datil-pass { position: relative; display: block; }
+.datil-pass input { width: 100%; padding-right: 3rem; }
+.datil-pass-ojo { position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border: 0; background: transparent; color: var(--datil-text-muted); cursor: pointer; border-radius: 50%; }
+.datil-pass-ojo:hover { color: var(--datil-text); background: var(--datil-bg); }
+.datil-pass-ojo svg { width: 1.3rem; height: 1.3rem; }
+.datil-login-card .datil-btn { padding: 0.95rem 1.4rem; font-size: 0.95rem; }
+.datil-login-card .datil-btn:disabled { background: #e8e8e4; color: #9a9a95; cursor: not-allowed; }
+[data-theme="dark"] .datil-login-card .datil-btn:disabled { background: #232733; color: #6d7380; }
+
+.dl-login-arte {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 1.2rem;
+  overflow: hidden;
+  padding: clamp(1.5rem, 3vw, 2.4rem);
+  border-radius: 32px;
+  color: #fff;
+  background:
+    radial-gradient(120% 80% at 80% 0%, rgba(217, 171, 44, 0.32), transparent 60%),
+    linear-gradient(160deg, #1b1f2a 0%, #0d0f15 100%);
+}
+.dl-login-arte .dl-grafica { position: absolute; inset: auto 0 14% 0; width: 100%; color: #fff; opacity: 0.55; pointer-events: none; }
+.dl-login-arte h2 { position: relative; font-size: clamp(1.8rem, 3.2vw, 2.7rem); font-weight: 500; line-height: 1.12; letter-spacing: -0.02em; text-align: center; margin: 0 0 auto; padding-top: 4%; }
+.dl-login-pie { position: relative; display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+.dl-login-pie p { margin: 0; line-height: 1.4; color: #c9ccd4; }
+.dl-login-pie strong { color: #fff; font-weight: 600; font-size: 1.1rem; }
+
+.dl-pagina { overflow-x: clip; }
 
 .dl-pie { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding: 2rem clamp(1rem, 4vw, 3rem) 3rem; color: var(--datil-text-muted); font-size: 0.9rem; }
 .dl-pie span:first-child { font-weight: 700; color: var(--datil-text); }
 
-@media (min-width: 861px) {
-  .dl-acceso .datil-login-card:has(.datil-demo-hint) { max-width: 900px; }
-}
-
 @media (max-width: 860px) {
-  .dl-nav nav a:not(.dl-pildora) { display: none; }
-  .dl-heroe, .dl-duo, .dl-objetivos { grid-template-columns: 1fr; }
+  .dl-nav { flex-wrap: wrap; row-gap: 0.4rem; }
+  .dl-nav nav { gap: 0.9rem; flex-wrap: wrap; }
+  .dl-nav nav a:not(.dl-pildora) { font-size: 0.88rem; }
+  .dl-pildora { padding: 0.5rem 1rem; }
+  .dl-heroe, .dl-duo, .dl-objetivos, .dl-login { grid-template-columns: 1fr; }
   .dl-equipo { grid-template-columns: 1fr 1fr; }
-  .dl-acceso { border-radius: 28px; margin: 1rem; }
+  .dl-login-arte { min-height: 340px; }
 }
 @media (max-width: 560px) {
   .dl-equipo { grid-template-columns: 1fr; }
 }
+
+.dl-puntos { list-style: none; margin: 2.2rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.8rem; }
+.dl-puntos li { display: flex; align-items: center; gap: 0.9rem; font-weight: 500; }
 
 @media (prefers-reduced-motion: reduce) {
   .dl-linea, .dl-area, .dl-punto, .dl-barras rect { animation: none; stroke-dashoffset: 0; opacity: 1; transform: none; }

@@ -15,6 +15,7 @@ export default function LoginForm({ enfocar = true, mostrarDemo = true }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [verPass, setVerPass] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,16 +37,26 @@ export default function LoginForm({ enfocar = true, mostrarDemo = true }) {
           <Logo />
           <h1>Datil Solutions</h1>
         </div>
+        <h2 className="datil-login-title">Inicia sesión</h2>
         <label>
           Usuario
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus={enfocar} />
+          <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus={enfocar} placeholder="Tu usuario" autoComplete="username" />
         </label>
         <label>
           Contraseña
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <span className="datil-pass">
+            <input type={verPass ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+            <button type="button" className="datil-pass-ojo" onClick={() => setVerPass((v) => !v)} aria-label={verPass ? "Ocultar contraseña" : "Mostrar contraseña"} aria-pressed={verPass}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
+                <circle cx="12" cy="12" r="3" />
+                {!verPass && <path d="M4 4l16 16" />}
+              </svg>
+            </button>
+          </span>
         </label>
         {error && <p className="datil-error">{error}</p>}
-        <button className="datil-btn datil-btn-primary" type="submit" disabled={loading}>
+        <button className="datil-btn datil-btn-primary" type="submit" disabled={loading || !username || !password}>
           {loading ? "Ingresando..." : "Iniciar sesión"}
         </button>
         {mostrarDemo && import.meta.env.VITE_DEMO && (

@@ -128,11 +128,11 @@ const EQUIPO = [
 ];
 
 // Gráfica decorativa del héroe: curva de patrimonio y barras de posiciones. No representa datos reales.
-function GraficaHeroe() {
+function GraficaHeroe({ id = "heroe" }) {
   return (
     <svg className="dl-grafica" viewBox="0 0 480 320" role="img" aria-label="Ilustración de una gráfica de patrimonio con barras de posiciones">
       <defs>
-        <linearGradient id="dl-area" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={`dl-area-${id}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="var(--datil-accent)" stopOpacity=".35" />
           <stop offset="1" stopColor="var(--datil-accent)" stopOpacity="0" />
         </linearGradient>
@@ -145,7 +145,7 @@ function GraficaHeroe() {
           <rect key={i} x={36 + i * 54} y={280 - h} width="30" height={h} rx="8" style={{ animationDelay: `${i * 70}ms` }} />
         ))}
       </g>
-      <path className="dl-area" d="M20 240 80 210 140 222 200 170 260 184 320 120 380 132 460 56V280H20Z" fill="url(#dl-area)" />
+      <path className="dl-area" d="M20 240 80 210 140 222 200 170 260 184 320 120 380 132 460 56V280H20Z" fill={`url(#dl-area-${id})`} />
       <path className="dl-linea" d="M20 240 80 210 140 222 200 170 260 184 320 120 380 132 460 56" fill="none" stroke="var(--datil-accent)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" pathLength="1" />
       <circle className="dl-punto" cx="460" cy="56" r="7" fill="var(--datil-accent)" />
     </svg>
@@ -215,6 +215,11 @@ export default function Presentacion() {
             <div className="dl-acciones">
               <a className="dl-pildora dl-pildora-grande" href="#vision">Conocer más <span aria-hidden="true">↓</span></a>
             </div>
+            <ul className="dl-puntos">
+              <li><span className="dl-icono dl-icono-chico">{Icons.cartera}</span>Patrimonio valuado en pesos mexicanos</li>
+              <li><span className="dl-icono dl-icono-chico">{Icons.alerta}</span>Alertas configurables por variación y vencimiento</li>
+              <li><span className="dl-icono dl-icono-chico">{Icons.auditoria}</span>Cada movimiento queda registrado</li>
+            </ul>
           </div>
           <GraficaHeroe />
         </section>
@@ -276,12 +281,21 @@ export default function Presentacion() {
           </ul>
         </section>
 
-        <section className="dl-seccion dl-acceso" id="acceso" aria-labelledby="t-acceso">
-          <div className="dl-encabezado">
-            <h2 id="t-acceso" className="dl-titulo">Iniciar sesión</h2>
-            <p className="dl-sub">Entra con tu usuario y contraseña para ver tu cartera.</p>
+        {/* Acceso al estilo de las plataformas de inversión: formulario a la izquierda y panel visual a la derecha */}
+        <section className="dl-seccion dl-acceso" id="acceso" aria-label="Iniciar sesión">
+          <div className="dl-login">
+            <div className="dl-login-form">
+              <LoginForm enfocar={false} mostrarDemo={false} />
+            </div>
+            <aside className="dl-login-arte">
+              <GraficaHeroe id="login" />
+              <h2>¿Cuánto riesgo estás tomando hoy?</h2>
+              <div className="dl-login-pie">
+                <p><strong>Algunas decisiones las tomas tú.</strong><br />Los datos los calculamos por ti.</p>
+                <p>Invierte con claridad.</p>
+              </div>
+            </aside>
           </div>
-          <LoginForm enfocar={false} mostrarDemo={false} />
         </section>
       </main>
 
