@@ -1,4 +1,3 @@
-import { useState } from "react";
 import LoginForm from "./LoginForm";
 import Logo from "./Logo";
 import "../styles/presentacion.css";
@@ -189,44 +188,24 @@ function Dona() {
   );
 }
 
-const VISTAS = [
-  { id: "vision", nombre: "Visión" },
-  { id: "objetivos", nombre: "Objetivos" },
-  { id: "equipo", nombre: "Equipo" },
-];
-const IDS = ["inicio", ...VISTAS.map((v) => v.id), "acceso"];
-const vistaDelHash = () => {
-  const id = window.location.hash.slice(1);
-  return IDS.includes(id) ? id : "inicio";
-};
-
 export default function Presentacion() {
-  // Cada enlace del menú abre su propia pestaña (con #hash para poder compartir el enlace)
-  const [vista, setVista] = useState(vistaDelHash);
-  const ir = (id) => (e) => {
-    e.preventDefault();
-    window.history.replaceState(null, "", `#${id}`);
-    setVista(id);
-    window.scrollTo(0, 0);
-  };
-
   return (
     <div className="dl-pagina">
       <header className="dl-nav">
-        <a className="dl-marca" href="#inicio" onClick={ir("inicio")} aria-label="Datil Solutions, inicio">
+        <a className="dl-marca" href="#inicio" aria-label="Datil Solutions, inicio">
           <Logo />
           <span>Datil Solutions</span>
         </a>
         <nav aria-label="Principal">
-          {VISTAS.map((v) => (
-            <a key={v.id} href={`#${v.id}`} onClick={ir(v.id)} aria-current={vista === v.id ? "page" : undefined}>{v.nombre}</a>
-          ))}
-          <a className="dl-pildora" href="#acceso" onClick={ir("acceso")} aria-current={vista === "acceso" ? "page" : undefined}>Iniciar sesión</a>
+          <a href="#vision">Visión</a>
+          <a href="#objetivos">Objetivos</a>
+          <a href="#equipo">Equipo</a>
+          <a className="dl-pildora" href="#acceso">Iniciar sesión</a>
         </nav>
       </header>
 
       <main>
-        {vista === "inicio" && <section className="dl-heroe" id="inicio">
+        <section className="dl-heroe" id="inicio">
           <div className="dl-heroe-texto">
             <p className="dl-etiqueta">Consultoría y desarrollo tecnológico</p>
             <h1>Decisiones complejas, <span>datos claros</span>.</h1>
@@ -234,13 +213,13 @@ export default function Presentacion() {
               Diseñamos, estructuramos y construimos proyectos tecnológicos a la medida, de principio a fin: datos, automatización e inteligencia artificial en un solo lugar.
             </p>
             <div className="dl-acciones">
-              <a className="dl-pildora dl-pildora-grande" href="#vision" onClick={ir("vision")}>Conocer más <span aria-hidden="true">→</span></a>
+              <a className="dl-pildora dl-pildora-grande" href="#vision">Conocer más <span aria-hidden="true">↓</span></a>
             </div>
           </div>
           <GraficaHeroe />
-        </section>}
+        </section>
 
-        {vista === "vision" && <section className="dl-seccion" id="vision" aria-labelledby="t-vision">
+        <section className="dl-seccion" id="vision" aria-labelledby="t-vision">
           <h2 id="t-vision" className="dl-titulo">Quiénes somos</h2>
           <div className="dl-duo">
             <article className="dl-tarjeta dl-tarjeta-oscura">
@@ -258,9 +237,9 @@ export default function Presentacion() {
               </p>
             </article>
           </div>
-        </section>}
+        </section>
 
-        {vista === "objetivos" && <section className="dl-seccion" id="objetivos" aria-labelledby="t-objetivos">
+        <section className="dl-seccion" id="objetivos" aria-labelledby="t-objetivos">
           <div className="dl-encabezado">
             <h2 id="t-objetivos" className="dl-titulo">Objetivos del proyecto actual</h2>
             <p className="dl-sub">Una plataforma de cartera de inversión que conecta a inversionistas y consultores en un solo lugar.</p>
@@ -279,9 +258,9 @@ export default function Presentacion() {
               ))}
             </ul>
           </div>
-        </section>}
+        </section>
 
-        {vista === "equipo" && <section className="dl-seccion" id="equipo" aria-labelledby="t-equipo">
+        <section className="dl-seccion" id="equipo" aria-labelledby="t-equipo">
           <div className="dl-encabezado">
             <h2 id="t-equipo" className="dl-titulo">Nuestro equipo</h2>
             <p className="dl-sub">Un equipo multidisciplinario que cubre todas las capas del ciclo de vida del software.</p>
@@ -295,15 +274,15 @@ export default function Presentacion() {
               </li>
             ))}
           </ul>
-        </section>}
+        </section>
 
-        {vista === "acceso" && <section className="dl-seccion dl-acceso" id="acceso" aria-labelledby="t-acceso">
+        <section className="dl-seccion dl-acceso" id="acceso" aria-labelledby="t-acceso">
           <div className="dl-encabezado">
             <h2 id="t-acceso" className="dl-titulo">Iniciar sesión</h2>
             <p className="dl-sub">Entra con tu usuario y contraseña para ver tu cartera.</p>
           </div>
-          <LoginForm mostrarDemo={false} />
-        </section>}
+          <LoginForm enfocar={false} mostrarDemo={false} />
+        </section>
       </main>
 
       <footer className="dl-pie">
