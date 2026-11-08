@@ -820,6 +820,27 @@ h1, h2, h3 {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
 }
 
+/* Escritorio: tarjeta ancha, formulario a la izquierda y cuentas de prueba a la derecha */
+@media (min-width: 861px) {
+  .datil-login-card:has(.datil-demo-hint) {
+    max-width: 840px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 3rem;
+    align-content: center;
+  }
+  .datil-login-card:has(.datil-demo-hint) > * {
+    grid-column: 1;
+  }
+  .datil-login-card:has(.datil-demo-hint) > .datil-demo-hint {
+    grid-column: 2;
+    grid-row: 1 / span 6;
+    align-self: center;
+    border-left: 1px solid var(--datil-border);
+    padding-left: 3rem;
+  }
+}
+
 .datil-login-card h1 {
   font-size: 1.05rem;
   font-weight: 700;

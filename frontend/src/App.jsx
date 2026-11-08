@@ -4,11 +4,11 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import SessionWarning from "./components/SessionWarning";
 import DashboardPage from "./pages/DashboardPage";
 import "./styles/datil-theme.css";
+import "./styles/estilo-gbm.css";
 
 function App() {
   return (
     <ThemeProvider>
-      {import.meta.env.VITE_DEMO && <div className="datil-demo-badge">Modo de pruebas · solo lectura</div>}
       <AuthProvider>
         <ProtectedRoute>
           <DashboardPage />

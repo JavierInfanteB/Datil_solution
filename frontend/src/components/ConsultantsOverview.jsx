@@ -11,7 +11,7 @@ const sum = (rows, key) => rows.reduce((n, r) => n + r[key], 0);
 
 // Ganancias y pérdidas del admin: por defecto de todos los consultores; con el filtro, de un consultor o de un cliente.
 // Dos pasteles muestran cómo se reparte el patrimonio y qué hay en las carteras.
-export default function ConsultantsOverview({ filter }) {
+export default function ConsultantsOverview({ filter, onOpenClients }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
 
@@ -89,17 +89,84 @@ export default function ConsultantsOverview({ filter }) {
         <CompositionPie title="Qué hay en las carteras" data={slices(holdingEntries(scope))} />
       </div>
 
+      <LoadCards all={consultants} rows={kpis} onOpen={onOpenClients} />
+
       <section className="datil-card">
-        <h2>Qué consultores funcionan</h2>
-        <div className="datil-table-wrap">
-          <KpiTable rows={kpis} />
-        </div>
-        <p className="datil-period-tag datil-section-note">
-          Constancia: de las últimas 12 semanas, en cuántas el consultor hizo algo por sus clientes (avisos, alertas o notas).
-          Rendimiento: ganancia sin vender sobre lo que cuestan las posiciones abiertas.
-        </p>
+        <h2>Todas las cifras por consultor</h2>
+        <details>
+          <summary>Ver la tabla completa</summary>
+          <div className="datil-table-wrap">
+            <KpiTable rows={kpis} />
+          </div>
+          <p className="datil-period-tag datil-section-note">
+            Constancia: de las últimas 12 semanas, en cuántas el consultor hizo algo por sus clientes (avisos, alertas o notas).
+            Rendimiento: ganancia sin vender sobre lo que cuestan las posiciones abiertas.
+          </p>
+        </details>
       </section>
     </>
+  );
+}
+
+// Estado de un consultor en una frase corta: qué tanto trabajo lleva y si necesita seguimiento.
+function loadStatus(c) {
+  if (c.clients > 0 && c.actions_30d === 0) return { tone: "warn", text: "Sin acciones en 30 días" };
+  if (c.alerts_open > 0) return { tone: "warn", text: `${c.alerts_open} ${c.alerts_open === 1 ? "alerta abierta" : "alertas abiertas"}` };
+  return { tone: "ok", text: "Al día" };
+}
+
+// Una tarjeta por consultor (carga de clientes, patrimonio, constancia) para ver de un vistazo quién necesita seguimiento.
+function LoadCards({ all, rows, onOpen }) {
+  const people = rows.filter((c) => c.username);
+  if (people.length === 0) return null;
+  const pending = all.filter((c) => c.username && loadStatus(c).tone === "warn").length;
+  const orphans = all.find((c) => !c.username)?.clients ?? 0;
+  return (
+    <section className="datil-card">
+      <h2>Carga y atención por consultor</h2>
+      <p className="datil-triage-headline">
+        {pending === 0 ? "Todos los consultores están al día." : <><strong>{pending}</strong> {pending === 1 ? "consultor necesita" : "consultores necesitan"} seguimiento.</>}
+        {orphans > 0 && <> Hay <strong>{orphans}</strong> {orphans === 1 ? "cliente" : "clientes"} sin consultor.</>}
+      </p>
+      <div className="datil-load-grid">
+        {people.map((c) => {
+          const st = loadStatus(c);
+          return (
+            <article key={c.username} className="datil-load-card">
+              <header>
+                <strong>{c.name}</strong>
+                <span className={`datil-load-tag ${st.tone}`}>{st.text}</span>
+              </header>
+              <dl>
+                <div>
+                  <dt>Clientes</dt>
+                  <dd>{c.clients}</dd>
+                </div>
+                <div>
+                  <dt>Patrimonio</dt>
+                  <dd>{formatCurrency(c.portfolio)}</dd>
+                </div>
+                <div>
+                  <dt>Resultado</dt>
+                  <dd className={trend(c.total)}>{formatCurrency(c.total)}</dd>
+                </div>
+              </dl>
+              <div className="datil-progress" role="img" aria-label={`Constancia ${c.consistency}%`}>
+                <div style={{ width: `${c.consistency}%` }} />
+              </div>
+              <span className="datil-period-tag">
+                Constancia {c.consistency}% · última acción: {c.last_action ?? "nunca"}
+              </span>
+              {onOpen && (
+                <button type="button" className="datil-btn datil-btn-secondary" onClick={() => onOpen(c.username)}>
+                  Ver sus clientes
+                </button>
+              )}
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
