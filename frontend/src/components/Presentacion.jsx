@@ -1,3 +1,4 @@
+import { useTheme } from "../contexts/ThemeContext";
 import LoginForm from "./LoginForm";
 import Logo from "./Logo";
 import "../styles/presentacion.css";
@@ -189,6 +190,7 @@ function Dona() {
 }
 
 export default function Presentacion() {
+  const { isDark, toggleTheme } = useTheme();
   return (
     <div className="dl-pagina">
       <header className="dl-nav">
@@ -200,6 +202,18 @@ export default function Presentacion() {
           <a href="#vision">Visión</a>
           <a href="#objetivos">Objetivos</a>
           <a href="#equipo">Equipo</a>
+          <button type="button" className="dl-tema" onClick={toggleTheme} aria-label={isDark ? "Cambiar a tema claro" : "Cambiar a tema oscuro"} title={isDark ? "Tema claro" : "Tema oscuro"}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              {isDark ? (
+                <>
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6" />
+                </>
+              ) : (
+                <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" />
+              )}
+            </svg>
+          </button>
           <a className="dl-pildora" href="#acceso">Iniciar sesión</a>
         </nav>
       </header>

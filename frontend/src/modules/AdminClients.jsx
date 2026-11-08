@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import apiClient from "../api/client";
 import ActivityFeed from "../components/ActivityFeed";
+import ClientTriage, { useTriage } from "../components/ClientTriage";
 import ConsultantsOverview from "../components/ConsultantsOverview";
 import FilterBar from "../components/FilterBar";
 import Insights from "../components/Insights";
@@ -8,6 +9,24 @@ import { formatCurrency } from "../utils/format";
 import { apiError } from "../utils/risk";
 import Portfolio from "./Portfolio";
 import Trading from "./Trading";
+
+// Situaciones que el admin quiere ver de un vistazo en la lista de clientes, y cómo ordenarla.
+const NO_ROWS = [];
+const TRIAGE = {
+  tags: [
+    { id: "sin", label: "Sin consultor", short: "sin consultor", attention: true, test: (c) => !c.consultant },
+    { id: "suspendidos", label: "Suspendidos", short: "suspendidos", attention: true, test: (c) => c.disabled },
+    { id: "perdiendo", label: "Perdiendo dinero", short: "perdiendo dinero", attention: true, test: (c) => c.gain_mxn < 0 },
+    { id: "vacios", label: "Sin posiciones", short: "sin posiciones", test: (c) => c.holdings_count === 0 },
+  ],
+  sorts: [
+    { id: "patrimonio", label: "Mayor patrimonio", cmp: (a, b) => b.total - a.total },
+    { id: "mejor", label: "Mejor resultado", cmp: (a, b) => b.gain_mxn - a.gain_mxn },
+    { id: "peor", label: "Peor resultado", cmp: (a, b) => a.gain_mxn - b.gain_mxn },
+    { id: "nombre", label: "Nombre (A a Z)", cmp: (a, b) => a.name.localeCompare(b.name) },
+  ],
+  searchText: (c) => `${c.name} ${c.username} ${c.consultant ?? ""}`,
+};
 
 const TABS = [
   { id: "cartera", name: "Cartera" },
@@ -55,6 +74,12 @@ export default function AdminClients({ section }) {
 function ClientList({ onOpen, filter }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  // Primero los filtros de arriba (consultor y cliente) y sobre ese resultado la franja de atención
+  const base = useMemo(
+    () => (data?.clients ?? NO_ROWS).filter((c) => (!filter.client || c.username === filter.client) && (!filter.consultant || c.consultant_username === filter.consultant)),
+    [data, filter.client, filter.consultant],
+  );
+  const triage = useTriage(base, TRIAGE);
 
   useEffect(() => {
     apiClient
@@ -66,9 +91,10 @@ function ClientList({ onOpen, filter }) {
   if (error) return <p className="datil-error">{error}</p>;
   if (!data) return <p>Cargando clientes...</p>;
 
-  const rows = data.clients.filter((c) => (!filter.client || c.username === filter.client) && (!filter.consultant || c.consultant_username === filter.consultant));
+  const rows = triage.visible;
   return (
     <>
+      {base.length > 1 && <ClientTriage triage={triage} tags={TRIAGE.tags} sorts={TRIAGE.sorts} />}
       <section className="datil-card">
         <h2>Clientes de Datil Solution</h2>
         <div className="datil-table-wrap">
@@ -84,6 +110,16 @@ function ClientList({ onOpen, filter }) {
               </tr>
             </thead>
             <tbody>
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="datil-empty-row">
+                    Ningún cliente coincide con el filtro.{" "}
+                    <button type="button" className="datil-link" onClick={triage.clear}>
+                      Quitar filtros
+                    </button>
+                  </td>
+                </tr>
+              )}
               {rows.map((c) => (
                 <tr key={c.username}>
                   <td>

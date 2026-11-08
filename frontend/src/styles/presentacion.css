@@ -3,10 +3,13 @@
 .dl-pagina {
   --dl-radio: 28px;
   min-height: 100vh;
-  background: var(--datil-bg);
+  position: relative;
+  /* Velo dorado muy suave que baja desde arriba (sin bordes: solo cambia en vertical) */
+  background: linear-gradient(180deg, color-mix(in srgb, var(--datil-accent) 9%, transparent), transparent 520px), var(--datil-bg);
   color: var(--datil-text);
   scroll-behavior: smooth;
 }
+.dl-pagina > main, .dl-pagina > footer { position: relative; }
 html:has(.dl-pagina) { scroll-behavior: smooth; scroll-padding-top: 5rem; }
 
 .dl-nav {
@@ -219,3 +222,14 @@ html:has(.dl-pagina) { scroll-behavior: smooth; scroll-padding-top: 5rem; }
   .dl-linea, .dl-area, .dl-punto, .dl-barras rect { animation: none; stroke-dashoffset: 0; opacity: 1; transform: none; }
   html:has(.dl-pagina) { scroll-behavior: auto; }
 }
+
+/* Botón de tema y ajustes del tema oscuro */
+.dl-tema { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border: 1px solid var(--datil-border); border-radius: 50%; background: var(--datil-surface); color: var(--datil-text); cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+.dl-tema:hover { border-color: var(--datil-accent); color: var(--datil-accent-dark); }
+.dl-tema svg { width: 1.15rem; height: 1.15rem; }
+[data-theme="dark"] .dl-tema:hover { color: var(--datil-accent); }
+[data-theme="dark"] .dl-tarjeta-oscura { background: #181b25; border-color: #2a2f3c; }
+[data-theme="dark"] .dl-tarjeta { background: #12141b; }
+[data-theme="dark"] .dl-login-arte { border: 1px solid #262a35; }
+[data-theme="dark"] .dl-heroe h1 span { color: var(--datil-accent); }
+[data-theme="dark"] .dl-nav { background: color-mix(in srgb, var(--datil-bg) 80%, transparent); }

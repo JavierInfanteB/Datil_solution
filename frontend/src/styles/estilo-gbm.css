@@ -85,3 +85,34 @@ body { letter-spacing: -0.005em; }
   .datil-card { padding: 1.3rem; border-radius: 20px; }
   .datil-card h2 { font-size: 1.35rem; }
 }
+
+/* ---------- Franja "quién necesita atención" (consultor y admin) ---------- */
+.datil-triage-headline { margin: 0 0 1.2rem; font-size: 1.05rem; color: var(--datil-text-muted); }
+.datil-triage-headline strong { color: var(--datil-text); }
+.datil-triage-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1.2rem; }
+.datil-triage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-align: left;
+  padding: 1rem 1.2rem;
+  border: 1px solid transparent;
+  border-radius: var(--dl-r-tile);
+  background: var(--datil-bg);
+  color: var(--datil-text);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.datil-triage-card:hover { border-color: var(--datil-border); transform: translateY(-1px); }
+.datil-triage-card strong { font-size: 2.1rem; font-weight: 300; letter-spacing: -0.03em; line-height: 1.1; }
+.datil-triage-card span { font-size: 0.85rem; color: var(--datil-text-muted); }
+.datil-triage-card.warn strong { color: var(--datil-down); }
+.datil-triage-card.empty { opacity: 0.6; }
+.datil-triage-card.active { border-color: var(--datil-accent); background: color-mix(in srgb, var(--datil-accent) 12%, transparent); opacity: 1; }
+.datil-triage-card:focus-visible, .datil-chip:focus-visible { outline: 2px solid var(--datil-accent); outline-offset: 2px; }
+.datil-triage-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem 1.2rem; }
+.datil-triage-tools .datil-search-input { flex: 1 1 240px; width: auto; max-width: 360px; }
+.datil-triage-sort { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--datil-text-muted); }
+.datil-triage-sort select { padding: 0.55rem 0.9rem; border-radius: var(--dl-r-input); border: 1px solid var(--datil-border); background: var(--datil-bg); color: var(--datil-text); font: inherit; }
+.datil-empty-row { padding: 1.4rem 0; text-align: center; color: var(--datil-text-muted); }
