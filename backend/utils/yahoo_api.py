@@ -5,6 +5,7 @@ un navegador real, en vez de usar yfinance: la libreria yfinance no siempre
 respeta la sesion personalizada que se le pasa, lo que termina disparando
 el bloqueo anti-bot de Yahoo para ciertas llamadas (ej. fast_info).
 """
+import time
 from datetime import date as date_type, datetime, timedelta, timezone
 
 from curl_cffi import requests as curl_requests
@@ -29,7 +30,25 @@ def _session():
     return curl_requests.Session(impersonate="chrome")
 
 
+_CHART_TTL_SECONDS = 15
+_chart_cache = {}  # (simbolo, rango, intervalo) -> (momento, resultado)
+
+
 def _fetch_chart(symbol, range_="1mo", interval="1d"):
+    # Cache corto: sin el, cada vista del portafolio vuelve a pedir a Yahoo un precio por posicion
+    # y con varios usuarios a la vez Yahoo empieza a rechazar. Los resultados se leen, nunca se modifican.
+    key = (symbol, range_, interval)
+    hit = _chart_cache.get(key)
+    if hit and time.monotonic() - hit[0] < _CHART_TTL_SECONDS:
+        return hit[1]
+    result = _download_chart(symbol, range_, interval)
+    if len(_chart_cache) > 100:  # la busqueda es libre: que no crezca sin tope
+        _chart_cache.clear()
+    _chart_cache[key] = (time.monotonic(), result)
+    return result
+
+
+def _download_chart(symbol, range_, interval):
     response = _session().get(
         CHART_URL.format(symbol=symbol),
         params={"range": range_, "interval": interval},
