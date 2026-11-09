@@ -221,19 +221,6 @@ def accrued_value(lot, as_of, udi=None):
     )
 
 
-def build_curve(rates, bonds):
-    """Curva de tasas a partir de {simbolo: tasa} y el catalogo de bonos (tasas de la ultima subasta de cada uno).
-    La curva de mercado de cada dia sale del vector de precios de Banxico: ver utils/market_data.get_bond_curve."""
-    return {
-        "cetes": sorted(
-            (b["term_days"], rates[b["symbol"]])
-            for b in bonds
-            if b.get("kind", "cetes") == "cetes" and b["symbol"] in rates
-        ),
-        "bono_m": {b["symbol"]: rates[b["symbol"]] for b in bonds if b.get("kind") == "bono_m" and b["symbol"] in rates},
-    }
-
-
 def curve_from_vector(values, vector_udi=None, udi=None):
     """Curva de mercado del dia a partir de {serie: valor} del vector de Banxico: los CETES con su rendimiento y su plazo
     por vencer, los Bonos M y Udibonos con el rendimiento que da su precio limpio (los rangos que hoy no cotizan se omiten)
