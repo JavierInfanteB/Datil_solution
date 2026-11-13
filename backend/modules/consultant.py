@@ -16,7 +16,7 @@ from modules.risk import BENCHMARK, assess, load_stock, portfolio_risk_for
 from modules.plan import parse_note, period_report, requested_period, GOALS, NOTES
 from utils import advice, alerts, ideas, notifications, records, signals, trade_timing
 from utils.accounts import clients_of
-from utils.data_store import read_json
+from db import portfolio as pf_repo
 from utils.decorators import require_auth, require_permission, require_role
 
 consultant_bp = Blueprint("consultant", __name__, url_prefix="/api/consultant")
@@ -48,7 +48,7 @@ def dashboard():
     days = min(max(request.args.get("days", 30, type=int), 1), MAX_DAYS)
     today = date.today()
     first_day = (today - timedelta(days=days - 1)).isoformat()
-    all_transactions = read_json("transactions.json")
+    all_transactions = pf_repo.transactions_by_user()
 
     activity = {(today - timedelta(days=n)).isoformat(): {"buys": 0, "sells": 0} for n in range(days - 1, -1, -1)}
     rows, positions, sales = [], [], []
@@ -156,7 +156,7 @@ def client_timeline(username):
     if _client(username) is None:
         return jsonify({"error": "Cliente no encontrado"}), 404
 
-    transactions = read_json("transactions.json").get(username, [])
+    transactions = pf_repo.transactions_for(username)
     held = trade_timing.holding_days(transactions)
     rows = []
     for t in sorted(transactions, key=lambda t: t["date"], reverse=True)[:TIMELINE_LIMIT]:
@@ -175,7 +175,7 @@ def sent_notifications(username):
     """Los avisos que este consultor le ha mandado al cliente, del mas nuevo al mas viejo, y si ya los leyo."""
     if _client(username) is None:
         return jsonify({"error": "Cliente no encontrado"}), 404
-    sent = [n for n in notifications.load().get(username, []) if n["from"] == g.current_user["username"]]
+    sent = [n for n in notifications.load(username)[username] if n["from"] == g.current_user["username"]]
     return jsonify(list(reversed(sent)))
 
 
@@ -201,7 +201,7 @@ def send_notification(username):
 
 # ---------------------------------------------------------------- plan del cliente: metas, notas, alertas y reporte
 
-PRIVATE_NOTES = "consultant_notes.json"  # {"consultor/cliente": [nota]}: solo las ve quien las escribe
+PRIVATE_NOTES = records.PRIVATE_NOTES  # clave "consultor/cliente": solo las ve quien las escribe
 
 
 def _private_key(username):

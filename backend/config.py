@@ -5,13 +5,12 @@ from datetime import timedelta
 from dotenv import load_dotenv
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, "data")
 
 # Carga backend/.env (secretos y tokens NO viven en el codigo fuente).
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 
-# Modo demo: la API solo lee. Ninguna ruta ni evento programado modifica los JSON.
+# Modo demo: la API solo lee. Ninguna ruta ni evento programado modifica la base de datos.
 DEMO_READONLY = os.environ.get("DEMO_READONLY") == "1"
 
 
@@ -31,3 +30,7 @@ class Config:
 
     # Carpeta con el frontend compilado: si existe, Flask lo sirve en "/" (web y API en un solo dominio).
     STATIC_DIR = os.environ.get("STATIC_DIR") or None
+
+
+# Base de datos (PostgreSQL 16): se configura con variables de entorno, ver .env.example en la raiz del proyecto.
+#   DATABASE_URL, o bien DB_HOST, DB_PORT, DB_NAME, DB_USER y DB_PASSWORD (lee db/connection.py).

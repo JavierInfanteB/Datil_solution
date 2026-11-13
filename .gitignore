@@ -16,3 +16,9 @@ frontend/dist/
 # Editor / SO
 .vscode/
 .DS_Store
+
+# Docker / PostgreSQL local
+.env
+!.env.example
+*.zip
+database/**/*.local.sql

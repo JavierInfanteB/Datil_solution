@@ -15,7 +15,7 @@ from datetime import date
 from flask import Blueprint, jsonify
 
 from utils import bond_engine, bond_math, stock_engine
-from utils.data_store import read_json
+from db import portfolio as pf_repo
 from utils.decorators import acting_username, require_auth, require_permission
 from utils.market_data import get_bond_curve, get_current_price, get_fx_to_mxn
 
@@ -40,8 +40,7 @@ def build_portfolio_view(username, settle=True):
     if settle:
         bond_engine.process_due_events(username)
 
-    portfolios = read_json("portfolios.json")
-    portfolio = portfolios.get(username, {"cash": 0, "holdings": []})
+    portfolio = pf_repo.get_portfolio(username)
 
     fx_rates = {}  # pesos por unidad de cada moneda, consultado una vez por moneda
 

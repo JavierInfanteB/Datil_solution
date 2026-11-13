@@ -12,15 +12,18 @@ solo el capital); esa orden queda pendiente y se cambia hasta 3 dias habiles ant
 Las formulas (precio a descuento de los CETES, cupones del Bono M, valor
 devengado y valor de mercado) viven en utils/bond_math.py. Aqui esta lo que
 mueve dinero: ejecutar ordenes, abonar cupones, redimir al vencer y vender.
-Cada movimiento queda registrado en transactions.json (type "bono").
+Cada movimiento queda registrado en PostgreSQL (transacciones para compras y ventas; movimientos_efectivo para cupones y
+vencimientos). Todo lo que mueve dinero corre dentro de `portfolio_tx` (db/portfolio.py): una transaccion atomica con la
+fila del cliente bloqueada, asi una orden, un cupon o un vencimiento nunca se aplica dos veces.
 """
 import copy
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
-from utils import audit, bond_math
-from utils.data_store import read_json, write_json
-from utils.market_data import get_bond_auction_rate, get_current_price
+from config import DEMO_READONLY
+from db import portfolio as pf_repo
+from utils import bond_math
+from utils.market_data import get_bond_auction_rate, list_bonds
 
 
 def _parse_date(value):
@@ -46,7 +49,7 @@ def _auction_settling_on(day):
 
 
 def _event(side, lot, quantity, total_mxn, event_date=None, realized_pnl=None):
-    """Registro de un movimiento de bonos para transactions.json.
+    """Registro de un movimiento de bonos (forma de transactions.json, mas lot_id para enlazarlo con su lote).
     side: buy | sell | coupon | redeem."""
     if event_date is None:
         stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -62,18 +65,11 @@ def _event(side, lot, quantity, total_mxn, event_date=None, realized_pnl=None):
         "quantity": quantity,
         "rate": lot["rate_at_purchase"],
         "total_mxn": total_mxn,
+        "lot_id": lot.get("lot_id"),
     }
     if realized_pnl is not None:
         event["realized_pnl_mxn"] = realized_pnl
     return event
-
-
-def _append_transactions(username, events):
-    if not events:
-        return
-    transactions = read_json("transactions.json")
-    transactions.setdefault(username, []).extend(audit.tag(e) for e in events)
-    write_json("transactions.json", transactions)
 
 
 def _redeem_lot(portfolio, lot, events):
@@ -96,10 +92,13 @@ def _pay_coupons(portfolio, lot, today, events, reinvestments):
         portfolio["cash"] = round(portfolio["cash"] + amount, 2)
         lot["coupons_paid"] += 1
         lot["next_coupon_date"] = (pay_date + timedelta(days=lot["coupon_days"])).isoformat()
-        events.append(_event("coupon", lot, lot["quantity"], amount, pay_date))
+        coupon = _event("coupon", lot, lot["quantity"], amount, pay_date)
+        events.append(coupon)
         if lot.get("reinvest") == "all":
-            reinvestments.append(_new_order(bond_math.REINVEST_SYMBOL, "CETES 28 días", None, _auction_settling_on(pay_date),
-                                            reinvest="all", amount_mxn=amount, source="reinversión"))
+            order = _new_order(bond_math.REINVEST_SYMBOL, "CETES 28 días", None, _auction_settling_on(pay_date),
+                               reinvest="all", amount_mxn=amount, source="reinversión")
+            order["coupon_event_id"] = coupon["id"]  # el cupon que origina esta reinversion (movimiento de efectivo)
+            reinvestments.append(order)
         paid = True
     return paid
 
@@ -137,35 +136,40 @@ def _execute_order(portfolio, order, bonds_by_symbol, events):
 
     portfolio["cash"] = round(portfolio["cash"] - cost, 2)
     portfolio["holdings"].append(lot)
-    events.append(_event("buy", lot, lot["quantity"], cost))
+    event = _event("buy", lot, lot["quantity"], cost)
+    event["order_id"] = order.get("id")
+    events.append(event)
+    order["executed_lot_id"] = lot["lot_id"]  # la orden produjo este lote (lotes_bono.orden_id)
     return "executed", None
 
 
 def process_due_events(username):
     """Ejecuta ordenes vencidas, abona cupones del Bono M y redime lo que ya
     llego a su vencimiento. Se llama de forma perezosa en cada lectura de
-    cartera: para esta app de demostracion no hace falta un scheduler/cron."""
-    today = date.today()
-    portfolios = read_json("portfolios.json")
-    orders = read_json("orders.json")
-    portfolio = portfolios.setdefault(username, {"cash": 0, "holdings": []})
-    user_orders = orders.setdefault(username, [])
-    bonds_by_symbol = {b["symbol"]: b for b in read_json("assets.json") if b["type"] == "bono"}
+    cartera: para esta app de demostracion no hace falta un scheduler/cron.
+    Corre en una sola transaccion con el cliente bloqueado: si algo falla no se aplica nada."""
+    if DEMO_READONLY:
+        return  # en modo de pruebas ni los GET modifican la base
+    with pf_repo.portfolio_tx(username) as session:
+        _process_due_events(session)
 
-    events = []
+
+def _process_due_events(session):
+    today = date.today()
+    portfolio, user_orders, events = session.portfolio, session.orders, session.events
+    session.events = events = []
+    bonds_by_symbol = {b["symbol"]: b for b in list_bonds()}
+    username = session.username
     reinvestments = []  # cupones que se reinvierten
-    changed = False
 
     for order in user_orders:  # ordenes de antes que cayeron en lunes: la subasta es el martes
         auction = _parse_date(order["scheduled_date"])
         if order["status"] == "pending" and auction.weekday() != bond_math.AUCTION_WEEKDAY:
             order["scheduled_date"] = _next_weekday_on_or_after(auction, bond_math.AUCTION_WEEKDAY).isoformat()
-            changed = True
 
     held = lambda lot_id: any(h.get("lot_id") == lot_id for h in portfolio["holdings"])
 
     def run_due_orders():
-        ran = False
         for order in user_orders:
             if order["status"] != "pending" or _parse_date(order["scheduled_date"]) > today:
                 continue
@@ -176,45 +180,23 @@ def process_due_events(username):
             for event in events[first_new:]:
                 event.update(by=username, by_role="usuario", origin="orden programada")
             if status != "pending":  # sigue pendiente mientras Banxico no publique la tasa
-                order["status"], order["failure_reason"], ran = status, reason, True
-        return ran
+                order["status"], order["failure_reason"] = status, reason
 
-    changed = _sync_reinvestments(portfolio, user_orders) or changed
-    changed = run_due_orders() or changed
+    _sync_reinvestments(portfolio, user_orders)
+    run_due_orders()
 
     for lot in list(portfolio["holdings"]):
         if lot["type"] != "bono":
             continue
-
-        if "maturity_date" not in lot:
-            # Datos de antes de este esquema: se homologan asignando la
-            # compra a hoy para que sigan el ciclo normal de vencimiento.
-            bond = bonds_by_symbol.get(lot["symbol"])
-            if not bond:
-                continue
-            try:
-                rate = get_current_price(lot["symbol"], "bono")["price"]
-            except Exception:
-                rate = 0
-            lot.update(bond_math.new_lot(bond, lot["quantity"], lot["name"], rate, today, str(uuid.uuid4())))
-            changed = True
-            continue
-
-        if bond_math.kind_of(lot) == "bono_m" and _pay_coupons(portfolio, lot, today, events, reinvestments):
-            changed = True
-
+        if bond_math.kind_of(lot) == "bono_m":
+            _pay_coupons(portfolio, lot, today, events, reinvestments)
         if _parse_date(lot["maturity_date"]) <= today:
             _redeem_lot(portfolio, lot, events)
-            changed = True
 
     user_orders.extend(reinvestments)
-    changed = run_due_orders() or changed  # reinversiones de lo que acaba de vencer y de los cupones
-    changed = _sync_reinvestments(portfolio, user_orders) or changed  # y la siguiente de los lotes nuevos
-
-    if changed:
-        write_json("portfolios.json", portfolios)
-        write_json("orders.json", orders)
-        _append_transactions(username, events)
+    run_due_orders()  # reinversiones de lo que acaba de vencer y de los cupones
+    _sync_reinvestments(portfolio, user_orders)  # y la siguiente de los lotes nuevos
+    session.events = events
 
 
 REINVEST_MODES = ("none", "all", "same")  # no reinvertir, todo (capital y ganancia) o solo el capital (la ganancia queda en efectivo)
@@ -282,10 +264,9 @@ def _sync_reinvestments(portfolio, user_orders):
 
 def schedule_purchase(username, bond, name, amount_mxn, reinvest="none"):
     """Orden de compra por monto para la proxima subasta. `reinvest` es lo que hara el lote que resulte al vencer."""
-    orders = read_json("orders.json")
-    order = _new_order(bond["symbol"], name, None, next_scheduled_purchase_date(), reinvest, amount_mxn=amount_mxn)
-    orders.setdefault(username, []).append(order)
-    write_json("orders.json", orders)
+    order = _new_order(bond["symbol"], name, None, next_scheduled_purchase_date(), reinvest, amount_mxn=round(amount_mxn, 2))
+    with pf_repo.portfolio_tx(username) as session:
+        session.orders.append(order)
     return order
 
 
@@ -305,32 +286,28 @@ def cancel_order(username, order_id, today=None):
     """Cancela una orden pendiente: una compra, hasta el dia anterior a su subasta; una reinversion, hasta 3 dias habiles
     antes del vencimiento de su lote (y el lote deja de reinvertirse). Devuelve (orden, error)."""
     today = today or date.today()
-    orders = read_json("orders.json")
-    order = next((o for o in orders.get(username, []) if o["id"] == order_id), None)
-    if order is None or order["status"] != "pending":
-        return None, "La orden no existe o ya no se puede cancelar"
+    with pf_repo.portfolio_tx(username) as session:
+        order = next((o for o in session.orders if o["id"] == order_id), None)
+        if order is None or order["status"] != "pending":
+            return None, "La orden no existe o ya no se puede cancelar"
 
-    if order.get("source_lot_id"):
-        portfolios = read_json("portfolios.json")
-        error = set_lot_reinvest(portfolios.get(username, {"holdings": []}), order["source_lot_id"], "none", today)
-        if error == "El lote no existe":
-            error = "El lote ya venció: la reinversión está en curso"
-        if error:
-            return None, error
-        write_json("portfolios.json", portfolios)
-    elif order.get("source") == "reinversión":
-        return None, "La reinversión de un cupón ya está en curso"
-    elif today >= _parse_date(order["scheduled_date"]):
-        return None, "Una compra solo se cancela hasta el día anterior a su subasta"
+        if order.get("source_lot_id"):
+            error = set_lot_reinvest(session.portfolio, order["source_lot_id"], "none", today)
+            if error == "El lote no existe":
+                error = "El lote ya venció: la reinversión está en curso"
+            if error:
+                return None, error
+        elif order.get("source") == "reinversión":
+            return None, "La reinversión de un cupón ya está en curso"
+        elif today >= _parse_date(order["scheduled_date"]):
+            return None, "Una compra solo se cancela hasta el día anterior a su subasta"
 
-    order["status"] = "cancelled"
-    write_json("orders.json", orders)
-    return order, None
+        order["status"] = "cancelled"
+    return dict(order), None
 
 
 def list_orders(username):
-    orders = read_json("orders.json")
-    return sorted(orders.get(username, []), key=lambda o: o["created_at"], reverse=True)
+    return pf_repo.list_orders(username)
 
 
 def sellable_lots(portfolio, symbol, today=None):

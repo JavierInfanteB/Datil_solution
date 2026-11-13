@@ -3,7 +3,7 @@
 Todo el dinero de la cartera (efectivo, costos, totales) va en pesos (MXN),
 pero las acciones cotizan en la moneda de su bolsa (USD, EUR, GBP, JPY...).
 Cada operacion se convierte a pesos con el tipo de cambio del momento y ese
-tipo de cambio queda registrado en transactions.json. Cada posicion guarda:
+tipo de cambio queda registrado en la tabla transacciones. Cada posicion guarda:
 
 - currency: moneda en la que cotiza la accion.
 - avg_cost: costo promedio por accion en esa moneda, para compararlo contra el
@@ -14,7 +14,7 @@ tipo de cambio queda registrado en transactions.json. Cada posicion guarda:
 - cost_estimated: True si el costo no viene de una compra registrada sino de
   una estimacion (posiciones anteriores a este esquema, ver ensure_cost).
 
-Son funciones puras sobre el dict de la cartera: no leen ni escriben JSON.
+Son funciones puras sobre el dict de la cartera: no leen ni escriben la base (lo hace db.portfolio.portfolio_tx).
 """
 import uuid
 from datetime import datetime, timezone
@@ -67,6 +67,8 @@ def buy(portfolio, symbol, name, quantity, price, currency, fx_rate):
     `price` esta en `currency` y `fx_rate` son pesos por unidad de esa moneda.
     Devuelve (transaccion, error)."""
     cost_mxn = round(price * fx_rate * quantity, 2)
+    if cost_mxn <= 0:
+        return None, "El importe de la operación es demasiado pequeño"
     if portfolio["cash"] < cost_mxn:
         return None, "Fondos insuficientes"
 
@@ -104,6 +106,8 @@ def sell(portfolio, symbol, quantity, price, currency, fx_rate):
 
     ensure_cost(holding, price, fx_rate, currency)
     proceeds_mxn = round(price * fx_rate * quantity, 2)
+    if proceeds_mxn <= 0:
+        return None, "El importe de la operación es demasiado pequeño"
     cost_sold = round(holding["cost_basis_mxn"] * (quantity / holding["quantity"]), 2)
 
     holding["cost_basis_mxn"] = round(holding["cost_basis_mxn"] - cost_sold, 2)

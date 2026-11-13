@@ -13,7 +13,7 @@ from flask import Blueprint, g, jsonify, request
 
 from modules.portfolio import build_portfolio_view
 from utils import bond_math, risk_engine, yahoo_api
-from utils.data_store import read_json
+from db import portfolio as pf_repo
 from utils.decorators import require_auth, require_permission
 from utils.market_data import get_bond_curve
 
@@ -263,7 +263,7 @@ def portfolio_risk_for(username, view=None):
     exposure["MXN"] = exposure.get("MXN", 0) + view["cash"]
     foreign_stock_value = sum(h["value"] for h in stocks if h["currency"] != "MXN")
 
-    holdings_json = read_json("portfolios.json").get(username, {}).get("holdings", [])
+    holdings_json = pf_repo.get_portfolio(username)["holdings"]
     bond_lots = [h for h in holdings_json if h["type"] == "bono"]
     curve = None
     if bond_lots:

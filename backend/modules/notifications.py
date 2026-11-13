@@ -12,7 +12,7 @@ notifications_bp = Blueprint("notifications", __name__, url_prefix="/api/notific
 @require_role("usuario")
 @require_permission("avisos")
 def my_notifications():
-    items = list(reversed(notifications.load().get(g.current_user["username"], [])))
+    items = list(reversed(notifications.load(g.current_user["username"])[g.current_user["username"]]))
     return jsonify({"unread": sum(not n["read"] for n in items), "items": items})
 
 

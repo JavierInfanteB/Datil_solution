@@ -11,18 +11,15 @@ orden pendiente en vez de ejecutarse de inmediato (ver utils/bond_engine).
 
 from flask import Blueprint, g, jsonify, request
 
+from db import portfolio as pf_repo
 from utils import audit, bond_engine, bond_math, stock_engine
-from utils.data_store import read_json, write_json
 from utils.decorators import acting_username, has_permission, require_auth, require_permission
 from utils.market_data import get_bond_curve, get_current_price, get_fx_to_mxn, list_bonds, search_stocks
 
 trading_bp = Blueprint("trading", __name__, url_prefix="/api/trading")
 
 
-def _log_transaction(username, transaction):
-    transactions = read_json("transactions.json")
-    transactions.setdefault(username, []).append(audit.tag(transaction))
-    write_json("transactions.json", transactions)
+MAX_SYMBOL = 20  # acciones_catalogo.simbolo es VARCHAR(20)
 
 
 @trading_bp.route("/bonds", methods=["GET"])
@@ -77,7 +74,7 @@ def get_transactions():
     username, error = acting_username()
     if error:
         return error
-    transactions = read_json("transactions.json").get(username, [])
+    transactions = pf_repo.transactions_for(username)
     return jsonify(sorted(transactions, key=lambda t: t["date"], reverse=True))
 
 
@@ -94,6 +91,8 @@ def _validate_order(body, action):
 
     # Los bonos se compran por monto (como en cetesdirecto) y se venden por titulos; las acciones, por titulos.
     by_amount = asset_type == "bono" and action == "buy"
+    if len(symbol) > MAX_SYMBOL:
+        return None, (jsonify({"error": "Símbolo inválido"}), 400)
     if not symbol or not _positive(amount if by_amount else quantity):
         return None, (jsonify({"error": "Símbolo y monto válidos son requeridos" if by_amount
                                else "Símbolo y cantidad válidos son requeridos"}), 400)
@@ -146,19 +145,16 @@ def buy_asset():
     except Exception:
         return jsonify({"error": "No se pudo obtener el precio actual"}), 502
 
-    portfolios = read_json("portfolios.json")
-    portfolio = portfolios.setdefault(username, {"cash": 0, "holdings": []})
-
-    transaction, err = stock_engine.buy(
-        portfolio, order["symbol"], order["name"], order["quantity"],
-        price_data["price"], price_data["currency"], fx_rate,
-    )
-    if err:
-        return jsonify({"error": err}), 400
-
-    write_json("portfolios.json", portfolios)
-    _log_transaction(username, transaction)
-    return jsonify({"message": "Compra realizada", "cash": portfolio["cash"], "transaction": transaction})
+    with pf_repo.portfolio_tx(username) as session:
+        transaction, err = stock_engine.buy(
+            session.portfolio, order["symbol"], order["name"], order["quantity"],
+            price_data["price"], price_data["currency"], fx_rate,
+        )
+        if err:
+            return jsonify({"error": err}), 400
+        session.events.append(transaction)
+        cash = session.portfolio["cash"]
+    return jsonify({"message": "Compra realizada", "cash": cash, "transaction": transaction})
 
 
 @trading_bp.route("/sell", methods=["POST"])
@@ -174,31 +170,29 @@ def sell_asset():
     if error:
         return error
     bond_engine.process_due_events(username)
-    portfolios = read_json("portfolios.json")
-    portfolio = portfolios.setdefault(username, {"cash": 0, "holdings": []})
 
     if order["asset_type"] == "bono":
         # Se vende a precio de mercado: sin la tasa de hoy no hay precio justo.
         try:
             curve = get_bond_curve()
-            proceeds, pnl, events, err = bond_engine.sell_bond_lots(
-                portfolio, order["symbol"], order["quantity"], curve
-            )
         except Exception:
             return jsonify({"error": "No se pudo obtener la tasa de mercado para valuar la venta"}), 502
-        if err:
-            return jsonify({"error": err}), 400
-        write_json("portfolios.json", portfolios)
-        for event in events:
-            _log_transaction(username, event)
+        with pf_repo.portfolio_tx(username) as session:
+            proceeds, pnl, events, err = bond_engine.sell_bond_lots(
+                session.portfolio, order["symbol"], order["quantity"], curve
+            )
+            if err:
+                return jsonify({"error": err}), 400
+            session.events.extend(events)
+            cash = session.portfolio["cash"]
         return jsonify({
             "message": "Venta realizada a precio de mercado",
-            "cash": portfolio["cash"],
+            "cash": cash,
             "proceeds": proceeds,
             "realized_pnl_mxn": pnl,
         })
 
-    holding = stock_engine.find_holding(portfolio, order["symbol"])
+    holding = stock_engine.find_holding(pf_repo.get_portfolio(username), order["symbol"])
     if not holding or holding["quantity"] < order["quantity"]:
         return jsonify({"error": "No tienes suficiente cantidad para vender"}), 400
 
@@ -208,16 +202,16 @@ def sell_asset():
     except Exception:
         return jsonify({"error": "No se pudo obtener el precio actual"}), 502
 
-    transaction, err = stock_engine.sell(
-        portfolio, order["symbol"], order["quantity"],
-        price_data["price"], price_data["currency"], fx_rate,
-    )
-    if err:
-        return jsonify({"error": err}), 400
-
-    write_json("portfolios.json", portfolios)
-    _log_transaction(username, transaction)
-    return jsonify({"message": "Venta realizada", "cash": portfolio["cash"], "transaction": transaction})
+    with pf_repo.portfolio_tx(username) as session:  # la cartera se vuelve a leer ya con el cliente bloqueado
+        transaction, err = stock_engine.sell(
+            session.portfolio, order["symbol"], order["quantity"],
+            price_data["price"], price_data["currency"], fx_rate,
+        )
+        if err:
+            return jsonify({"error": err}), 400
+        session.events.append(transaction)
+        cash = session.portfolio["cash"]
+    return jsonify({"message": "Venta realizada", "cash": cash, "transaction": transaction})
 
 
 @trading_bp.route("/lots/<lot_id>/reinvest", methods=["POST"])
@@ -231,11 +225,10 @@ def set_lot_reinvest(lot_id):
     username, error = acting_username()
     if error:
         return error
-    portfolios = read_json("portfolios.json")
-    error = bond_engine.set_lot_reinvest(portfolios.get(username, {"holdings": []}), lot_id, mode)
-    if error:
-        return jsonify({"error": error}), 400
-    write_json("portfolios.json", portfolios)
+    with pf_repo.portfolio_tx(username) as session:
+        error = bond_engine.set_lot_reinvest(session.portfolio, lot_id, mode)
+        if error:
+            return jsonify({"error": error}), 400
     return jsonify({"lot_id": lot_id, "mode": mode})
 
 
@@ -251,7 +244,7 @@ def quote_bond_sale(symbol):
     if error:
         return error
     bond_engine.process_due_events(username)
-    portfolio = read_json("portfolios.json").get(username, {"cash": 0, "holdings": []})
+    portfolio = pf_repo.get_portfolio(username)
     sellable = sum(h["quantity"] for h in bond_engine.sellable_lots(portfolio, symbol.upper()))
     try:
         proceeds, pnl, error = bond_engine.quote_sale(portfolio, symbol.upper(), quantity, get_bond_curve())

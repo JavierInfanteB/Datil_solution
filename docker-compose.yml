@@ -1,0 +1,77 @@
+# Dátil Solution: PostgreSQL 16 + migracion + API Flask.
+#   docker compose up -d --build
+# Proyecto aislado ("datil-solution"): sus contenedores, red y volumen llevan ese prefijo y no tocan ningun otro proyecto.
+name: datil-solution
+
+services:
+  db:
+    image: postgres:16
+    container_name: datil-solution-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-datil_db}
+      POSTGRES_USER: ${POSTGRES_USER:-datil_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copia .env.example a .env y define POSTGRES_PASSWORD}
+      TZ: UTC
+    ports:
+      # 5434 en el host (los otros proyectos usan 5432/5433); 5432 dentro de la red de Docker.
+      - "${DB_HOST_PORT:-5434}:5432"
+    volumes:
+      - datil_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  # Tarea unica: aplica database/schema/*.sql (una sola vez cada archivo) e importa data/*.json sin duplicar.
+  # data/ se monta solo lectura: los JSON nunca se modifican.
+  migrate:
+    build:
+      context: .
+      target: api
+    image: datil-solution-api
+    container_name: datil-solution-migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB:-datil_db}
+      POSTGRES_USER: ${POSTGRES_USER:-datil_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DATIL_APP_PASSWORD: ${DATIL_APP_PASSWORD:?define DATIL_APP_PASSWORD en .env}
+      DATIL_READONLY_PASSWORD: ${DATIL_READONLY_PASSWORD:?define DATIL_READONLY_PASSWORD en .env}
+    volumes:
+      - ./data:/app/data:ro
+    working_dir: /app/database/migration
+    command: ["python", "run_migrations.py", "--import-json", "/app/data"]
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      target: api
+    image: datil-solution-api
+    container_name: datil-solution-api
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB:-datil_db}
+      DB_USER: datil_app          # rol de la aplicacion: solo DML, sin DDL ni UPDATE/DELETE sobre el libro mayor
+      DB_PASSWORD: ${DATIL_APP_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY:?define SECRET_KEY en .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      BANXICO_TOKEN: ${BANXICO_TOKEN:-}
+    ports:
+      - "${API_HOST_PORT:-5000}:8000"
+
+volumes:
+  datil_pgdata:
+    name: datil-solution_pgdata   # volumen exclusivo de este proyecto

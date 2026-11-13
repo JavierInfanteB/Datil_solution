@@ -1,23 +1,25 @@
 """Roles, puestos y panel del consultor contra una app de Flask con datos temporales.
 
-Se corre desde backend/:  python -m unittest discover -s tests
+Corre contra PostgreSQL real (rol datil_app). Requiere TEST_DB_NAME (base desechable: se borra su esquema `datil`).
+Desde backend/:  python -m unittest discover -s tests
 """
-import json
 import os
 import sys
-import tempfile
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import pgfixture  # noqa: E402
 from flask import Flask  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 
 from routes import register_routes  # noqa: E402
-from utils import alerts, bond_engine, data_store, ideas  # noqa: E402
+from utils import alerts, bond_engine, ideas  # noqa: E402
 
+LOTE_2 = "00000000-0000-4000-8000-000000000002"
+ORDEN_1 = "00000000-0000-4000-8000-0000000000a1"
 PASSWORD = "clave-de-prueba-1"
 PASSWORD_HASH = generate_password_hash(PASSWORD)  # scrypt es lento a proposito: una sola vez para todas las pruebas
 USERS = [
@@ -50,17 +52,50 @@ def losing_view(username, settle=True):
         {"symbol": "AAPL", "name": "Apple", "type": "accion", "value": 900.0, "gain_mxn": -100.0, "gain_percent": -10.0}]}
 
 
-class AccountsApiTest(unittest.TestCase):
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        patcher = mock.patch.object(data_store, "DATA_DIR", tmp.name)
-        patcher.start()
-        self.addCleanup(patcher.stop)
+class _World:
+    """Estado de la prueba con la forma de los JSON originales, respaldado por PostgreSQL.
 
+    write_json reemplaza el mundo (siembra la base por el importador real); read_json lee de la base lo que la app escribio.
+    """
+
+    def __init__(self):
+        self.files = {}
+
+    def reset(self, files):
+        self.files = dict(files)
+        pgfixture.load_json_files(self.files)
+
+    def write_json(self, name, content):
+        """Cambia una parte del mundo (cartera u ordenes) conservando lo que la app ya escribio en la otra."""
+        other = "orders.json" if name == "portfolios.json" else "portfolios.json"
+        self.files[other] = self.read_json(other)
+        self.files[name] = content
+        pgfixture.load_json_files(self.files)
+
+    def read_json(self, name):
+        from db import portfolio as pf
+        names = [u["username"] for u in self.files["users.json"]["users"] if u["role"] == "usuario"]
+        if name == "portfolios.json":
+            return {n: pf.get_portfolio(n) for n in names}
+        if name == "orders.json":
+            return {n: pf.list_orders(n) for n in names if pf.list_orders(n)}
+        raise KeyError(name)
+
+
+data_store = _World()
+
+
+@unittest.skipUnless(pgfixture.configured(), "define TEST_DB_NAME para correr contra PostgreSQL")
+class AccountsApiTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        pgfixture.ensure_schema()
+
+    def setUp(self):
         users = [{**u, "password_hash": PASSWORD_HASH} for u in USERS]
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        files = {
+        earlier = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(timespec="seconds")
+        data_store.reset({
             "users.json": {"users": users},
             "permissions.json": {},
             "orders.json": {},
@@ -71,15 +106,12 @@ class AccountsApiTest(unittest.TestCase):
             "portfolios.json": {"beto": {"cash": 100, "holdings": []}},
             # Sin puestos.json: se usan los puestos de arranque.
             "transactions.json": {"beto": [
-                {"id": "t1", "date": now, "type": "accion", "side": "buy", "symbol": "AAPL", "name": "Apple",
-                 "quantity": 1, "total_mxn": 500.0},
+                {"id": "t1", "date": earlier, "type": "accion", "side": "buy", "symbol": "AAPL", "name": "Apple",
+                 "quantity": 1, "price": 500.0, "total_mxn": 500.0},
                 {"id": "t2", "date": now, "type": "accion", "side": "sell", "symbol": "AAPL", "name": "Apple",
-                 "quantity": 1, "total_mxn": 600.0, "realized_pnl_mxn": 100.0},
+                 "quantity": 1, "price": 600.0, "total_mxn": 600.0, "realized_pnl_mxn": 100.0},
             ]},
-        }
-        for name, content in files.items():
-            with open(os.path.join(tmp.name, name), "w", encoding="utf-8") as f:
-                json.dump(content, f)
+        })
 
         app = Flask(__name__)
         register_routes(app)
@@ -380,7 +412,7 @@ class AccountsApiTest(unittest.TestCase):
 
     CETES28 = {"symbol": "CETES28", "nominal_value": 10, "term_days": 28, "kind": "cetes"}
 
-    def _bond_lot(self, settlement, mode, quantity=1000, lot_id="lote-1"):
+    def _bond_lot(self, settlement, mode, quantity=1000, lot_id="00000000-0000-4000-8000-000000000001"):
         """Un lote de CETES a 28 dias liquidado en `settlement`, con la reinversion `mode`, en la cartera de beto."""
         from utils import bond_math
         lot = bond_math.new_lot(self.CETES28, quantity, "CETES 28 días", 6.0, settlement, lot_id)
@@ -437,17 +469,19 @@ class AccountsApiTest(unittest.TestCase):
         self.assertEqual(date.fromisoformat(order["scheduled_date"]).weekday(), 1)  # martes
 
     def test_una_compra_se_cancela_hasta_el_dia_anterior_a_su_subasta(self):
-        data_store.write_json("orders.json", {"beto": [{"id": "o1", "symbol": "CETES28", "status": "pending", "source": "compra",
+        data_store.write_json("orders.json", {"beto": [{"id": ORDEN_1, "symbol": "CETES28", "status": "pending", "source": "compra",
+                                                        "amount_mxn": 1000.0, "created_at": "2026-11-01", "reinvest": "none",
                                                         "scheduled_date": "2026-11-10"}]})
-        _, error = bond_engine.cancel_order("beto", "o1", today=date(2026, 11, 10))
+        _, error = bond_engine.cancel_order("beto", ORDEN_1, today=date(2026, 11, 10))
         self.assertEqual(error, "Una compra solo se cancela hasta el día anterior a su subasta")
-        order, error = bond_engine.cancel_order("beto", "o1", today=date(2026, 11, 9))
+        order, error = bond_engine.cancel_order("beto", ORDEN_1, today=date(2026, 11, 9))
         self.assertEqual((order["status"], error), ("cancelled", None))
 
     def test_al_vencer_se_reinvierte_en_cetes_28_todo_o_solo_el_capital(self):
         settled = date.today() - timedelta(days=38)  # vencio hace 10 dias
-        for mode, titles in (("all", 1004), ("same", 1000), ("none", None)):
-            self._bond_lot(settled, mode)
+        for n, (mode, titles) in enumerate((("all", 1004), ("same", 1000), ("none", None))):
+            # un lote distinto por vuelta: un mismo lote solo vence una vez (indice unico del libro de efectivo)
+            self._bond_lot(settled, mode, lot_id=f"00000000-0000-4000-8000-0000000000c{n}")
             with mock.patch.object(bond_engine, "get_bond_auction_rate", return_value=6.0):
                 bond_engine.process_due_events("beto")
             portfolio = data_store.read_json("portfolios.json")["beto"]
@@ -469,22 +503,22 @@ class AccountsApiTest(unittest.TestCase):
 
     def test_la_reinversion_se_ve_antes_y_se_cambia_hasta_3_dias_habiles_antes(self):
         thursday = date.today() + timedelta(days=(3 - date.today().weekday()) % 7 + 7)
-        lot = self._bond_lot(thursday, "all", quantity=100, lot_id="lote-2")  # vence otro jueves, 28 dias despues
+        lot = self._bond_lot(thursday, "all", quantity=100, lot_id=LOTE_2)  # vence otro jueves, 28 dias despues
         bond_engine.process_due_events("beto")
         (order,) = self._pending()
         auction = date.fromisoformat(order["scheduled_date"])
         self.assertEqual((auction.weekday(), auction + timedelta(days=2)), (1, date.fromisoformat(lot["maturity_date"])))
-        self.assertEqual((order["symbol"], order["source_lot_id"], order["amount_mxn"]), ("CETES28", "lote-2", 1000.0))
+        self.assertEqual((order["symbol"], order["source_lot_id"], order["amount_mxn"]), ("CETES28", LOTE_2, 1000.0))
 
         portfolios = data_store.read_json("portfolios.json")
-        self.assertIsNone(bond_engine.set_lot_reinvest(portfolios["beto"], "lote-2", "same"))
+        self.assertIsNone(bond_engine.set_lot_reinvest(portfolios["beto"], LOTE_2, "same"))
         data_store.write_json("portfolios.json", portfolios)
         bond_engine.process_due_events("beto")
         self.assertEqual([o["amount_mxn"] for o in self._pending()], [995.36])  # solo el capital
 
         maturity = date.fromisoformat(lot["maturity_date"])
         late = maturity - timedelta(days=1)  # miercoles: ya no se puede cambiar
-        self.assertIn("3 días hábiles", bond_engine.set_lot_reinvest(portfolios["beto"], "lote-2", "none", today=late))
+        self.assertIn("3 días hábiles", bond_engine.set_lot_reinvest(portfolios["beto"], LOTE_2, "none", today=late))
         _, error = bond_engine.cancel_order("beto", order["id"], today=late)
         self.assertIn("3 días hábiles", error)
 
@@ -509,7 +543,8 @@ class AccountsApiTest(unittest.TestCase):
     def test_vender_antes_cancela_la_reinversion(self):
         self._bond_lot(date.today(), "same", quantity=100)
         bond_engine.process_due_events("beto")
-        data_store.write_json("portfolios.json", {"beto": {"cash": 990.0, "holdings": []}})  # lo vendio todo
+        with pgfixture.owner_conn() as conn:  # lo vendio todo: el lote deja de estar vigente
+            conn.execute("UPDATE lotes_bono SET estado = 'vendido'")
         bond_engine.process_due_events("beto")
         (order,) = data_store.read_json("orders.json")["beto"]
         self.assertEqual((order["status"], order["failure_reason"]), ("cancelled", "Se vendió el lote antes de vencer"))
@@ -517,7 +552,8 @@ class AccountsApiTest(unittest.TestCase):
     def test_ordenes_de_lunes_pasan_a_martes(self):
         monday = date.today() + timedelta(days=(7 - date.today().weekday()) % 7 + 7)
         data_store.write_json("portfolios.json", {"beto": {"cash": 0.0, "holdings": []}})
-        data_store.write_json("orders.json", {"beto": [{"id": "o1", "symbol": "CETES28", "name": "x", "quantity": 1,
+        data_store.write_json("orders.json", {"beto": [{"id": ORDEN_1, "symbol": "CETES28", "name": "x", "quantity": None,
+                                                        "amount_mxn": 1000.0, "created_at": "2026-11-01", "source": "compra", "reinvest": "none",
                                                         "scheduled_date": monday.isoformat(), "status": "pending"}]})
         bond_engine.process_due_events("beto")
         self.assertEqual(self._pending()[0]["scheduled_date"], (monday + timedelta(days=1)).isoformat())
@@ -526,7 +562,7 @@ class AccountsApiTest(unittest.TestCase):
         from utils import bond_math
         bono = {"symbol": "BONOM10", "nominal_value": 100, "term_days": 3640, "coupon_days": 182, "kind": "bono_m"}
         settled = date.today() - timedelta(days=190)  # ya pago su primer cupon hace 8 dias
-        lot = bond_math.new_lot(bono, 100, "Bono M", 9.0, settled, "bono-1")
+        lot = bond_math.new_lot(bono, 100, "Bono M", 9.0, settled, "00000000-0000-4000-8000-0000000000b1")
         lot["reinvest"] = "all"
         data_store.write_json("portfolios.json", {"beto": {"cash": 0.0, "holdings": [lot]}})
         data_store.write_json("orders.json", {})

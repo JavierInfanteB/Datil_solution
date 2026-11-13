@@ -3,17 +3,17 @@
 Los modulos de negocio (dashboard, portfolio, trading, history) solo hablan
 con este archivo. Las acciones aceptan cualquier simbolo valido de Yahoo
 Finance (no hay catalogo fijo); los bonos si estan restringidos al catalogo
-curado de series de Banxico en assets.json, porque cada uno requiere un
+curado de series de Banxico (tablas instrumentos y series_mercado), porque cada uno requiere un
 series_id especifico que no se puede "buscar" igual que un ticker.
 """
 from datetime import timedelta
 
 from utils import banxico_api, bond_math, yahoo_api
-from utils.data_store import read_json
+from db import portfolio as pf_repo
 
 
 def _find_bond(symbol):
-    bonds = {a["symbol"]: a for a in read_json("assets.json") if a["type"] == "bono"}
+    bonds = {b["symbol"]: b for b in list_bonds()}
     if symbol not in bonds:
         raise ValueError(f"Bono desconocido: {symbol}")
     return bonds[symbol]
@@ -43,7 +43,7 @@ def search_stocks(query):
 
 
 def list_bonds():
-    return [a for a in read_json("assets.json") if a["type"] == "bono"]
+    return pf_repo.catalog_bonds()
 
 
 def get_bond_curve():
