@@ -30,7 +30,7 @@ export default function Permissions() {
     load();
   }, []);
 
-  if (error) return <p className="datil-error">{error}</p>;
+  if (error) return <p className="datil-error" role="alert">{error}</p>;
   if (!info || !users) return <p>Cargando permisos...</p>;
 
   const puestos = Object.keys(info.puestos);
@@ -112,7 +112,7 @@ function PuestosTab({ info, users, reload }) {
           </button>
         )}
       />
-      {error && <p className="datil-error">{error}</p>}
+      {error && <p className="datil-error" role="alert">{error}</p>}
 
       <form onSubmit={create}>
         <h3 className="datil-subheading">Nuevo puesto</h3>
@@ -158,7 +158,7 @@ function PerUserTab({ info, users, reload }) {
         disabled={busy}
         onChange={(username, modules) => save(() => apiClient.put(`/api/permissions/${username}`, { modules }))}
       />
-      {error && <p className="datil-error">{error}</p>}
+      {error && <p className="datil-error" role="alert">{error}</p>}
     </>
   );
 }

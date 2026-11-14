@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import apiClient from "../api/client";
-import { formatCurrency } from "../utils/format";
+import { formatCurrency, trendClass } from "../utils/format";
 import { apiError, pct, SCORE_EXPLANATION } from "../utils/risk";
+import { GLOSSARY } from "../utils/glossary";
 import { RiskBadge } from "./RiskParts";
+import Term from "./Term";
 
 // Riesgo de todo el portafolio (GET /api/risk/portfolio): puntaje de las acciones, comportamiento histórico,
 // escenarios y concentración. Si el usuario no tiene el módulo de riesgo, no muestra nada.
@@ -27,7 +29,7 @@ export default function PortfolioRisk() {
   return (
     <section className="datil-card">
       <h2>Riesgo del portafolio</h2>
-      {error && <p className="datil-error">{error}</p>}
+      {error && <p className="datil-error" role="alert">{error}</p>}
       {!error && !data && <p>Calculando riesgo del portafolio...</p>}
       {data && <PortfolioRiskDetail data={data} />}
     </section>
@@ -40,7 +42,7 @@ export function PortfolioRiskDetail({ data }) {
   return (
     <>
       {data.incomplete && (
-        <p className="datil-error">No se pudo valuar alguna posición; los porcentajes no la incluyen.</p>
+        <p className="datil-error" role="alert">No se pudo valuar alguna posición; los porcentajes no la incluyen.</p>
       )}
 
       <div className="datil-summary-grid">
@@ -116,7 +118,7 @@ export function PortfolioRiskDetail({ data }) {
           {scenarios.map((s) => (
             <tr key={s.id}>
               <td>{s.label}</td>
-              <td className={`datil-col-num ${s.impact_mxn >= 0 ? "datil-up" : "datil-down"}`}>
+              <td className={`datil-col-num ${trendClass(s.impact_mxn)}`}>
                 {formatCurrency(s.impact_mxn)}
               </td>
               <td className="datil-col-num">{s.impact_percent}%</td>
@@ -145,7 +147,9 @@ export function PortfolioRiskDetail({ data }) {
                 <th>Riesgo</th>
                 <th className="datil-col-num">Volatilidad</th>
                 <th className="datil-col-num">Caída máxima</th>
-                <th className="datil-col-num">Beta</th>
+                <th className="datil-col-num">
+                  <Term text={GLOSSARY.beta}>Beta</Term>
+                </th>
               </tr>
             </thead>
             <tbody>

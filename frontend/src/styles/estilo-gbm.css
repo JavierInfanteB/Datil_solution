@@ -130,3 +130,8 @@ body { letter-spacing: -0.005em; }
 .datil-load-tag.ok { color: var(--datil-up); background: color-mix(in srgb, var(--datil-up) 14%, transparent); }
 .datil-load-tag.warn { color: var(--datil-down); background: color-mix(in srgb, var(--datil-down) 14%, transparent); }
 .datil-card details summary { cursor: pointer; padding: 0.7rem 1rem; font-weight: 600; }
+
+@media (max-width: 860px) {
+  .datil-summary-grid > div { padding: 0.8rem 0.9rem; }
+  .datil-summary-grid strong { font-size: 1.15rem; }
+}

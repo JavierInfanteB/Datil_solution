@@ -5,7 +5,7 @@ import ClientTriage, { useTriage } from "../components/ClientTriage";
 import ConsultantsOverview from "../components/ConsultantsOverview";
 import FilterBar from "../components/FilterBar";
 import Insights from "../components/Insights";
-import { formatCurrency } from "../utils/format";
+import { formatCurrency, trendClass } from "../utils/format";
 import { apiError } from "../utils/risk";
 import Portfolio from "./Portfolio";
 import Trading from "./Trading";
@@ -96,7 +96,7 @@ function ClientList({ onOpen, filter }) {
       .catch((err) => setError(apiError(err, "No se pudieron cargar los clientes.")));
   }, []);
 
-  if (error) return <p className="datil-error">{error}</p>;
+  if (error) return <p className="datil-error" role="alert">{error}</p>;
   if (!data) return <p>Cargando clientes...</p>;
 
   const rows = triage.visible;
@@ -105,7 +105,7 @@ function ClientList({ onOpen, filter }) {
       {base.length > 1 && <ClientTriage triage={triage} tags={TRIAGE.tags} sorts={TRIAGE.sorts} />}
       <section className="datil-card">
         <h2>Clientes de Datil Solution</h2>
-        <div className="datil-table-wrap">
+        <div className="datil-table-wrap" tabIndex={0}>
           <table className="datil-table">
             <thead>
               <tr>
@@ -114,7 +114,7 @@ function ClientList({ onOpen, filter }) {
                 <th className="datil-col-num">Patrimonio</th>
                 <th className="datil-col-num">Ganancia o pérdida</th>
                 <th className="datil-col-num">Posiciones</th>
-                <th />
+                <th><span className="datil-sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody>
@@ -136,7 +136,7 @@ function ClientList({ onOpen, filter }) {
                   </td>
                   <td>{c.consultant ?? <span className="datil-period-tag">Sin consultor</span>}</td>
                   <td className="datil-col-num">{formatCurrency(c.total)}</td>
-                  <td className={`datil-col-num ${c.gain_mxn >= 0 ? "datil-up" : "datil-down"}`}>{formatCurrency(c.gain_mxn)}</td>
+                  <td className={`datil-col-num ${trendClass(c.gain_mxn)}`}>{formatCurrency(c.gain_mxn)}</td>
                   <td className="datil-col-num">{c.holdings_count}</td>
                   <td>
                     <button className="datil-btn datil-btn-secondary" disabled={c.disabled} onClick={() => onOpen(c)}>

@@ -97,7 +97,7 @@ export default function UsersAdmin({ users, puestos, roles, reload }) {
       {message && <p className={message.ok ? "datil-success" : "datil-error"}>{message.text}</p>}
 
       <h3 className="datil-subheading">Usuarios</h3>
-      <div className="datil-table-wrap">
+      <div className="datil-table-wrap" tabIndex={0}>
         <table className="datil-table">
           <thead>
             <tr>

@@ -51,7 +51,7 @@ export default function NotesBox({ notes, url, reload, placeholder }) {
           </div>
         </form>
       )}
-      {error && <p className="datil-error">{error}</p>}
+      {error && <p className="datil-error" role="alert">{error}</p>}
     </>
   );
 }

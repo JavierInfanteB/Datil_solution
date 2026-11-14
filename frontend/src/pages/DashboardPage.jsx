@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import apiClient from "../api/client";
 import { getAvailableModules } from "../modules/moduleRegistry";
 import Navbar from "../components/Navbar";
@@ -26,8 +26,8 @@ export default function DashboardPage() {
       .catch(() => setError("No se pudieron cargar tus permisos."));
   }, []);
 
-  if (error) return <p className="datil-error">{error}</p>;
-  if (!modules) return <p>Cargando módulos...</p>;
+  if (error) return <p className="datil-error" role="alert">{error}</p>;
+  if (!modules) return <p role="status">Cargando tu plataforma...</p>;
 
   const activeModule = modules.find((m) => m.id === active.moduleId);
   const ActiveModule = activeModule?.Component;
@@ -39,9 +39,11 @@ export default function DashboardPage() {
       <div className="datil-content-area">
         <main className="datil-content">
           {ActiveModule ? (
-            <ActiveModule section={activeSection} onUnreadChange={setUnread} goTo={(sectionId) => open(activeModule, sectionId)} />
+            <Suspense fallback={<p role="status">Cargando...</p>}>
+              <ActiveModule section={activeSection} onUnreadChange={setUnread} goTo={(sectionId) => open(activeModule, sectionId)} />
+            </Suspense>
           ) : (
-            <p>No tienes módulos habilitados todavía.</p>
+            <p>No tienes módulos habilitados todavía. Pide a tu administrador que te asigne los permisos que necesitas.</p>
           )}
         </main>
       </div>

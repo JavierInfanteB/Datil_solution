@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import apiClient from "../api/client";
-import { formatCurrency } from "../utils/format";
+import { formatCurrency, trendClass } from "../utils/format";
 import { apiError } from "../utils/risk";
 import CompositionPie, { holdingEntries, slices } from "./CompositionPie";
 
 const sign = (v) => (v >= 0 ? "var(--datil-up)" : "var(--datil-down)");
-const trend = (v) => (v == null ? "" : v >= 0 ? "datil-up" : "datil-down");
 const sum = (rows, key) => rows.reduce((n, r) => n + r[key], 0);
 
 // Ganancias y pérdidas del admin: por defecto de todos los consultores; con el filtro, de un consultor o de un cliente.
@@ -22,7 +21,7 @@ export default function ConsultantsOverview({ filter, onOpenClients }) {
       .catch((err) => setError(apiError(err, "No se pudo cargar el resumen de consultores.")));
   }, []);
 
-  if (error) return <p className="datil-error">{error}</p>;
+  if (error) return <p className="datil-error" role="alert">{error}</p>;
   if (!data) return <p>Calculando el resultado de cada consultor...</p>;
 
   const { consultants } = data;
@@ -46,15 +45,15 @@ export default function ConsultantsOverview({ filter, onOpenClients }) {
         <div className="datil-summary-grid">
           <div>
             <span className="datil-label">Resultado total</span>
-            <strong className={trend(sum(scope, "total"))}>{formatCurrency(sum(scope, "total"))}</strong>
+            <strong className={trendClass(sum(scope, "total"))}>{formatCurrency(sum(scope, "total"))}</strong>
           </div>
           <div>
             <span className="datil-label">Sin vender</span>
-            <strong className={trend(sum(scope, "unrealized"))}>{formatCurrency(sum(scope, "unrealized"))}</strong>
+            <strong className={trendClass(sum(scope, "unrealized"))}>{formatCurrency(sum(scope, "unrealized"))}</strong>
           </div>
           <div>
             <span className="datil-label">Ya realizado</span>
-            <strong className={trend(sum(scope, "realized"))}>{formatCurrency(sum(scope, "realized"))}</strong>
+            <strong className={trendClass(sum(scope, "realized"))}>{formatCurrency(sum(scope, "realized"))}</strong>
           </div>
           <div>
             <span className="datil-label">Patrimonio</span>
@@ -95,7 +94,7 @@ export default function ConsultantsOverview({ filter, onOpenClients }) {
         <h2>Todas las cifras por consultor</h2>
         <details>
           <summary>Ver la tabla completa</summary>
-          <div className="datil-table-wrap">
+          <div className="datil-table-wrap" tabIndex={0}>
             <KpiTable rows={kpis} />
           </div>
           <p className="datil-period-tag datil-section-note">
@@ -148,7 +147,7 @@ function LoadCards({ all, rows, onOpen }) {
                 </div>
                 <div>
                   <dt>Resultado</dt>
-                  <dd className={trend(c.total)}>{formatCurrency(c.total)}</dd>
+                  <dd className={trendClass(c.total)}>{formatCurrency(c.total)}</dd>
                 </div>
               </dl>
               <div className="datil-progress" role="img" aria-label={`Constancia ${c.consistency}%`}>
@@ -193,8 +192,8 @@ function KpiTable({ rows }) {
             <td>{c.username ? <strong>{c.name}</strong> : <span className="datil-period-tag">{c.name}</span>}</td>
             <td className="datil-col-num">{c.clients}</td>
             <td className="datil-col-num">{formatCurrency(c.portfolio)}</td>
-            <td className={`datil-col-num ${trend(c.total)}`}>{formatCurrency(c.total)}</td>
-            <td className={`datil-col-num ${trend(c.return_pct)}`}>{c.return_pct == null ? "N/D" : `${c.return_pct}%`}</td>
+            <td className={`datil-col-num ${trendClass(c.total)}`}>{formatCurrency(c.total)}</td>
+            <td className={`datil-col-num ${trendClass(c.return_pct)}`}>{c.return_pct == null ? "N/D" : `${c.return_pct}%`}</td>
             <td className="datil-col-num">
               {c.in_profit} de {c.clients}
             </td>

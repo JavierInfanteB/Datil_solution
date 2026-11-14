@@ -39,8 +39,12 @@ export default function StockSearch({ onSelect, placeholder = "Buscar por nombre
   }, [query]);
 
   return (
-    <div className="datil-select" ref={rootRef}>
+    <div className="datil-select" ref={rootRef} onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
       <input
+        role="combobox"
+        aria-expanded={open && query.trim().length >= 2}
+        aria-autocomplete="list"
+        autoComplete="off"
         className="datil-search-input"
         value={query}
         placeholder={placeholder}
@@ -58,9 +62,10 @@ export default function StockSearch({ onSelect, placeholder = "Buscar por nombre
           )}
           {!loading &&
             results.map((asset) => (
-              <li key={asset.symbol}>
+              <li key={asset.symbol} role="presentation">
                 <button
                   type="button"
+                  role="option"
                   className="datil-select-option"
                   onClick={() => {
                     onSelect(asset);

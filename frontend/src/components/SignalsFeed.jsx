@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import apiClient from "../api/client";
-import { formatDateTime } from "../utils/format";
+import { formatDateTime, trendClass } from "../utils/format";
 import { apiError } from "../utils/risk";
 import AlertsPanel from "./AlertsPanel";
 import { RiskBadge, SeverityTag } from "./RiskParts";
@@ -37,7 +37,7 @@ export default function SignalsFeed({ filter, onOptions, onOpen, onNotice }) {
     };
   }, [filter.client]);
 
-  if (error) return <p className="datil-error">{error}</p>;
+  if (error) return <p className="datil-error" role="alert">{error}</p>;
   if (!data) return <p>Calculando el riesgo de tus clientes... la primera vez puede tardar unos segundos.</p>;
 
   const items = data.items.filter((i) => (type === "todas" || i.kind === type) && i.status === state);
@@ -190,11 +190,11 @@ function Ideas() {
   return (
     <section className="datil-card">
       <h2>Ideas de acciones de riesgo bajo</h2>
-      {error && <p className="datil-error">{error}</p>}
+      {error && <p className="datil-error" role="alert">{error}</p>}
       {!error && !data && <p>Revisando acciones...</p>}
       {data && data.ideas.length === 0 && <p>Ninguna de las {data.reviewed} acciones revisadas cumple hoy.</p>}
       {data && data.ideas.length > 0 && (
-        <div className="datil-table-wrap">
+        <div className="datil-table-wrap" tabIndex={0}>
           <table className="datil-table">
             <thead>
               <tr>
@@ -218,7 +218,7 @@ function Ideas() {
                   </td>
                   <td className="datil-col-num">{signed(i.facts.above_low_pct)}</td>
                   <td className="datil-col-num">{signed(i.facts.below_high_pct)}</td>
-                  <td className={`datil-col-num ${i.facts.change_6m_pct >= 0 ? "datil-up" : "datil-down"}`}>{signed(i.facts.change_6m_pct)}</td>
+                  <td className={`datil-col-num ${trendClass(i.facts.change_6m_pct)}`}>{signed(i.facts.change_6m_pct)}</td>
                   <td style={{ whiteSpace: "normal" }}>{i.reasons.join(" · ")}</td>
                 </tr>
               ))}

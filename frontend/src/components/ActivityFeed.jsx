@@ -41,7 +41,7 @@ export default function ActivityFeed({ kind = "operaciones", filter = {}, title 
   return (
     <section className="datil-card">
       <h2>{title ?? (notices ? "Avisos enviados" : "Registro de operaciones")}</h2>
-      {error && <p className="datil-error">{error}</p>}
+      {error && <p className="datil-error" role="alert">{error}</p>}
       {!error && !rows && <p>Cargando...</p>}
       {rows && scoped.length === 0 && <p className="datil-period-tag">Sin registros con estos filtros.</p>}
       {!notices && roles.length > 1 && (
@@ -54,7 +54,7 @@ export default function ActivityFeed({ kind = "operaciones", filter = {}, title 
         </div>
       )}
       {shown.length > 0 && (
-        <div className="datil-table-wrap">
+        <div className="datil-table-wrap" tabIndex={0}>
           <table className="datil-table">
             <thead>
               <tr>
