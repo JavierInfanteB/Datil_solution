@@ -1,23 +1,42 @@
+import logging
 import os
+
 import google.generativeai as genai
-from google.api_core.exceptions import ResourceExhausted, GoogleAPICallError
+from google.api_core.exceptions import ResourceExhausted
+
 from config import Config
 
+log = logging.getLogger(__name__)
+
+KB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "knowledge_base.md")
+
+
+class AgentError(Exception):
+    """Falla del agente con un mensaje apto para el usuario; el detalle interno solo va al log."""
+
+    def __init__(self, status: int, message: str):
+        super().__init__(message)
+        self.status = status
+
+
 def get_knowledge_base() -> str:
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    file_path = os.path.join(base_dir, "knowledge_base.md")
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as file:
+    # Sin documentacion el modelo improvisaria: mejor no contestar.
+    try:
+        with open(KB_PATH, "r", encoding="utf-8") as file:
             return file.read()
-    return "Datil Solutions internal documentation."
+    except OSError:
+        log.exception("No se pudo leer %s", KB_PATH)
+        raise AgentError(503, "El asistente no esta disponible por ahora.")
+
 
 def query_agent(prompt: str, history: list = None) -> str:
     api_key = Config.GEMINI_API_KEY
     if not api_key:
-        return "Error: GEMINI_API_KEY is not configured on the server."
+        log.error("Falta la clave de Gemini (variable de entorno IA_DATIL)")
+        raise AgentError(503, "El asistente no esta disponible por ahora.")
 
-    genai.configure(api_key=api_key)
     knowledge_base = get_knowledge_base()
+    genai.configure(api_key=api_key)
 
     system_instruction = (
         "You are the official corporate and technical assistant for Datil Solutions. "
@@ -42,9 +61,10 @@ def query_agent(prompt: str, history: list = None) -> str:
         response = chat.send_message(prompt)
         return response.text
 
-    except ResourceExhausted as e:
-        return f"Cuota excedida en Google AI Studio: {str(e)}"
-    except GoogleAPICallError as e:
-        return f"Error en la comunicación con Google AI Studio: {str(e)}"
-    except Exception as e:
-        return f"Error inesperado al procesar la consulta: {str(e)}"
+    except ResourceExhausted:
+        log.exception("Cuota de Gemini agotada")
+        raise AgentError(429, "El asistente esta saturado. Intenta de nuevo en unos minutos.")
+    except Exception:
+        # Incluye errores de la API y respuestas bloqueadas (ValueError al leer .text).
+        log.exception("Fallo la consulta a Gemini")
+        raise AgentError(502, "El asistente no pudo responder. Intenta de nuevo.")

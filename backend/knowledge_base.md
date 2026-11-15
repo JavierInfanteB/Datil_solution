@@ -5,7 +5,9 @@ Datil Solutions es una plataforma financiera diseñada para valorar, administrar
 
 ## Instrumentos Disponibles
 1. Renta Fija Gubernamental:
-   - CETES y Bonos M conectados a series de Banxico.
+   - CETES (28, 91, 182, 364 y 728 dias) y Bonos M de tasa fija (3, 5, 10, 20 y 30 años) conectados a series de Banxico.
+   - Udibonos de tasa real (3, 10, 20 y 30 años), protegidos contra la inflacion.
+   - BPA: BPAG28 (cupon mensual, 3 años), BPAG91 (cupon trimestral, 5 años) y BPA182 (cupon semestral con proteccion a la inflacion, 7 años).
    - Manejo de subastas, liquidacion, vencimiento y reinversion.
 2. Renta Variable:
    - Acciones de mercado nacional e internacional.

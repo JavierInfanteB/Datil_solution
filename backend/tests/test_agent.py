@@ -5,11 +5,11 @@ Se corre desde backend/:  python -m unittest tests.test_agent -v
 Gemini nunca se llama de verdad: se reemplaza `agent_engine.genai`. Si google-generativeai no esta instalado se
 usa un modulo falso, asi que estas pruebas corren igual con o sin la libreria.
 
-Las pruebas marcadas con @unittest.expectedFailure describen lo que el agente DEBERIA hacer y hoy no hace. Cuando
-se corrija cada punto la prueba empezara a "pasar de forma inesperada" y habra que quitarle la marca.
+Las dos pruebas marcadas con @unittest.expectedFailure (Telegram y correo) describen alertas planeadas que el
+backend aun no tiene. Cuando existan empezaran a "pasar de forma inesperada" y habra que quitarles la marca.
 
 La clase LiveGeminiTest llama a Gemini de verdad. Se salta sola; para correrla:
-    set GEMINI_API_KEY=tu-clave   (y tener instalado google-generativeai)
+    set IA_DATIL=tu-clave   (y tener instalado google-generativeai)
 """
 import json
 import os
@@ -67,7 +67,7 @@ from google.api_core.exceptions import GoogleAPICallError, ResourceExhausted  # 
 
 from config import Config  # noqa: E402
 from routes import register_routes  # noqa: E402
-from utils import agent_engine  # noqa: E402
+from utils import agent_engine, decorators  # noqa: E402
 
 KB_PATH = BACKEND / "knowledge_base.md"
 KB = KB_PATH.read_text(encoding="utf-8")
@@ -120,12 +120,23 @@ class ConClave(unittest.TestCase):
 class EndpointTest(ConClave):
     def setUp(self):
         super().setUp()
+        # Sesion falsa: require_auth acepta cualquier token "Bearer".
+        usuario = {"id": "u1", "username": "ana", "name": "Ana", "role": "usuario"}
+        for nombre, falso in (("decode_token", lambda token: {"sub": "u1", "jti": "j1"}),
+                              ("is_session_active", lambda jti: True),
+                              ("touch_session", lambda jti: None),
+                              ("find_user", lambda **kw: usuario)):
+            patcher = mock.patch.object(decorators, nombre, falso)
+            patcher.start()
+            self.addCleanup(patcher.stop)
         app = Flask(__name__)
         register_routes(app)
         self.http = app.test_client()
 
-    def ask(self, body):
-        return self.http.post("/api/agent/ask", json=body)
+    SESION = {"Authorization": "Bearer token-de-prueba"}
+
+    def ask(self, body, headers=SESION):
+        return self.http.post("/api/agent/ask", json=body, headers=headers)
 
     def test_responde_con_el_texto_del_modelo(self):
         with GeminiFalso("Datil es una plataforma de inversion."):
@@ -149,63 +160,60 @@ class EndpointTest(ConClave):
         self.assertEqual(self.http.get("/api/agent/ask").status_code, 405)
 
     def test_cuerpo_que_no_es_json_da_error_de_cliente(self):
-        r = self.http.post("/api/agent/ask", data="hola", content_type="text/plain")
-        self.assertTrue(400 <= r.status_code < 500, r.status_code)
+        r = self.http.post("/api/agent/ask", data="hola", content_type="text/plain", headers=self.SESION)
+        self.assertIn(r.status_code, (400, 415))
 
-    # ---- Lo que hoy falla ----
-
-    @unittest.expectedFailure
     def test_prompt_que_no_es_texto_da_400(self):
-        # Hoy: {"prompt": 123} o {"prompt": null} truenan en .strip() y regresan 500.
         with GeminiFalso():
             for bad in (123, None, ["hola"], {"a": 1}):
                 with self.subTest(prompt=bad):
                     self.assertEqual(self.ask({"prompt": bad}).status_code, 400)
 
-    @unittest.expectedFailure
     def test_exige_sesion(self):
-        # Hoy: sin Authorization responde 200. El resto de la API usa require_auth.
-        with GeminiFalso():
-            self.assertEqual(self.ask({"prompt": "hola"}).status_code, 401)
+        with GeminiFalso() as g:
+            self.assertEqual(self.ask({"prompt": "hola"}, headers={}).status_code, 401)
+            g.chat.send_message.assert_not_called()
 
-    @unittest.expectedFailure
     def test_limita_el_largo_del_mensaje(self):
         with GeminiFalso() as g:
             r = self.ask({"prompt": "a" * 100_000})
         self.assertIn(r.status_code, (400, 413))
         g.chat.send_message.assert_not_called()
 
-    @unittest.expectedFailure
     def test_un_fallo_de_gemini_no_regresa_200(self):
         with GeminiFalso(error=GoogleAPICallError("fallo")):
             r = self.ask({"prompt": "hola"})
         self.assertGreaterEqual(r.status_code, 500)
 
-    @unittest.expectedFailure
     def test_cuota_agotada_regresa_429_o_503(self):
         with GeminiFalso(error=ResourceExhausted("429 cuota")):
             r = self.ask({"prompt": "hola"})
         self.assertIn(r.status_code, (429, 503))
 
-    @unittest.expectedFailure
     def test_el_error_no_muestra_detalles_internos(self):
         secreto = "project=1234567 key=CLAVE-FALSA-123"
         with GeminiFalso(error=GoogleAPICallError(secreto)):
             r = self.ask({"prompt": "hola"})
         self.assertNotIn("project=", r.get_data(as_text=True))
+        self.assertEqual(r.status_code, 502)
 
-    @unittest.expectedFailure
     def test_sin_clave_configurada_no_regresa_200(self):
         with mock.patch.object(Config, "GEMINI_API_KEY", ""):
             r = self.ask({"prompt": "hola"})
         self.assertGreaterEqual(r.status_code, 500)
 
-    @unittest.expectedFailure
     def test_el_historial_de_la_conversacion_llega_al_modelo(self):
         historial = [{"role": "user", "parts": ["me llamo Ana"]}, {"role": "model", "parts": ["Hola Ana"]}]
         with GeminiFalso() as g:
             self.ask({"prompt": "¿como me llamo?", "history": historial})
         g.model.start_chat.assert_called_once_with(history=historial)
+
+    def test_historial_que_no_es_lista_o_es_enorme_da_400(self):
+        with GeminiFalso() as g:
+            for malo in ("hola", {"a": 1}, [{}] * 21):
+                with self.subTest(history=malo):
+                    self.assertEqual(self.ask({"prompt": "hola", "history": malo}).status_code, 400)
+            g.chat.send_message.assert_not_called()
 
 
 class MotorTest(ConClave):
@@ -249,39 +257,41 @@ class MotorTest(ConClave):
 
     def test_sin_clave_no_llama_a_gemini(self):
         with mock.patch.object(Config, "GEMINI_API_KEY", ""), GeminiFalso() as g:
-            texto = agent_engine.query_agent("hola")
-        self.assertIn("GEMINI_API_KEY", texto)
+            with self.assertRaises(agent_engine.AgentError) as ctx:
+                agent_engine.query_agent("hola")
+        self.assertEqual(ctx.exception.status, 503)
         g.genai.GenerativeModel.assert_not_called()
 
-    def test_los_errores_de_gemini_se_convierten_en_texto_y_no_truenan(self):
+    def test_los_errores_de_gemini_se_convierten_en_agent_error_sin_detalles(self):
         casos = {
-            "cuota": (ResourceExhausted("429"), "Cuota excedida"),
-            "api": (GoogleAPICallError("500"), "Error en la comunicación"),
-            "otro": (RuntimeError("raro"), "Error inesperado"),
+            "cuota": (ResourceExhausted("429 DETALLE-INTERNO"), 429),
+            "api": (GoogleAPICallError("500 DETALLE-INTERNO"), 502),
+            "otro": (RuntimeError("raro DETALLE-INTERNO"), 502),
         }
-        for nombre, (error, inicio) in casos.items():
+        for nombre, (error, status) in casos.items():
             with self.subTest(nombre), GeminiFalso(error=error):
-                self.assertTrue(agent_engine.query_agent("hola").startswith(inicio))
+                with self.assertRaises(agent_engine.AgentError) as ctx:
+                    agent_engine.query_agent("hola")
+                self.assertEqual(ctx.exception.status, status)
+                self.assertNotIn("DETALLE-INTERNO", str(ctx.exception))
 
     def test_respuesta_bloqueada_por_seguridad_no_truena(self):
         # Gemini lanza ValueError al leer .text cuando bloquea la respuesta.
         with GeminiFalso() as g:
             type(g.chat.send_message.return_value).text = mock.PropertyMock(side_effect=ValueError("bloqueada"))
-            texto = agent_engine.query_agent("hola")
-        self.assertTrue(texto.startswith("Error inesperado"))
+            with self.assertRaises(agent_engine.AgentError) as ctx:
+                agent_engine.query_agent("hola")
+        self.assertEqual(ctx.exception.status, 502)
 
     def test_lee_la_documentacion_del_archivo(self):
         self.assertEqual(agent_engine.get_knowledge_base(), KB)
 
-    def test_si_falta_el_archivo_usa_un_texto_de_respaldo(self):
-        with mock.patch.object(agent_engine.os.path, "exists", return_value=False):
-            self.assertEqual(agent_engine.get_knowledge_base(), "Datil Solutions internal documentation.")
-
-    @unittest.expectedFailure
     def test_si_falta_el_archivo_no_se_contesta_a_ciegas(self):
-        # Hoy responde con una sola linea de "documentacion" y el modelo improvisa.
-        with mock.patch.object(agent_engine.os.path, "exists", return_value=False):
-            self.assertGreater(len(agent_engine.get_knowledge_base()), 200)
+        with mock.patch.object(agent_engine, "KB_PATH", str(BACKEND / "no-existe.md")), GeminiFalso() as g:
+            with self.assertRaises(agent_engine.AgentError) as ctx:
+                agent_engine.query_agent("hola")
+        self.assertEqual(ctx.exception.status, 503)
+        g.genai.GenerativeModel.assert_not_called()
 
 
 class DocumentacionTest(unittest.TestCase):
@@ -300,9 +310,8 @@ class DocumentacionTest(unittest.TestCase):
             with self.subTest(rol):
                 self.assertIn(rol, KB)
 
-    @unittest.expectedFailure
     def test_cubre_todos_los_tipos_de_bono_del_catalogo(self):
-        # data/assets.json tiene cetes, bono_m, udibono y bpa; la documentacion no habla de los dos ultimos.
+        # data/assets.json tiene cetes, bono_m, udibono y bpa.
         catalogo = json.loads((BACKEND.parent / "data" / "assets.json").read_text(encoding="utf-8"))
         items = catalogo if isinstance(catalogo, list) else catalogo.get("assets", [])
         kinds = {x["kind"] for x in items if isinstance(x, dict) and x.get("type") == "bono"}
@@ -310,6 +319,8 @@ class DocumentacionTest(unittest.TestCase):
         faltan = [k for k in kinds if nombres.get(k, k) not in KB.lower()]
         self.assertEqual(faltan, [], f"la documentacion no menciona: {faltan}")
 
+    # Telegram y correo se dejan en la documentacion a proposito: estan planeados. Estas dos pruebas
+    # empezaran a pasar solas cuando el backend los tenga; entonces hay que quitarles la marca.
     @unittest.expectedFailure
     def test_no_promete_telegram_si_el_backend_no_lo_tiene(self):
         self.assertTrue(
@@ -326,31 +337,26 @@ class DocumentacionTest(unittest.TestCase):
 
 
 @unittest.skipUnless(
-    REAL_GENAI and os.environ.get("GEMINI_API_KEY"),
-    "Prueba real contra Gemini: instala google-generativeai y define GEMINI_API_KEY para correrla",
+    REAL_GENAI and Config.GEMINI_API_KEY,
+    "Prueba real contra Gemini: instala google-generativeai y define IA_DATIL para correrla",
 )
 class LiveGeminiTest(unittest.TestCase):
     """Llama a Gemini de verdad. Mide que tan bien sigue la documentacion; las respuestas se imprimen para revisarlas."""
 
-    @classmethod
-    def setUpClass(cls):
-        cls._patch = mock.patch.object(Config, "GEMINI_API_KEY", os.environ["GEMINI_API_KEY"])
-        cls._patch.start()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._patch.stop()
-
     def preguntar(self, texto):
         respuesta = agent_engine.query_agent(texto)
         print(f"\n  P: {texto}\n  R: {respuesta}")
-        self.assertFalse(respuesta.startswith(("Error", "Cuota excedida")), respuesta)
         return respuesta
 
     def test_contesta_lo_que_si_esta_en_la_documentacion(self):
         r = self.preguntar("¿Que instrumentos puedo comprar en Datil?").lower()
         self.assertIn("cetes", r)
         self.assertIn("acciones", r)
+
+    def test_conoce_udibonos_y_bpa(self):
+        r = self.preguntar("¿Manejan Udibonos y BPA?").lower()
+        self.assertIn("udibono", r)
+        self.assertIn("bpa", r)
 
     def test_no_contesta_lo_que_no_esta_en_la_documentacion(self):
         r = self.preguntar("¿Cual es la capital de Francia?")
