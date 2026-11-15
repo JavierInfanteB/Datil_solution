@@ -11,6 +11,10 @@ log = logging.getLogger(__name__)
 KB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "knowledge_base.md")
 
 
+SATURADO = ("Estamos recibiendo un alto volumen de solicitudes. "
+            "En un momento le contestamos: intente de nuevo en un minuto.")
+
+
 class AgentError(Exception):
     """Falla del agente con un mensaje apto para el usuario; el detalle interno solo va al log."""
 
@@ -63,7 +67,7 @@ def query_agent(prompt: str, history: list = None) -> str:
 
     except ResourceExhausted:
         log.exception("Cuota de Gemini agotada")
-        raise AgentError(429, "El asistente esta saturado. Intenta de nuevo en unos minutos.")
+        raise AgentError(429, SATURADO)
     except Exception:
         # Incluye errores de la API y respuestas bloqueadas (ValueError al leer .text).
         log.exception("Fallo la consulta a Gemini")

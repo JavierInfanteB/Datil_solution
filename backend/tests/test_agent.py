@@ -67,7 +67,8 @@ from google.api_core.exceptions import GoogleAPICallError, ResourceExhausted  # 
 
 from config import Config  # noqa: E402
 from routes import register_routes  # noqa: E402
-from utils import agent_engine, decorators  # noqa: E402
+from modules import agent as agent_module  # noqa: E402
+from utils import agent_engine  # noqa: E402
 
 KB_PATH = BACKEND / "knowledge_base.md"
 KB = KB_PATH.read_text(encoding="utf-8")
@@ -120,23 +121,14 @@ class ConClave(unittest.TestCase):
 class EndpointTest(ConClave):
     def setUp(self):
         super().setUp()
-        # Sesion falsa: require_auth acepta cualquier token "Bearer".
-        usuario = {"id": "u1", "username": "ana", "name": "Ana", "role": "usuario"}
-        for nombre, falso in (("decode_token", lambda token: {"sub": "u1", "jti": "j1"}),
-                              ("is_session_active", lambda jti: True),
-                              ("touch_session", lambda jti: None),
-                              ("find_user", lambda **kw: usuario)):
-            patcher = mock.patch.object(decorators, nombre, falso)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        agent_module._recent.clear()   # el limite de mensajes empieza en cero en cada prueba
+        self.addCleanup(agent_module._recent.clear)
         app = Flask(__name__)
         register_routes(app)
         self.http = app.test_client()
 
-    SESION = {"Authorization": "Bearer token-de-prueba"}
-
-    def ask(self, body, headers=SESION):
-        return self.http.post("/api/agent/ask", json=body, headers=headers)
+    def ask(self, body, ip="1.1.1.1"):
+        return self.http.post("/api/agent/ask", json=body, headers={"CF-Connecting-IP": ip})
 
     def test_responde_con_el_texto_del_modelo(self):
         with GeminiFalso("Datil es una plataforma de inversion."):
@@ -160,7 +152,7 @@ class EndpointTest(ConClave):
         self.assertEqual(self.http.get("/api/agent/ask").status_code, 405)
 
     def test_cuerpo_que_no_es_json_da_error_de_cliente(self):
-        r = self.http.post("/api/agent/ask", data="hola", content_type="text/plain", headers=self.SESION)
+        r = self.http.post("/api/agent/ask", data="hola", content_type="text/plain")
         self.assertIn(r.status_code, (400, 415))
 
     def test_prompt_que_no_es_texto_da_400(self):
@@ -169,10 +161,40 @@ class EndpointTest(ConClave):
                 with self.subTest(prompt=bad):
                     self.assertEqual(self.ask({"prompt": bad}).status_code, 400)
 
-    def test_exige_sesion(self):
+    def test_es_de_uso_libre_sin_sesion(self):
+        with GeminiFalso():
+            self.assertEqual(self.http.post("/api/agent/ask", json={"prompt": "hola"}).status_code, 200)
+
+    def test_limite_por_direccion_avisa_alto_volumen_y_no_afecta_a_otros(self):
         with GeminiFalso() as g:
-            self.assertEqual(self.ask({"prompt": "hola"}, headers={}).status_code, 401)
-            g.chat.send_message.assert_not_called()
+            for _ in range(agent_module.MAX_PER_IP):
+                self.assertEqual(self.ask({"prompt": "hola"}).status_code, 200)
+            r = self.ask({"prompt": "hola"})
+            self.assertEqual(r.status_code, 429)
+            self.assertIn("alto volumen", r.get_json()["error"])
+            self.assertEqual(r.headers["Retry-After"], str(agent_module.WINDOW))
+            self.assertEqual(g.chat.send_message.call_count, agent_module.MAX_PER_IP)
+            self.assertEqual(self.ask({"prompt": "hola"}, ip="2.2.2.2").status_code, 200)
+
+    def test_limite_global_entre_todos(self):
+        with GeminiFalso():
+            for i in range(agent_module.MAX_GLOBAL):
+                self.assertEqual(self.ask({"prompt": "hola"}, ip=f"10.0.0.{i}").status_code, 200)
+            self.assertEqual(self.ask({"prompt": "hola"}, ip="10.9.9.9").status_code, 429)
+
+    def test_al_pasar_la_ventana_vuelve_a_contestar(self):
+        with GeminiFalso(), mock.patch.object(agent_module.time, "monotonic", return_value=1000.0) as reloj:
+            for _ in range(agent_module.MAX_PER_IP):
+                self.ask({"prompt": "hola"})
+            self.assertEqual(self.ask({"prompt": "hola"}).status_code, 429)
+            reloj.return_value += agent_module.WINDOW + 1
+            self.assertEqual(self.ask({"prompt": "hola"}).status_code, 200)
+
+    def test_los_mensajes_rechazados_por_formato_no_gastan_el_limite(self):
+        with GeminiFalso():
+            for _ in range(agent_module.MAX_PER_IP + 5):
+                self.ask({"prompt": ""})
+            self.assertEqual(self.ask({"prompt": "hola"}).status_code, 200)
 
     def test_limita_el_largo_del_mensaje(self):
         with GeminiFalso() as g:
@@ -188,7 +210,8 @@ class EndpointTest(ConClave):
     def test_cuota_agotada_regresa_429_o_503(self):
         with GeminiFalso(error=ResourceExhausted("429 cuota")):
             r = self.ask({"prompt": "hola"})
-        self.assertIn(r.status_code, (429, 503))
+        self.assertEqual(r.status_code, 429)
+        self.assertIn("alto volumen", r.get_json()["error"])
 
     def test_el_error_no_muestra_detalles_internos(self):
         secreto = "project=1234567 key=CLAVE-FALSA-123"
