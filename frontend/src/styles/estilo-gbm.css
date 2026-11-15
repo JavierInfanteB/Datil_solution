@@ -1,0 +1,137 @@
+/* Capa de estilo inspirada en gbm.com para la plataforma: titulares ligeros, botones en píldora,
+   tarjetas muy redondeadas y barra lateral flotante. Solo diseño: se carga después de datil-theme.css. */
+
+:root {
+  --datil-bg: #f5f5f2;
+  --datil-border: #e6e6e1;
+  --dl-r-card: 24px;
+  --dl-r-tile: 20px;
+  --dl-r-input: 14px;
+}
+[data-theme="dark"] {
+  --datil-bg: #0b0d12;
+  --datil-border: #262a35;
+}
+
+body { letter-spacing: -0.005em; }
+
+/* Barra lateral: tarjeta oscura flotante, menú en píldoras */
+@media (min-width: 861px) {
+  .datil-sidebar {
+    top: 0.75rem;
+    height: calc(100vh - 1.5rem);
+    margin: 0.75rem 0 0.75rem 0.75rem;
+    border-radius: 28px;
+    padding: 1.6rem 1rem;
+  }
+}
+.datil-nav-btn { border-left: 0; border-radius: 999px; padding: 0.65rem 1rem; }
+.datil-nav-btn.active { background: var(--datil-accent); color: #14161c; font-weight: 600; }
+.datil-nav-sub { border-left-color: rgba(255, 255, 255, 0.12); }
+.datil-nav-sub-btn { border-radius: 999px; }
+.datil-nav-sub-btn.active { background: rgba(217, 171, 44, 0.16); color: var(--datil-accent); }
+.datil-menu-toggle, .datil-theme-toggle { border-radius: 999px; }
+
+/* Tarjetas: más aire, esquinas grandes y titulares ligeros en vez de rótulos en mayúsculas */
+.datil-card { border-radius: var(--dl-r-card); padding: 2rem; }
+.datil-card h2 {
+  font-size: 1.6rem;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--datil-text);
+  border-bottom: 0;
+  padding-bottom: 0;
+  margin-bottom: 1.5rem;
+}
+.datil-subheading { font-size: 0.95rem; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--datil-text); }
+
+/* Cifras resumen */
+.datil-summary-grid > div { border-radius: var(--dl-r-tile); padding: 1.15rem 1.4rem; background: var(--datil-bg); border-color: transparent; }
+.datil-summary-grid strong { font-size: 1.7rem; font-weight: 300; letter-spacing: -0.02em; }
+.datil-history-summary strong { font-size: 1.7rem; font-weight: 300; letter-spacing: -0.02em; }
+.datil-label { font-weight: 600; }
+
+/* Tablas más limpias */
+.datil-table th { border-bottom-width: 1px; font-weight: 600; }
+.datil-table tbody tr:last-child td { border-bottom: 0; }
+.datil-table-scroll { border-radius: 18px; }
+.datil-chart-wrapper { border-radius: var(--dl-r-tile); border-color: transparent; }
+
+/* Controles */
+.datil-btn { border-radius: 999px; padding: 0.7rem 1.4rem; }
+.datil-form-row select,
+.datil-table select,
+.datil-form-row input,
+.datil-form-row textarea,
+.datil-search-input,
+.datil-login-card input,
+.datil-select-trigger { border-radius: var(--dl-r-input); padding: 0.65rem 0.9rem; }
+.datil-select-list { border-radius: 18px; padding: 0.4rem; }
+.datil-select-option { border-radius: 12px; }
+.datil-chip { border-radius: 999px; padding: 0.4rem 0.95rem; }
+.datil-risk { border-radius: 999px; padding: 0.2rem 0.75rem; }
+.datil-meter { border-radius: 999px; }
+.datil-meter-low { border-radius: 999px 0 0 999px; }
+.datil-meter-high { border-radius: 0 999px 999px 0; }
+.datil-swatch { border-radius: 50%; }
+
+/* Login y avisos */
+.datil-login-card { border-radius: var(--dl-r-card); }
+.datil-modal { border-radius: var(--dl-r-card); padding: 2rem 2.2rem; }
+.datil-demo-badge { border-radius: 999px; }
+
+@media (max-width: 860px) {
+  .datil-card { padding: 1.3rem; border-radius: 20px; }
+  .datil-card h2 { font-size: 1.35rem; }
+}
+
+/* ---------- Franja "quién necesita atención" (consultor y admin) ---------- */
+.datil-triage-headline { margin: 0 0 1.2rem; font-size: 1.05rem; color: var(--datil-text-muted); }
+.datil-triage-headline strong { color: var(--datil-text); }
+.datil-triage-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1.2rem; }
+.datil-triage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-align: left;
+  padding: 1rem 1.2rem;
+  border: 1px solid transparent;
+  border-radius: var(--dl-r-tile);
+  background: var(--datil-bg);
+  color: var(--datil-text);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.datil-triage-card:hover { border-color: var(--datil-border); transform: translateY(-1px); }
+.datil-triage-card strong { font-size: 2.1rem; font-weight: 300; letter-spacing: -0.03em; line-height: 1.1; }
+.datil-triage-card span { font-size: 0.85rem; color: var(--datil-text-muted); }
+.datil-triage-card.warn strong { color: var(--datil-down); }
+.datil-triage-card.empty { opacity: 0.6; }
+.datil-triage-card.active { border-color: var(--datil-accent); background: color-mix(in srgb, var(--datil-accent) 12%, transparent); opacity: 1; }
+.datil-triage-card:focus-visible, .datil-chip:focus-visible { outline: 2px solid var(--datil-accent); outline-offset: 2px; }
+.datil-triage-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem 1.2rem; }
+.datil-triage-tools .datil-search-input { flex: 1 1 240px; width: auto; max-width: 360px; }
+.datil-triage-sort { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--datil-text-muted); }
+.datil-triage-sort select { padding: 0.55rem 0.9rem; border-radius: var(--dl-r-input); border: 1px solid var(--datil-border); background: var(--datil-bg); color: var(--datil-text); font: inherit; }
+.datil-empty-row { padding: 1.4rem 0; text-align: center; color: var(--datil-text-muted); }
+
+/* ---------- Tarjetas de carga por consultor (admin) ---------- */
+.datil-load-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 0.9rem; }
+.datil-load-card { display: flex; flex-direction: column; gap: 0.7rem; padding: 1.3rem; border-radius: var(--dl-r-tile); background: var(--datil-bg); }
+.datil-load-card header { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.6rem; flex-wrap: wrap; }
+.datil-load-card header strong { font-size: 1.1rem; font-weight: 600; }
+.datil-load-card dl { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: 0.5rem; margin: 0.2rem 0 0; }
+.datil-load-card dt { font-size: 0.72rem; color: var(--datil-text-muted); }
+.datil-load-card dd { margin: 0.1rem 0 0; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.datil-load-card .datil-btn { align-self: flex-start; margin-top: 0.3rem; }
+.datil-load-tag { display: inline-block; padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.datil-load-tag.ok { color: var(--datil-up); background: color-mix(in srgb, var(--datil-up) 14%, transparent); }
+.datil-load-tag.warn { color: var(--datil-down); background: color-mix(in srgb, var(--datil-down) 14%, transparent); }
+.datil-card details summary { cursor: pointer; padding: 0.7rem 1rem; font-weight: 600; }
+
+@media (max-width: 860px) {
+  .datil-summary-grid > div { padding: 0.8rem 0.9rem; }
+  .datil-summary-grid strong { font-size: 1.15rem; }
+}

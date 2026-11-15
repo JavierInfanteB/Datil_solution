@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import apiClient from "../api/client";
-import { formatCurrency } from "../utils/format";
+import { formatCurrency, trendClass } from "../utils/format";
 import { apiError } from "../utils/risk";
 
 const PERIODS = [
@@ -9,7 +9,6 @@ const PERIODS = [
   ["quarter", "Este trimestre"],
   ["year", "Este año"],
 ];
-const trend = (v) => (v >= 0 ? "datil-up" : "datil-down");
 
 // Reporte de un cliente por mes, trimestre o año: qué logró, ingresos, qué puede mejorar y gráficas.
 // `endpoint` es el del propio cliente (/api/plan/report) o el que lee su consultor.
@@ -40,7 +39,7 @@ export default function Report({ endpoint }) {
           </button>
         ))}
       </div>
-      {error && <p className="datil-error">{error}</p>}
+      {error && <p className="datil-error" role="alert">{error}</p>}
       {!error && !data && <p>Armando el reporte...</p>}
       {data && <Body r={data} />}
     </>
@@ -56,7 +55,7 @@ function Body({ r }) {
       <div className="datil-summary-grid">
         <div>
           <span className="datil-label">Utilidad realizada</span>
-          <strong className={trend(r.realized)}>{formatCurrency(r.realized)}</strong>
+          <strong className={trendClass(r.realized)}>{formatCurrency(r.realized)}</strong>
         </div>
         <div>
           <span className="datil-label">Ingresos por cupones</span>
@@ -64,7 +63,7 @@ function Body({ r }) {
         </div>
         <div>
           <span className="datil-label">Ganancia sin vender hoy</span>
-          <strong className={trend(r.unrealized)}>{formatCurrency(r.unrealized)}</strong>
+          <strong className={trendClass(r.unrealized)}>{formatCurrency(r.unrealized)}</strong>
         </div>
         <div>
           <span className="datil-label">Patrimonio</span>

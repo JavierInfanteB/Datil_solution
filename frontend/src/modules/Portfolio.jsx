@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import apiClient from "../api/client";
 import CompositionPie, { slices } from "../components/CompositionPie";
 import PortfolioRisk from "../components/PortfolioRisk";
-import { formatCurrency, formatMoney, formatPeriodLabel } from "../utils/format";
+import { formatCurrency, formatMoney, formatPeriodLabel, trendClass } from "../utils/format";
 import { REINVEST_LABEL } from "../utils/reinvest";
 
 // `client`: cartera de un cliente cuando la ve el admin; sin él, la propia.
@@ -31,7 +31,7 @@ export default function Portfolio({ client }) {
       })
       .catch((err) => setNotice(err.response?.data?.error ?? "No se pudo cambiar la reinversión."));
 
-  if (error) return <p className="datil-error">{error}</p>;
+  if (error) return <p className="datil-error" role="alert">{error}</p>;
   if (!data) return <p>Cargando cartera...</p>;
 
   const stocks = data.holdings.filter((h) => h.type === "accion");
@@ -49,7 +49,7 @@ export default function Portfolio({ client }) {
               .join(" · ")}.`}
         </p>
         {data.incomplete && (
-          <p className="datil-error">
+          <p className="datil-error" role="alert">
             No se pudo valuar alguna acción; los totales no la incluyen. Intenta de nuevo en un momento.
           </p>
         )}
@@ -76,7 +76,7 @@ export default function Portfolio({ client }) {
         {stocks.length > 0 && (
           <>
             <h3 className="datil-subheading">Acciones</h3>
-            <div className="datil-table-wrap">
+            <div className="datil-table-wrap" tabIndex={0}>
               <table className="datil-table">
                 <thead>
                   <tr>
@@ -101,7 +101,7 @@ export default function Portfolio({ client }) {
                         {h.cost_estimated && <span className="datil-period-tag" title="Compra anterior al registro de costos: se estimó con el precio del día de la migración"> (est.)</span>}
                       </td>
                       <td className="datil-col-num">{formatMoney(h.price, h.currency)}</td>
-                      <td className={`datil-col-num ${h.change_percent >= 0 ? "datil-up" : "datil-down"}`}>
+                      <td className={`datil-col-num ${trendClass(h.change_percent)}`}>
                         {h.change_percent != null ? (
                           <>
                             {h.change_percent >= 0 ? "\u25B2" : "\u25BC"} {h.change_percent}%
@@ -112,7 +112,7 @@ export default function Portfolio({ client }) {
                         )}
                       </td>
                       <td className="datil-col-num">{formatCurrency(h.value)}</td>
-                      <td className={`datil-col-num ${h.gain_mxn >= 0 ? "datil-up" : "datil-down"}`}>
+                      <td className={`datil-col-num ${trendClass(h.gain_mxn)}`}>
                         {h.gain_mxn != null ? `${formatCurrency(h.gain_mxn)} (${h.gain_percent}%)` : "N/D"}
                       </td>
                     </tr>
@@ -126,8 +126,8 @@ export default function Portfolio({ client }) {
         {bonds.length > 0 && (
           <>
             <h3 className="datil-subheading">Bonos y CETES</h3>
-            {notice && <p className="datil-error">{notice}</p>}
-            <div className="datil-table-wrap">
+            {notice && <p className="datil-error" role="alert">{notice}</p>}
+            <div className="datil-table-wrap" tabIndex={0}>
               <table className="datil-table">
                 <thead>
                   <tr>
@@ -169,7 +169,7 @@ export default function Portfolio({ client }) {
                           ({h.value_basis})
                         </span>
                       </td>
-                      <td className={`datil-col-num ${h.gain_mxn >= 0 ? "datil-up" : "datil-down"}`}>
+                      <td className={`datil-col-num ${trendClass(h.gain_mxn)}`}>
                         {h.gain_mxn != null ? `${formatCurrency(h.gain_mxn)} (${h.gain_percent}%)` : "N/D"}
                       </td>
                       <td

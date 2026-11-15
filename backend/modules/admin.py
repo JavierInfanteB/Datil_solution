@@ -8,10 +8,10 @@ from flask import Blueprint, jsonify, request
 
 from modules.insights import build_insights, pnl_row
 from modules.portfolio import build_portfolio_view
-from utils import alerts, audit, notifications
+from utils import alerts, audit, notifications, records
 from utils.accounts import load_users
-from utils.data_store import read_json
-from utils.decorators import require_auth, require_permission, require_role
+from db import portfolio as pf_repo
+from utils.decorators import require_auth, require_role
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 AUDIT_LIMIT = 50
@@ -37,7 +37,7 @@ def list_clients():
                      "consultant": names.get(c.get("consultant")), "consultant_username": c.get("consultant"), "total": view["portfolio_total"],
                      "cash": view["cash"], "holdings_count": view["holdings_count"],
                      "gain_mxn": round(sum(h["gain_mxn"] for h in view["holdings"] if h.get("gain_mxn") is not None), 2)})
-    return jsonify({"clients": sorted(rows, key=lambda r: -r["total"]), "audit": audit.load()[-AUDIT_LIMIT:][::-1]})
+    return jsonify({"clients": sorted(rows, key=lambda r: -r["total"]), "audit": audit.recent(AUDIT_LIMIT)})
 
 
 @admin_bp.route("/insights", methods=["GET"])
@@ -53,11 +53,7 @@ WEEKS = 12  # ventana de la constancia del consultor
 
 def _consultant_events(username):
     """Fechas de lo que hizo el consultor por sus clientes: avisos, alertas y notas personales."""
-    dates = [n["date"] for items in notifications.load().values() for n in items if n["from"] == username]
-    dates += [a["date"] for items in alerts.load().values() for a in items if a["by"] == username]
-    dates += [n["date"] for key, items in read_json("consultant_notes.json", {}).items()
-              if key.startswith(f"{username}/") for n in items]
-    return dates
+    return notifications.sent_dates(username) + alerts.created_dates(username) + records.note_dates(username)
 
 
 def _kpis(consultant, rows, all_alerts):
@@ -88,7 +84,7 @@ def _kpis(consultant, rows, all_alerts):
 @require_role("admin")
 def consultants():
     """Resultados y constancia de cada consultor, con el desglose por cliente para elegirlo en pantalla."""
-    transactions, all_alerts = read_json("transactions.json"), alerts.load()
+    transactions, all_alerts = pf_repo.transactions_by_user(), alerts.load()
     clients = _clients()
     rows = {c["username"]: pnl_row(c, build_portfolio_view(c["username"], settle=False), transactions.get(c["username"], []))
             for c in clients}

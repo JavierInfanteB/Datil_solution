@@ -4,12 +4,14 @@
   --datil-sidebar-bg: #14161c;
   --datil-sidebar-text: #b7bac4;
   --datil-text: #1a1d24;
-  --datil-text-muted: #6b7280;
+  --datil-text-muted: #5b6270;
   --datil-border: #e3e5ea;
   --datil-accent: #c9971f;
   --datil-accent-dark: #a97e18;
-  --datil-up: #0f7b3c;
-  --datil-down: #c1272d;
+  /* Tonos para TEXTO (contraste >= 4.5:1 sobre blanco); el acento claro queda para fondos y bordes */
+  --datil-accent-text: #7a5a0b;
+  --datil-up: #0b6b34;
+  --datil-down: #a81f25;
 }
 
 [data-theme="dark"] {
@@ -21,6 +23,9 @@
   --datil-border: #262a35;
   --datil-accent: #d9ab2c;
   --datil-accent-dark: #c9971f;
+  --datil-accent-text: #d9ab2c;
+  --datil-up: #3ecf7a;
+  --datil-down: #ff7b7b;
 }
 
 * {
@@ -654,7 +659,7 @@ h1, h2, h3 {
 }
 
 .datil-risk-medio {
-  color: var(--datil-accent-dark);
+  color: var(--datil-accent-text);
   background: color-mix(in srgb, var(--datil-accent) 18%, transparent);
 }
 
@@ -773,7 +778,7 @@ h1, h2, h3 {
   padding: 0;
   font: inherit;
   font-weight: 600;
-  color: var(--datil-accent-dark);
+  color: var(--datil-accent-text);
   text-decoration: underline;
   cursor: pointer;
 }
@@ -787,11 +792,6 @@ h1, h2, h3 {
   font-size: 0.87rem;
   line-height: 1.5;
 }
-.datil-success {
-  color: var(--datil-up);
-  font-size: 0.86rem;
-}
-
 .datil-error {
   color: var(--datil-down);
   font-size: 0.86rem;
@@ -818,6 +818,27 @@ h1, h2, h3 {
   flex-direction: column;
   gap: 1.1rem;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+}
+
+/* Escritorio: tarjeta ancha, formulario a la izquierda y cuentas de prueba a la derecha */
+@media (min-width: 861px) {
+  .datil-login-card:has(.datil-demo-hint) {
+    max-width: 840px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 3rem;
+    align-content: center;
+  }
+  .datil-login-card:has(.datil-demo-hint) > * {
+    grid-column: 1;
+  }
+  .datil-login-card:has(.datil-demo-hint) > .datil-demo-hint {
+    grid-column: 2;
+    grid-row: 1 / span 6;
+    align-self: center;
+    border-left: 1px solid var(--datil-border);
+    padding-left: 3rem;
+  }
 }
 
 .datil-login-card h1 {
@@ -987,8 +1008,9 @@ h1, h2, h3 {
 .datil-card label > input:focus,
 .datil-card label > textarea:focus,
 .datil-card label > select:focus {
-  outline: none;
-  border-color: var(--datil-accent);
+  outline: 2px solid transparent; /* se conserva para modo alto contraste de Windows */
+  border-color: var(--datil-accent-text);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--datil-accent) 35%, transparent);
 }
 
 .datil-card textarea {
@@ -998,6 +1020,7 @@ h1, h2, h3 {
 
 .datil-success {
   color: var(--datil-up);
+  font-size: 0.86rem;
   font-weight: 600;
 }
 
@@ -1118,3 +1141,66 @@ h1, h2, h3 {
   letter-spacing: normal;
   font-weight: 400;
 }
+
+/* ---------- Accesibilidad y ayudas (auditoría frontend) ---------- */
+
+/* Foco visible para teclado en todo lo interactivo */
+:focus-visible {
+  outline: 2px solid var(--datil-accent-text);
+  outline-offset: 2px;
+}
+.datil-sidebar :focus-visible {
+  outline-color: var(--datil-accent);
+}
+
+/* Texto solo para lectores de pantalla (encabezados de columna vacíos, etc.) */
+.datil-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Término técnico con explicación corta (ver components/Term.jsx) */
+.datil-term {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+/* Celular: cifras resumen en dos columnas (antes, una por renglón) */
+@media (max-width: 860px) {
+  .datil-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .datil-summary-grid > div {
+    padding: 0.8rem 0.9rem;
+  }
+  .datil-summary-grid strong {
+    font-size: 1.1rem;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Selector de idioma (fijo, abajo a la derecha); lo crea src/i18n/idioma.js */
+.datil-idioma {
+  position: fixed; right: .9rem; bottom: .9rem; z-index: 3000;
+  font: 700 .8rem/1 inherit; letter-spacing: .06em;
+  padding: .5rem .75rem; border-radius: 999px; cursor: pointer;
+  color: var(--datil-text); background: var(--datil-surface); border: 1px solid var(--datil-border);
+  box-shadow: 0 2px 8px rgb(0 0 0 / .15);
+}
+.datil-idioma:hover, .datil-idioma:focus-visible { border-color: var(--datil-accent); outline: none; }
+@media print { .datil-idioma { display: none; } }

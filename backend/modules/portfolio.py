@@ -15,7 +15,7 @@ from datetime import date
 from flask import Blueprint, jsonify
 
 from utils import bond_engine, bond_math, stock_engine
-from utils.data_store import read_json
+from db import portfolio as pf_repo
 from utils.decorators import acting_username, require_auth, require_permission
 from utils.market_data import get_bond_curve, get_current_price, get_fx_to_mxn
 
@@ -40,8 +40,7 @@ def build_portfolio_view(username, settle=True):
     if settle:
         bond_engine.process_due_events(username)
 
-    portfolios = read_json("portfolios.json")
-    portfolio = portfolios.get(username, {"cash": 0, "holdings": []})
+    portfolio = pf_repo.get_portfolio(username)
 
     fx_rates = {}  # pesos por unidad de cada moneda, consultado una vez por moneda
 
@@ -70,13 +69,14 @@ def build_portfolio_view(username, settle=True):
             row["rate_at_purchase"] = holding.get("rate_at_purchase")
             row["purchase_date"] = holding.get("purchase_date")
             row["maturity_date"] = holding.get("maturity_date")
-            row["accrued_value"] = bond_math.accrued_value(holding, today)
-            row["maturity_value"] = bond_math.maturity_value(holding)
+            udi = (curve or {}).get("udi")  # Udibonos: se pasan a pesos con la UDI de hoy
+            row["accrued_value"] = bond_math.accrued_value(holding, today, udi)
+            row["maturity_value"] = bond_math.maturity_value(holding, udi)
             row["cost"] = bond_math.cost(holding)
-            if row["kind"] == "bono_m":
+            if row["kind"] in bond_math.COUPON_KINDS:
                 row["next_coupon_date"] = holding.get("next_coupon_date")
                 row["coupons_paid"] = holding.get("coupons_paid", 0)
-                row["coupon_amount"] = bond_math.coupon_amount(holding)
+                row["coupon_amount"] = bond_math.coupon_amount(holding, udi=udi)
 
             row["value_basis"] = "mercado"
             try:

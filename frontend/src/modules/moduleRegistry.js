@@ -1,11 +1,14 @@
-import Portfolio from "./Portfolio";
-import Trading from "./Trading";
-import Avisos from "./Avisos";
-import AdminClients from "./AdminClients";
-import Consultor from "./Consultor";
-import Plan from "./Plan";
-import Permissions from "./Permissions";
+import { lazy } from "react";
 import { isGranted } from "../utils/permissions";
+
+// Cada módulo se descarga solo cuando alguien lo abre: quien aún no inicia sesión no baja las gráficas ni el panel.
+const Portfolio = lazy(() => import("./Portfolio"));
+const Trading = lazy(() => import("./Trading"));
+const Avisos = lazy(() => import("./Avisos"));
+const AdminClients = lazy(() => import("./AdminClients"));
+const Consultor = lazy(() => import("./Consultor"));
+const Plan = lazy(() => import("./Plan"));
+const Permissions = lazy(() => import("./Permissions"));
 
 // Catalogo de modulos instalados en el index. Agregar uno nuevo = una entrada
 // aqui + su blueprint en el backend + su id (y secciones) en MODULES de

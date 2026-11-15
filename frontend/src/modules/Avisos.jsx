@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import apiClient from "../api/client";
 import KindTag from "../components/KindTag";
+import TelegramLink from "../components/TelegramLink";
 import { apiError } from "../utils/risk";
 
 // Bandeja del usuario: lo que su consultor le manda (riesgos, acciones sugeridas, avisos). Los avisos
@@ -27,9 +28,10 @@ export default function Avisos({ onUnreadChange }) {
   }, [onUnreadChange]);
 
   return (
+    <>
     <section className="datil-card">
       <h2>Avisos de mi consultor</h2>
-      {error && <p className="datil-error">{error}</p>}
+      {error && <p className="datil-error" role="alert">{error}</p>}
       {!error && !data && <p>Cargando avisos...</p>}
       {data && data.items.length === 0 && <p>Tu consultor aún no te ha mandado avisos.</p>}
       {data && data.items.length > 0 && (
@@ -54,5 +56,7 @@ export default function Avisos({ onUnreadChange }) {
         </>
       )}
     </section>
+    <TelegramLink />
+    </>
   );
 }

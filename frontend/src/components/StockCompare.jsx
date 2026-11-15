@@ -2,7 +2,9 @@ import { useState } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import apiClient from "../api/client";
 import { apiError, pct, SCORE_EXPLANATION } from "../utils/risk";
+import { GLOSSARY } from "../utils/glossary";
 import { RiskBadge } from "./RiskParts";
+import Term from "./Term";
 import StockSearch from "./StockSearch";
 
 const COMPARE_COLORS = ["#c9971f", "#2f6fdb", "#0f7b3c", "#c1272d", "#7a4fd0"];
@@ -64,7 +66,7 @@ export default function StockCompare({ initial = [] }) {
       {symbols.length === 1 && <p className="datil-period-tag">Agrega al menos una acción más para comparar.</p>}
 
       {loading && <p>Comparando...</p>}
-      {error && <p className="datil-error">{error}</p>}
+      {error && <p className="datil-error" role="alert">{error}</p>}
 
       {result && (
         <>
@@ -77,7 +79,9 @@ export default function StockCompare({ initial = [] }) {
                 <th>Riesgo</th>
                 <th className="datil-col-num">Volatilidad</th>
                 <th className="datil-col-num">Caída máxima</th>
-                <th className="datil-col-num">Beta</th>
+                <th className="datil-col-num">
+                  <Term text={GLOSSARY.beta}>Beta</Term>
+                </th>
                 <th className="datil-col-num">Pérdida peores días</th>
               </tr>
             </thead>
@@ -102,7 +106,7 @@ export default function StockCompare({ initial = [] }) {
             </tbody>
           </table>
           {Object.keys(result.failures).length > 0 && (
-            <p className="datil-error">
+            <p className="datil-error" role="alert">
               No se pudieron incluir: {Object.entries(result.failures).map(([s, m]) => `${s} (${m})`).join(", ")}
             </p>
           )}

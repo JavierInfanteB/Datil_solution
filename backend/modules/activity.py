@@ -6,7 +6,7 @@ programada). El admin ve todo; el consultor, lo de sus clientes y lo que el mism
 from flask import Blueprint, g, jsonify, request
 
 from utils.accounts import clients_of, load_users
-from utils.data_store import read_json
+from db import portfolio as pf_repo
 from utils.decorators import require_auth
 from utils import notifications
 
@@ -19,7 +19,7 @@ SIDE = {"buy": "Compra", "sell": "Venta"}
 def _operations(users):
     name = lambda username: users.get(username, {}).get("name", username)
     rows = []
-    for username, items in read_json("transactions.json").items():
+    for username, items in pf_repo.transactions_by_user().items():
         if users.get(username, {}).get("role") != "usuario":
             continue
         for t in items:

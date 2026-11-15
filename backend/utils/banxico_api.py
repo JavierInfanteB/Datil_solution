@@ -87,6 +87,20 @@ def get_latest_rates(series_ids):
     return rates
 
 
+def get_latest_dated(series_id):
+    """(valor, fecha) del ultimo dato publicado de una serie. ValueError si no hay datos en los ultimos 30 dias."""
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=30)
+    url = f"{BASE_URL}/{series_id}/datos/{start_date:%Y-%m-%d}/{end_date:%Y-%m-%d}"
+    response = requests.get(url, headers=_headers(), timeout=10)
+    response.raise_for_status()
+    valid = [d for d in response.json()["bmx"]["series"][0].get("datos", []) if d["dato"] not in ("N/E", "")]
+    if not valid:
+        raise ValueError(f"Sin datos recientes para la serie {series_id}")
+    day, month, year = valid[-1]["fecha"].split("/")
+    return _parse_dato(valid[-1]["dato"]), f"{year}-{month}-{day}"
+
+
 def get_rate_on(series_id, day):
     """Tasa publicada con la fecha exacta `day`. Banxico etiqueta cada subasta con su fecha de liquidacion; si ese dia
     no hay dato, el instrumento no se subasto esa semana o Banxico todavia no publica el resultado."""

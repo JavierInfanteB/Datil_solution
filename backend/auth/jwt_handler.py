@@ -1,19 +1,17 @@
 """Emision y validacion de tokens JWT con expiracion por inactividad.
 
-El JWT en si es stateless, pero la regla de negocio "10 minutos desde la
-ultima accion" requiere recordar cuando fue la ultima actividad de cada
-sesion. Para eso se mantiene un registro en memoria (jti -> ultima
-actividad) que se actualiza en cada peticion autenticada.
+El JWT en si es stateless, pero la regla de negocio "10 minutos desde la ultima accion" requiere recordar cuando fue la
+ultima actividad de cada sesion. Ese registro vive en PostgreSQL (tabla sesiones: jti, IP, dispositivo, ultima_actividad,
+cerrada_en), no en memoria: sobrevive a reinicios y a varios workers, y permite cerrar sesiones.
 """
 import uuid
 from datetime import datetime, timezone
 
 import jwt
+from flask import has_request_context, request
 
 from config import Config
-
-# jti -> datetime de la ultima actividad registrada.
-_active_sessions = {}
+from db import accounts as repo
 
 
 def create_token(user_id, username, role):
@@ -21,7 +19,7 @@ def create_token(user_id, username, role):
     jti = str(uuid.uuid4())
 
     payload = {
-        "sub": user_id,
+        "sub": str(user_id),  # PyJWT >= 2.10 exige texto
         "username": username,
         "role": role,
         "jti": jti,
@@ -30,7 +28,9 @@ def create_token(user_id, username, role):
     }
 
     token = jwt.encode(payload, Config.SECRET_KEY, algorithm="HS256")
-    _active_sessions[jti] = now
+    ip = request.remote_addr if has_request_context() else None
+    device = request.headers.get("User-Agent") if has_request_context() else None
+    repo.session_create(jti, user_id, ip, device)
     return token
 
 
@@ -40,24 +40,25 @@ def decode_token(token):
 
 def touch_session(jti):
     """Marca la sesion como activa ahora mismo (reinicia el contador de 10 min)."""
-    _active_sessions[jti] = datetime.now(timezone.utc)
+    repo.session_touch(jti)
+
+
+def _elapsed(jti):
+    last = repo.session_last_activity(jti)
+    return None if last is None else datetime.now(timezone.utc) - last
 
 
 def is_session_active(jti):
-    last_activity = _active_sessions.get(jti)
-    if last_activity is None:
-        return False
-    return datetime.now(timezone.utc) - last_activity <= Config.SESSION_TIMEOUT
+    elapsed = _elapsed(jti)
+    return elapsed is not None and elapsed <= Config.SESSION_TIMEOUT
 
 
 def seconds_until_timeout(jti):
-    last_activity = _active_sessions.get(jti)
-    if last_activity is None:
+    elapsed = _elapsed(jti)
+    if elapsed is None:
         return 0
-    elapsed = datetime.now(timezone.utc) - last_activity
-    remaining = Config.SESSION_TIMEOUT - elapsed
-    return max(0, int(remaining.total_seconds()))
+    return max(0, int((Config.SESSION_TIMEOUT - elapsed).total_seconds()))
 
 
 def end_session(jti):
-    _active_sessions.pop(jti, None)
+    repo.session_end(jti)

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import apiClient from "../api/client";
-import { formatCurrency } from "../utils/format";
+import { formatCurrency, trendClass } from "../utils/format";
 import { apiError, pct } from "../utils/risk";
 import ClientPlan from "./ClientPlan";
 import { PortfolioRiskDetail } from "./PortfolioRisk";
@@ -43,14 +43,14 @@ export default function ClientDetail({ username, onBack }) {
           Volver a mis clientes
         </button>
       </div>
-      {error && <p className="datil-error">{error}</p>}
+      {error && <p className="datil-error" role="alert">{error}</p>}
       {!error && !detail && <p>Calculando el riesgo del cliente...</p>}
       {detail && <Overview detail={detail} />}
       {detail && <ClientPlan username={username} />}
 
       <section className="datil-card">
         <h2>Tiempos de compra y venta</h2>
-        {timelineError && <p className="datil-error">{timelineError}</p>}
+        {timelineError && <p className="datil-error" role="alert">{timelineError}</p>}
         {!timelineError && !timeline && <p>Analizando cada operación...</p>}
         {timeline && <Timeline rows={timeline} />}
       </section>
@@ -88,7 +88,7 @@ function Overview({ detail }) {
       {portfolio.holdings.length > 0 && (
         <section className="datil-card">
           <h2>Posiciones</h2>
-          <div className="datil-table-wrap">
+          <div className="datil-table-wrap" tabIndex={0}>
             <table className="datil-table">
               <thead>
                 <tr>
@@ -107,7 +107,7 @@ function Overview({ detail }) {
                     </td>
                     <td className="datil-col-num">{h.quantity}</td>
                     <td className="datil-col-num">{formatCurrency(h.value)}</td>
-                    <td className={`datil-col-num ${h.gain_mxn >= 0 ? "datil-up" : "datil-down"}`}>
+                    <td className={`datil-col-num ${trendClass(h.gain_mxn)}`}>
                       {h.gain_mxn != null ? `${formatCurrency(h.gain_mxn)} (${h.gain_percent}%)` : "N/D"}
                     </td>
                   </tr>
@@ -132,7 +132,7 @@ function Timeline({ rows }) {
   if (rows.length === 0) return <p>Este cliente todavía no tiene operaciones.</p>;
   return (
     <>
-      <div className="datil-table-wrap">
+      <div className="datil-table-wrap" tabIndex={0}>
         <table className="datil-table">
           <thead>
             <tr>

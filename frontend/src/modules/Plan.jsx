@@ -89,7 +89,7 @@ function GoalsSection() {
             <button className="datil-btn datil-btn-primary">Guardar meta</button>
           </div>
         </form>
-        {error && <p className="datil-error">{error}</p>}
+        {error && <p className="datil-error" role="alert">{error}</p>}
       </section>
     </div>
   );

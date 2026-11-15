@@ -10,14 +10,14 @@ from flask import Blueprint, g, jsonify, request
 from modules.portfolio import build_portfolio_view
 from modules.risk import portfolio_risk_for
 from utils import advice, alerts, records, report
-from utils.data_store import read_json
+from db import portfolio as pf_repo
 from utils.decorators import require_auth, require_permission, require_role
 
 plan_bp = Blueprint("plan", __name__, url_prefix="/api/plan")
 
 MAX_TITLE = 80
 MAX_NOTE = 1000
-GOALS, NOTES = "goals.json", "notes.json"
+GOALS, NOTES = "metas", "notas"
 
 
 def _mine(f):
@@ -53,7 +53,7 @@ def period_report(username, period):
         suggestions = advice.suggestions(portfolio_risk_for(username, view))
     except ValueError:  # portafolio vacio
         suggestions = []
-    transactions = read_json("transactions.json").get(username, [])
+    transactions = pf_repo.transactions_for(username)
     return report.build(period, transactions, view, records.items(GOALS, username), suggestions, date.today())
 
 

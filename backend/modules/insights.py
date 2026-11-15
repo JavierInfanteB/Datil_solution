@@ -6,7 +6,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 
 from modules.portfolio import build_portfolio_view
-from utils.data_store import read_json
+from db import portfolio as pf_repo
 from utils.market_data import get_history
 
 TOP = 8
@@ -60,7 +60,7 @@ def pnl_row(client, view, transactions):
 def build_insights(clients, days=30):
     """`clients`: usuarios (dicts con username y name). `days`: ventana de las tendencias."""
     first_day = (date.today() - timedelta(days=days - 1)).isoformat()
-    all_transactions = read_json("transactions.json")
+    all_transactions = pf_repo.transactions_by_user()
 
     pnl, trending, held, monthly_realized = [], {}, {}, defaultdict(float)
     for client in clients:

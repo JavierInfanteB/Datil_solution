@@ -11,6 +11,7 @@ from modules.portfolio import portfolio_bp
 from modules.risk import risk_bp
 from modules.trading import trading_bp
 from modules.users import users_bp
+from modules.agent import agent_bp
 
 
 def register_routes(app):
@@ -26,3 +27,4 @@ def register_routes(app):
     app.register_blueprint(plan_bp)
     app.register_blueprint(consultant_bp)
     app.register_blueprint(notifications_bp)
+    app.register_blueprint(agent_bp)

@@ -86,7 +86,7 @@ export default function NotifyClient({ username, draft, hideSent = false, embedd
       {!hideSent && sent && sent.length > 0 && (
         <>
           <h3 className="datil-subheading">Avisos enviados</h3>
-          <div className="datil-table-wrap">
+          <div className="datil-table-wrap" tabIndex={0}>
             <table className="datil-table">
               <thead>
                 <tr>

@@ -3,17 +3,46 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import apiClient from "../api/client";
 import ActivityFeed from "../components/ActivityFeed";
 import ClientDetail from "../components/ClientDetail";
+import ClientTriage, { useTriage } from "../components/ClientTriage";
 import CompositionPie, { holdingEntries, slices } from "../components/CompositionPie";
 import FilterBar from "../components/FilterBar";
 import Insights from "../components/Insights";
 import NotifyClient from "../components/NotifyClient";
 import { RiskBadge } from "../components/RiskParts";
 import SignalsFeed from "../components/SignalsFeed";
-import { formatCurrency } from "../utils/format";
+import { formatCurrency, trendClass } from "../utils/format";
 import { apiError } from "../utils/risk";
 
 const PERIODS = [7, 30, 90];
-const trend = (v) => (v >= 0 ? "datil-up" : "datil-down");
+
+// Situaciones que el consultor quiere ver de un vistazo, y cómo ordenar su lista.
+const result = (c) => c.unrealized + c.realized;
+const NO_ROWS = [];
+
+// Aviso que se prepara con un clic según la situación del cliente. Solo precarga el formulario de Avisos:
+// el consultor lo lee, lo ajusta y lo envía él. No recomienda comprar ni vender.
+function noticeFor(c) {
+  if (c.risk?.level === "alto")
+    return { username: c.username, kind: "riesgo", title: "Revisemos el riesgo de tu cartera", message: "Hoy tu cartera tiene un nivel de riesgo alto. Conviene que lo revisemos juntos; escríbeme y vemos tus opciones." };
+  if (result(c) < 0)
+    return { username: c.username, kind: "aviso", title: "Revisemos cómo van tus inversiones", message: "Tus posiciones están por debajo de lo que costaron. Platiquemos para entender qué pasó y qué te conviene hacer." };
+  return { username: c.username, kind: "aviso", title: "", message: "" };
+}
+
+const TRIAGE = {
+  tags: [
+    { id: "alto", label: "Con riesgo alto", short: "con riesgo alto", attention: true, test: (c) => c.risk?.level === "alto" },
+    { id: "perdiendo", label: "Perdiendo dinero", short: "perdiendo dinero", attention: true, test: (c) => result(c) < 0 },
+    { id: "quietos", label: "Sin operaciones en el periodo", short: "sin operar en el periodo", test: (c) => c.buys + c.sells === 0 },
+  ],
+  sorts: [
+    { id: "patrimonio", label: "Mayor patrimonio", cmp: (a, b) => b.total - a.total },
+    { id: "mejor", label: "Mejor resultado", cmp: (a, b) => result(b) - result(a) },
+    { id: "peor", label: "Peor resultado", cmp: (a, b) => result(a) - result(b) },
+    { id: "nombre", label: "Nombre (A a Z)", cmp: (a, b) => a.client.localeCompare(b.client) },
+  ],
+  searchText: (c) => `${c.client} ${c.username}`,
+};
 
 // Panel del consultor, una sección por pestaña del menú: clientes (con sus ganancias y pérdidas), sugerencias y
 // alertas en un solo lugar, tendencias y, al final, los avisos que manda. El filtro por cliente se comparte.
@@ -31,7 +60,17 @@ export default function Consultor({ section, goTo }) {
   return (
     <>
       {options.length > 1 && <FilterBar clients={options} value={filter} onChange={setFilter} />}
-      {id === "clientes" && <ClientsView filter={filter} onOpen={setSelected} onOptions={setOptions} />}
+      {id === "clientes" && (
+        <ClientsView
+          filter={filter}
+          onOpen={setSelected}
+          onOptions={setOptions}
+          onNotice={(d) => {
+            setDraft(d);
+            goTo("avisos");
+          }}
+        />
+      )}
       {id === "sugerencias" && (
         <SignalsFeed
           filter={filter}
@@ -49,10 +88,11 @@ export default function Consultor({ section, goTo }) {
   );
 }
 
-function ClientsView({ filter, onOpen, onOptions }) {
+function ClientsView({ filter, onOpen, onOptions, onNotice }) {
   const [days, setDays] = useState(30);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const triage = useTriage(data?.clients ?? NO_ROWS, TRIAGE);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,7 +111,7 @@ function ClientsView({ filter, onOpen, onOptions }) {
     };
   }, [days, filter.client]);
 
-  if (error) return <p className="datil-error">{error}</p>;
+  if (error) return <p className="datil-error" role="alert">{error}</p>;
   if (!data) return <p>Calculando el riesgo de tus clientes... la primera vez puede tardar unos segundos.</p>;
   if (data.clients.length === 0)
     return (
@@ -81,10 +121,12 @@ function ClientsView({ filter, onOpen, onOptions }) {
       </section>
     );
 
-  const { totals, clients } = data;
-  const result = totals.unrealized + totals.realized;
+  const { totals } = data;
+  const clients = triage.visible;
+  const total = totals.unrealized + totals.realized;
   return (
     <>
+      {data.clients.length > 1 && <ClientTriage triage={triage} tags={TRIAGE.tags} sorts={TRIAGE.sorts} />}
       <section className="datil-card">
         <h2>Mis clientes</h2>
         <div className="datil-lapse-bar" role="group" aria-label="Periodo">
@@ -101,7 +143,7 @@ function ClientsView({ filter, onOpen, onOptions }) {
           </div>
           <div>
             <span className="datil-label">Resultado total</span>
-            <strong className={trend(result)}>{formatCurrency(result)}</strong>
+            <strong className={trendClass(total)}>{formatCurrency(total)}</strong>
           </div>
           <div>
             <span className="datil-label">Compras / ventas</span>
@@ -122,6 +164,7 @@ function ClientsView({ filter, onOpen, onOptions }) {
         </div>
       </section>
 
+      {clients.length > 0 && (
       <div className="datil-grid-2">
         <section className="datil-card">
           <h2>Ganancias y pérdidas por cliente</h2>
@@ -152,15 +195,18 @@ function ClientsView({ filter, onOpen, onOptions }) {
           </ResponsiveContainer>
         </section>
       </div>
+      )}
 
+      {clients.length > 0 && (
       <div className="datil-grid-2">
         {clients.length > 1 && <CompositionPie title="Patrimonio por cliente" data={slices(clients.map((c) => ({ name: c.client, value: c.portfolio })))} />}
         <CompositionPie title="Qué hay en las carteras" data={slices(holdingEntries(clients))} />
       </div>
+      )}
 
       <section className="datil-card">
         <h2>Clientes</h2>
-        <div className="datil-table-wrap">
+        <div className="datil-table-wrap" tabIndex={0}>
           <table className="datil-table">
             <thead>
               <tr>
@@ -170,10 +216,20 @@ function ClientsView({ filter, onOpen, onOptions }) {
                 <th>Riesgo de sus acciones</th>
                 <th className="datil-col-num">Compras / ventas</th>
                 <th className="datil-col-num">Volumen</th>
-                <th />
+                <th><span className="datil-sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody>
+              {clients.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="datil-empty-row">
+                    Ningún cliente coincide con el filtro.{" "}
+                    <button type="button" className="datil-link" onClick={triage.clear}>
+                      Quitar filtros
+                    </button>
+                  </td>
+                </tr>
+              )}
               {clients.map((c) => (
                 <tr key={c.username}>
                   <td>
@@ -181,16 +237,21 @@ function ClientsView({ filter, onOpen, onOptions }) {
                     <span className="datil-period-tag"> {c.username}</span>
                   </td>
                   <td className="datil-col-num">{formatCurrency(c.total)}</td>
-                  <td className={`datil-col-num ${trend(c.unrealized + c.realized)}`}>{formatCurrency(c.unrealized + c.realized)}</td>
+                  <td className={`datil-col-num ${trendClass(result(c))}`}>{formatCurrency(result(c))}</td>
                   <td>{c.risk && c.risk.level ? <RiskBadge level={c.risk.level} score={c.risk.score} /> : <span className="datil-period-tag">N/D</span>}</td>
                   <td className="datil-col-num">
                     {c.buys} / {c.sells}
                   </td>
                   <td className="datil-col-num">{formatCurrency(c.volume_mxn)}</td>
                   <td>
-                    <button className="datil-btn datil-btn-secondary" onClick={() => onOpen(c.username)}>
-                      Ver detalle
-                    </button>
+                    <div className="datil-actions">
+                      <button className="datil-btn datil-btn-secondary" onClick={() => onOpen(c.username)}>
+                        Ver detalle
+                      </button>
+                      <button className="datil-btn datil-btn-primary" onClick={() => onNotice(noticeFor(c))}>
+                        Avisar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -274,7 +335,7 @@ const amountOf = (row) => row.gain_mxn ?? row.realized_pnl_mxn;
 function TopTable({ rows, columns, empty }) {
   if (rows.length === 0) return <p className="datil-period-tag">{empty}</p>;
   return (
-    <div className="datil-table-wrap">
+    <div className="datil-table-wrap" tabIndex={0}>
       <table className="datil-table">
         <thead>
           <tr>
@@ -291,7 +352,7 @@ function TopTable({ rows, columns, empty }) {
             <tr key={`${r.username}-${r.symbol}-${i}`}>
               <td>{r.client}</td>
               {columns.map(([title, cell, numeric]) => (
-                <td key={title} className={numeric ? `datil-col-num ${amountOf(r) >= 0 ? "datil-up" : "datil-down"}` : undefined}>
+                <td key={title} className={numeric ? `datil-col-num ${trendClass(amountOf(r))}` : undefined}>
                   {cell(r)}
                 </td>
               ))}

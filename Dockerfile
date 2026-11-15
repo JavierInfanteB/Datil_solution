@@ -1,5 +1,5 @@
 # Web + API en una sola imagen: Flask sirve el frontend compilado y la API desde el mismo dominio.
-# Contexto de build: esta carpeta, porque config.py lee ../data (montar un volumen en /app/data para que sobreviva).
+# Contexto de build: esta carpeta. Los datos viven en PostgreSQL (servicio `db` de docker-compose.yml); ya no hay JSON de datos.
 FROM node:22-slim AS web
 WORKDIR /web
 COPY frontend/package*.json ./
@@ -10,7 +10,8 @@ ARG VITE_DEMO=1
 ENV VITE_API_URL=/ VITE_DEMO=$VITE_DEMO
 RUN npm run build
 
-FROM python:3.12-slim
+# --- API (sin frontend): lo que usa docker-compose para el servicio `api` y el contenedor de migracion -------------------
+FROM python:3.12-slim AS api
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 WORKDIR /app
@@ -20,14 +21,17 @@ RUN pip install -r backend/requirements.txt gunicorn
 
 RUN useradd --system --no-create-home app
 COPY --chown=app backend backend
-COPY --chown=app data data
-COPY --from=web /web/dist /app/web
-ENV STATIC_DIR=/app/web
+COPY --chown=app database database
 
 USER app
 WORKDIR /app/backend
 EXPOSE 8000
 
-# 1 worker: las sesiones viven en memoria y el JSON se protege con un lock de proceso.
+# Las sesiones viven en PostgreSQL (tabla sesiones), asi que se puede escalar a varios workers.
 # SECRET_KEY es obligatoria: el default de config.py permitiria falsificar tokens.
-CMD ["sh", "-c", ": \"${SECRET_KEY:?defina SECRET_KEY}\"; exec gunicorn --bind 0.0.0.0:8000 --workers 1 --threads 4 --no-control-socket app:app"]
+CMD ["sh", "-c", ": \"${SECRET_KEY:?defina SECRET_KEY}\"; exec gunicorn --bind 0.0.0.0:8000 --workers 2 --threads 4 --no-control-socket app:app"]
+
+# --- Web + API en una sola imagen (despliegue de produccion: Flask sirve el frontend compilado) ------------------------
+FROM api AS full
+COPY --from=web /web/dist /app/web
+ENV STATIC_DIR=/app/web

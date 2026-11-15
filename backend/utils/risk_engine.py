@@ -163,9 +163,3 @@ def score_metrics(metrics):
         "factors": factors,
         "missing": [f["label"] for f in factors if not f["available"]],
     }
-
-
-def normalize(series, start_index=0):
-    """Serie base 100 desde `start_index`, para comparar acciones."""
-    base = series[start_index][1]
-    return [(day, price / base * 100) for day, price in series[start_index:]]

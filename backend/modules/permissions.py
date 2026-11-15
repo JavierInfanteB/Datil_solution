@@ -3,8 +3,8 @@ import re
 
 from flask import Blueprint, g, jsonify, request
 
-from utils.accounts import effective_permissions, find_user, load_puestos, load_users
-from utils.data_store import read_json, write_json
+from utils.accounts import effective_permissions, find_user, load_puestos
+from db import accounts as repo
 from utils.decorators import require_auth, require_role
 
 permissions_bp = Blueprint("permissions", __name__, url_prefix="/api/permissions")
@@ -53,7 +53,7 @@ def get_all_permissions():
     # Lista y no dict: jsonify ordena las llaves y perderia el orden del catalogo.
     return jsonify({
         "modules": [{"id": m, "sections": sections} for m, sections in MODULES.items()],
-        "permissions": read_json("permissions.json"),
+        "permissions": repo.all_permissions(),
         "puestos": load_puestos(),
     })
 
@@ -70,9 +70,7 @@ def update_permissions(username):
         return jsonify({"error": "modules debe ser una lista"}), 400
 
     valid_modules = _valid(modules)
-    permissions = read_json("permissions.json")
-    permissions[username] = valid_modules
-    write_json("permissions.json", permissions)
+    repo.set_permissions(username, valid_modules)
 
     return jsonify({"username": username, "modules": valid_modules})
 
@@ -89,11 +87,10 @@ def update_puesto(name):
     if not isinstance(modules, list):
         return jsonify({"error": "modules debe ser una lista"}), 400
 
-    puestos = load_puestos()
-    puestos[name] = _valid(modules)
-    write_json("puestos.json", puestos)
+    valid_modules = _valid(modules)
+    repo.save_puesto(name, valid_modules)
 
-    return jsonify({"name": name, "modules": puestos[name]})
+    return jsonify({"name": name, "modules": valid_modules})
 
 
 @permissions_bp.route("/puestos/<name>", methods=["DELETE"])
@@ -103,9 +100,8 @@ def delete_puesto(name):
     puestos = load_puestos()
     if name not in puestos:
         return jsonify({"error": "El puesto no existe"}), 404
-    if any(u.get("puesto") == name for u in load_users()):
+    if repo.puesto_in_use(name):
         return jsonify({"error": "Hay usuarios con este puesto; cámbialos antes de borrarlo"}), 409
 
-    del puestos[name]
-    write_json("puestos.json", puestos)
+    repo.delete_puesto(name)
     return jsonify({"name": name})

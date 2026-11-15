@@ -1,17 +1,16 @@
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import apiClient from "../api/client";
-import { formatCurrency } from "../utils/format";
+import { formatCurrency, trendClass } from "../utils/format";
 import { apiError } from "../utils/risk";
 import CompositionPie, { holdingEntries, slices } from "./CompositionPie";
 
 const sign = (v) => (v >= 0 ? "var(--datil-up)" : "var(--datil-down)");
-const trend = (v) => (v == null ? "" : v >= 0 ? "datil-up" : "datil-down");
 const sum = (rows, key) => rows.reduce((n, r) => n + r[key], 0);
 
 // Ganancias y pérdidas del admin: por defecto de todos los consultores; con el filtro, de un consultor o de un cliente.
 // Dos pasteles muestran cómo se reparte el patrimonio y qué hay en las carteras.
-export default function ConsultantsOverview({ filter }) {
+export default function ConsultantsOverview({ filter, onOpenClients }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
 
@@ -22,7 +21,7 @@ export default function ConsultantsOverview({ filter }) {
       .catch((err) => setError(apiError(err, "No se pudo cargar el resumen de consultores.")));
   }, []);
 
-  if (error) return <p className="datil-error">{error}</p>;
+  if (error) return <p className="datil-error" role="alert">{error}</p>;
   if (!data) return <p>Calculando el resultado de cada consultor...</p>;
 
   const { consultants } = data;
@@ -46,15 +45,15 @@ export default function ConsultantsOverview({ filter }) {
         <div className="datil-summary-grid">
           <div>
             <span className="datil-label">Resultado total</span>
-            <strong className={trend(sum(scope, "total"))}>{formatCurrency(sum(scope, "total"))}</strong>
+            <strong className={trendClass(sum(scope, "total"))}>{formatCurrency(sum(scope, "total"))}</strong>
           </div>
           <div>
             <span className="datil-label">Sin vender</span>
-            <strong className={trend(sum(scope, "unrealized"))}>{formatCurrency(sum(scope, "unrealized"))}</strong>
+            <strong className={trendClass(sum(scope, "unrealized"))}>{formatCurrency(sum(scope, "unrealized"))}</strong>
           </div>
           <div>
             <span className="datil-label">Ya realizado</span>
-            <strong className={trend(sum(scope, "realized"))}>{formatCurrency(sum(scope, "realized"))}</strong>
+            <strong className={trendClass(sum(scope, "realized"))}>{formatCurrency(sum(scope, "realized"))}</strong>
           </div>
           <div>
             <span className="datil-label">Patrimonio</span>
@@ -89,17 +88,84 @@ export default function ConsultantsOverview({ filter }) {
         <CompositionPie title="Qué hay en las carteras" data={slices(holdingEntries(scope))} />
       </div>
 
+      <LoadCards all={consultants} rows={kpis} onOpen={onOpenClients} />
+
       <section className="datil-card">
-        <h2>Qué consultores funcionan</h2>
-        <div className="datil-table-wrap">
-          <KpiTable rows={kpis} />
-        </div>
-        <p className="datil-period-tag datil-section-note">
-          Constancia: de las últimas 12 semanas, en cuántas el consultor hizo algo por sus clientes (avisos, alertas o notas).
-          Rendimiento: ganancia sin vender sobre lo que cuestan las posiciones abiertas.
-        </p>
+        <h2>Todas las cifras por consultor</h2>
+        <details>
+          <summary>Ver la tabla completa</summary>
+          <div className="datil-table-wrap" tabIndex={0}>
+            <KpiTable rows={kpis} />
+          </div>
+          <p className="datil-period-tag datil-section-note">
+            Constancia: de las últimas 12 semanas, en cuántas el consultor hizo algo por sus clientes (avisos, alertas o notas).
+            Rendimiento: ganancia sin vender sobre lo que cuestan las posiciones abiertas.
+          </p>
+        </details>
       </section>
     </>
+  );
+}
+
+// Estado de un consultor en una frase corta: qué tanto trabajo lleva y si necesita seguimiento.
+function loadStatus(c) {
+  if (c.clients > 0 && c.actions_30d === 0) return { tone: "warn", text: "Sin acciones en 30 días" };
+  if (c.alerts_open > 0) return { tone: "warn", text: `${c.alerts_open} ${c.alerts_open === 1 ? "alerta abierta" : "alertas abiertas"}` };
+  return { tone: "ok", text: "Al día" };
+}
+
+// Una tarjeta por consultor (carga de clientes, patrimonio, constancia) para ver de un vistazo quién necesita seguimiento.
+function LoadCards({ all, rows, onOpen }) {
+  const people = rows.filter((c) => c.username);
+  if (people.length === 0) return null;
+  const pending = all.filter((c) => c.username && loadStatus(c).tone === "warn").length;
+  const orphans = all.find((c) => !c.username)?.clients ?? 0;
+  return (
+    <section className="datil-card">
+      <h2>Carga y atención por consultor</h2>
+      <p className="datil-triage-headline">
+        {pending === 0 ? "Todos los consultores están al día." : <><strong>{pending}</strong> {pending === 1 ? "consultor necesita" : "consultores necesitan"} seguimiento.</>}
+        {orphans > 0 && <> Hay <strong>{orphans}</strong> {orphans === 1 ? "cliente" : "clientes"} sin consultor.</>}
+      </p>
+      <div className="datil-load-grid">
+        {people.map((c) => {
+          const st = loadStatus(c);
+          return (
+            <article key={c.username} className="datil-load-card">
+              <header>
+                <strong>{c.name}</strong>
+                <span className={`datil-load-tag ${st.tone}`}>{st.text}</span>
+              </header>
+              <dl>
+                <div>
+                  <dt>Clientes</dt>
+                  <dd>{c.clients}</dd>
+                </div>
+                <div>
+                  <dt>Patrimonio</dt>
+                  <dd>{formatCurrency(c.portfolio)}</dd>
+                </div>
+                <div>
+                  <dt>Resultado</dt>
+                  <dd className={trendClass(c.total)}>{formatCurrency(c.total)}</dd>
+                </div>
+              </dl>
+              <div className="datil-progress" role="img" aria-label={`Constancia ${c.consistency}%`}>
+                <div style={{ width: `${c.consistency}%` }} />
+              </div>
+              <span className="datil-period-tag">
+                Constancia {c.consistency}% · última acción: {c.last_action ?? "nunca"}
+              </span>
+              {onOpen && (
+                <button type="button" className="datil-btn datil-btn-secondary" onClick={() => onOpen(c.username)}>
+                  Ver sus clientes
+                </button>
+              )}
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -126,8 +192,8 @@ function KpiTable({ rows }) {
             <td>{c.username ? <strong>{c.name}</strong> : <span className="datil-period-tag">{c.name}</span>}</td>
             <td className="datil-col-num">{c.clients}</td>
             <td className="datil-col-num">{formatCurrency(c.portfolio)}</td>
-            <td className={`datil-col-num ${trend(c.total)}`}>{formatCurrency(c.total)}</td>
-            <td className={`datil-col-num ${trend(c.return_pct)}`}>{c.return_pct == null ? "N/D" : `${c.return_pct}%`}</td>
+            <td className={`datil-col-num ${trendClass(c.total)}`}>{formatCurrency(c.total)}</td>
+            <td className={`datil-col-num ${trendClass(c.return_pct)}`}>{c.return_pct == null ? "N/D" : `${c.return_pct}%`}</td>
             <td className="datil-col-num">
               {c.in_profit} de {c.clients}
             </td>

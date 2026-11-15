@@ -53,7 +53,7 @@ export default function AlertsPanel({ url, listUrl = url, hint }) {
       {hint && <p className="datil-period-tag">{hint}</p>}
       {alerts && alerts.length === 0 && <p>Todavía no hay alertas.</p>}
       {alerts && alerts.length > 0 && (
-        <div className="datil-table-wrap">
+        <div className="datil-table-wrap" tabIndex={0}>
           <table className="datil-table">
             <thead>
               <tr>
@@ -63,7 +63,7 @@ export default function AlertsPanel({ url, listUrl = url, hint }) {
                 <th className="datil-col-num">Hoy</th>
                 <th>Estado</th>
                 <th>La puso</th>
-                <th />
+                <th><span className="datil-sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody>

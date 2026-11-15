@@ -22,7 +22,7 @@ export default function ClientPlan({ username }) {
     load();
   }, [username]);
 
-  if (error) return <p className="datil-error">{error}</p>;
+  if (error) return <p className="datil-error" role="alert">{error}</p>;
   if (!plan) return null;
 
   return (

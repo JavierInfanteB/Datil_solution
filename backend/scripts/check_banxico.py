@@ -1,4 +1,4 @@
-"""Verifica contra Banxico REAL las series de assets.json: que existan, que son lo
+"""Verifica contra Banxico REAL las series del catalogo de bonos (tabla instrumentos): que existan, que son lo
 que el catalogo dice (CETES 28/91/182/364 y Bono M 10 anos) y que las tasas
 recientes tengan sentido. Solo lee; no escribe nada.
 
@@ -21,7 +21,7 @@ import requests  # noqa: E402
 
 from config import Config  # noqa: E402
 from utils import banxico_api  # noqa: E402
-from utils.data_store import read_json  # noqa: E402
+from utils.market_data import list_bonds  # noqa: E402
 
 SANE_RATE_RANGE = (0.5, 25.0)  # % anual; fuera de esto casi seguro es otra serie
 
@@ -38,7 +38,7 @@ def main():
         print("Falta BANXICO_TOKEN en backend/.env")
         return 1
 
-    bonds = [a for a in read_json("assets.json") if a["type"] == "bono"]
+    bonds = list_bonds()
     series_ids = [b["series_id"] for b in bonds]
     titles = fetch_titles(series_ids)
     rates = banxico_api.get_latest_rates(series_ids)

@@ -5,6 +5,7 @@ import jwt as pyjwt
 from flask import g, jsonify, request
 
 from auth.jwt_handler import decode_token, is_session_active, touch_session
+from utils import audit
 from utils.accounts import effective_permissions, find_user
 
 
@@ -28,9 +29,9 @@ def require_auth(f):
         if not is_session_active(payload["jti"]):
             return jsonify({"error": "Sesión expirada por inactividad"}), 401
 
-        # El rol y el puesto salen del archivo de usuarios, no del token: cambiarlos o dar de baja a
+        # El rol y el puesto salen de la base de datos, no del token: cambiarlos o dar de baja a
         # alguien surte efecto en su siguiente peticion, sin esperar a que venza su sesion.
-        record = find_user(id=payload["sub"])
+        record = find_user(id=int(payload["sub"]))
         if record is None or record.get("disabled"):
             return jsonify({"error": "Usuario no encontrado"}), 401
 
@@ -71,6 +72,7 @@ def require_role(*roles):
         @wraps(f)
         def wrapper(*args, **kwargs):
             if g.current_user["role"] not in roles:
+                audit.record_denied(f"rol {g.current_user['role']} no puede usar {request.path}")
                 return jsonify({"error": "Permiso denegado"}), 403
             return f(*args, **kwargs)
 
@@ -107,6 +109,7 @@ def require_permission(perm):
                 return jsonify({"error": "No autenticado"}), 401
 
             if not has_permission(user, perm):
+                audit.record_denied(f"falta el permiso {perm} en {request.path}")
                 return jsonify({"error": "Permiso denegado"}), 403
 
             return f(*args, **kwargs)
