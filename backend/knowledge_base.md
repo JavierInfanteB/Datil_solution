@@ -17,7 +17,7 @@ Datil Solutions es una plataforma financiera diseñada para valorar, administrar
 
 ## Sistema de Notificaciones y Alertas
 - In-App (Avisos): Bandeja centralizada de notificaciones dentro de la plataforma.
-- Correo Electrónico: Envío de reportes y confirmaciones transaccionales mediante tier gratuito.
+- Correo Electrónico: Próximamente. Todavía no está disponible; por ahora los avisos llegan a la bandeja de la plataforma y, si el cliente lo conecta, a Telegram.
 - Telegram: Opcional para el cliente. Se conecta desde la sección Avisos (abrir el bot de Datil y tocar Iniciar) y desde entonces los avisos de la bandeja llegan también por Telegram.
 
 ## Roles del Sistema
