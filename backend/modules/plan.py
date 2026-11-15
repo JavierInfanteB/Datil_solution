@@ -17,7 +17,7 @@ plan_bp = Blueprint("plan", __name__, url_prefix="/api/plan")
 
 MAX_TITLE = 80
 MAX_NOTE = 1000
-GOALS, NOTES = "goals.json", "notes.json"
+GOALS, NOTES = "metas", "notas"
 
 
 def _mine(f):

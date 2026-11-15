@@ -1,14 +1,14 @@
 """Metas y notas (tablas metas y notas). Conserva la interfaz de siempre: (archivo, clave) -> registros.
 
-  goals.json            clave = usuario                -> metas del cliente
-  notes.json            clave = usuario                -> notas del cliente para su consultor (no privadas)
-  consultant_notes.json clave = "consultor/cliente"    -> notas privadas del consultor (solo las ve quien las escribio)
+  metas                 clave = usuario                -> metas del cliente
+  notas                 clave = usuario                -> notas del cliente para su consultor (no privadas)
+  notas_consultor       clave = "consultor/cliente"    -> notas privadas del consultor (solo las ve quien las escribio)
 Cada registro sale como antes: {id, date, ...campos}, del mas viejo al mas nuevo.
 """
 from db import connection as c
 from db.connection import as_float, iso
 
-GOALS, NOTES, PRIVATE_NOTES = "goals.json", "notes.json", "consultant_notes.json"
+GOALS, NOTES, PRIVATE_NOTES = "metas", "notas", "notas_consultor"
 
 
 def _user_id(username):
