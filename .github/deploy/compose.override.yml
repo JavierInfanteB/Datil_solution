@@ -1,7 +1,7 @@
-# Se suma a 08_Web/docker-compose.yml al desplegar desde el runner: la imagen se construye con este commit
+# Se suma a 08_Web/datil/docker-compose.yml al desplegar desde el runner: la imagen se construye con este commit
 # y no con la carpeta de trabajo de la PC (que puede traer cambios sin commitear). El resto (args,
 # endurecimiento, recursos, red) sale del compose de siempre.
 services:
-  datil-solution:
+  web:
     build:
       context: ${DATIL_SRC:?DATIL_SRC es la carpeta del repo a construir}
