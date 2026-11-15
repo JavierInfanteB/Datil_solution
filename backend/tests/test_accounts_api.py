@@ -201,6 +201,31 @@ class AccountsApiTest(unittest.TestCase):
         beto = next(u for u in self.http.get("/api/users", headers=admin).get_json()["users"] if u["username"] == "beto")
         self.assertIsNone(beto["consultant"])
 
+    # ------------------------------------------------- riesgo: nivel para el cliente, detalle para el consultor
+
+    def test_el_cliente_solo_recibe_el_nivel_de_riesgo_y_el_consultor_el_detalle(self):
+        def risk_con_estres(username, view=None):
+            return {**fake_risk(username, view), "stress": {"loss_percent": 41.5, "loss_mxn": 415.0}}
+
+        with mock.patch("modules.risk.portfolio_risk_for", risk_con_estres), \
+                mock.patch("modules.consultant.build_portfolio_view", fake_view), \
+                mock.patch("modules.consultant.portfolio_risk_for", risk_con_estres):
+            cliente = self.http.get("/api/risk/portfolio", headers=self.as_user("beto"))
+            self.assertEqual(cliente.status_code, 200)
+            self.assertEqual(cliente.get_json(), {"summary_only": True, "level": "alto"})  # sin puntaje, historial, VaR, estres ni escenarios
+
+            detalle = self.http.get("/api/consultant/clients/beto", headers=self.as_user("ana")).get_json()["risk"]
+            self.assertEqual(detalle["stress"]["loss_mxn"], 415.0)
+            self.assertEqual(detalle["stocks"]["weighted_score"], 70.0)
+
+    def test_un_cliente_sin_acciones_recibe_nivel_vacio_no_un_error(self):
+        def sin_acciones(username, view=None):
+            return {**fake_risk(username, view), "stocks": {"share": 0.0, "level": None, "weighted_score": None, "positions": []}}
+
+        with mock.patch("modules.risk.portfolio_risk_for", sin_acciones):
+            respuesta = self.http.get("/api/risk/portfolio", headers=self.as_user("beto"))
+        self.assertEqual((respuesta.status_code, respuesta.get_json()), (200, {"summary_only": True, "level": None}))
+
     # ------------------------------------------------------------- consultor
 
     def test_el_usuario_no_entra_al_panel_aunque_se_le_de_el_modulo(self):

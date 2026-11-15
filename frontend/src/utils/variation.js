@@ -1,3 +1,4 @@
+import { idiomaActual } from "../i18n/idioma.js";
 // Variación de un activo por periodo (día, quincena, mes, semestre, año) dentro de un lapso.
 // Todo el cálculo vive aquí; la pantalla solo lo muestra. Las fechas son "YYYY-MM-DD" y se
 // comparan como texto. Los puntos son [{ date, close }] ordenados de más antiguo a más reciente.
@@ -11,6 +12,8 @@
 //   partialEnd: el periodo aún no termina a la fecha de hoy.
 
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const monthName = (m) => (idiomaActual() === "en" ? MONTHS_EN : MONTHS)[m - 1];
 
 const pad = (n) => String(n).padStart(2, "0");
 const iso = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
@@ -37,23 +40,23 @@ export const addMonths = (date, n) => {
 };
 
 const BUCKETS = {
-  dia: (y, m, d) => ({ start: iso(y, m, d), end: iso(y, m, d), label: `${d} ${MONTHS[m - 1]} ${y}` }),
+  dia: (y, m, d) => ({ start: iso(y, m, d), end: iso(y, m, d), label: `${d} ${monthName(m)} ${y}` }),
   quincena: (y, m, d) => {
     const first = d <= 15;
     const last = daysInMonth(y, m);
     return {
       start: iso(y, m, first ? 1 : 16),
       end: iso(y, m, first ? 15 : last),
-      label: `${first ? "1-15" : `16-${last}`} ${MONTHS[m - 1]} ${y}`,
+      label: `${first ? "1-15" : `16-${last}`} ${monthName(m)} ${y}`,
     };
   },
-  mes: (y, m) => ({ start: iso(y, m, 1), end: iso(y, m, daysInMonth(y, m)), label: `${MONTHS[m - 1]} ${y}` }),
+  mes: (y, m) => ({ start: iso(y, m, 1), end: iso(y, m, daysInMonth(y, m)), label: `${monthName(m)} ${y}` }),
   semestre: (y, m) => {
     const second = m > 6;
     return {
       start: iso(y, second ? 7 : 1, 1),
       end: second ? iso(y, 12, 31) : iso(y, 6, 30),
-      label: `${second ? "jul-dic" : "ene-jun"} ${y}`,
+      label: `${idiomaActual() === "en" ? (second ? "Jul-Dec" : "Jan-Jun") : second ? "jul-dic" : "ene-jun"} ${y}`,
     };
   },
   anio: (y) => ({ start: iso(y, 1, 1), end: iso(y, 12, 31), label: String(y) }),

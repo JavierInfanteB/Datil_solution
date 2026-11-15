@@ -1193,3 +1193,14 @@ h1, h2, h3 {
     animation: none !important;
   }
 }
+
+/* Selector de idioma (fijo, abajo a la derecha); lo crea src/i18n/idioma.js */
+.datil-idioma {
+  position: fixed; right: .9rem; bottom: .9rem; z-index: 3000;
+  font: 700 .8rem/1 inherit; letter-spacing: .06em;
+  padding: .5rem .75rem; border-radius: 999px; cursor: pointer;
+  color: var(--datil-text); background: var(--datil-surface); border: 1px solid var(--datil-border);
+  box-shadow: 0 2px 8px rgb(0 0 0 / .15);
+}
+.datil-idioma:hover, .datil-idioma:focus-visible { border-color: var(--datil-accent); outline: none; }
+@media print { .datil-idioma { display: none; } }

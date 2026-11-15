@@ -15,6 +15,11 @@ export function RiskBadge({ level, score }) {
   );
 }
 
+// Solo el nivel (sin puntaje): lo que ve el cliente de su portafolio.
+export function RiskLevelTag({ level }) {
+  return <span className={`datil-risk datil-risk-${level}`}>{LEVEL_LABEL[level]}</span>;
+}
+
 // Prioridad de una sugerencia del consultor (alta / media / baja), con los colores de los niveles de riesgo.
 const SEVERITY_LEVEL = { alta: "alto", media: "medio", baja: "bajo" };
 
