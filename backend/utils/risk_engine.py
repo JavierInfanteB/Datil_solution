@@ -12,7 +12,7 @@ historicas, cada una llevada a una escala 0-100 entre un umbral "bajo" y uno
     caida maxima (3 a.)  15   la peor caida pico-a-valle que ya vivio
     beta                 40   cuanto amplifica los movimientos del mercado global
 
-Los pesos y umbrales (RULES) se calibraron con scripts/backtest_risk.py, que
+Los pesos y umbrales (RULES) se calibraron con backend/scripts/backtest_risk.py (vive en la rama pruebas), que
 compara el puntaje contra lo que realmente paso los 12 meses siguientes
 (AUC contra "caida >= 30%": 0.68 con el modelo anterior de cinco senales, 0.71
 con este, y mejor en las cuatro rebanadas del periodo). Lo que se probo:
@@ -22,7 +22,7 @@ con este, y mejor en las cuatro rebanadas del periodo). Lo que se probo:
   - Peor mes y distancia al maximo de 52 semanas: las mas debiles y redundantes, se quitaron.
 Con 59 acciones y solo un par de crisis en la muestra, las diferencias de ~0.005
 entre combinaciones de pesos son ruido: el ajuste es deliberadamente moderado y,
-si se vuelve a calibrar, hay que correr el backtest otra vez y comparar.
+si se vuelve a calibrar, hay que correr el backtest (rama pruebas) otra vez y comparar.
 Volatilidad, perdidas y caidas se miden en PESOS, porque es el dinero del
 usuario: una accion extranjera tambien lleva el riesgo cambiario. La beta usa
 los precios en su moneda original contra un ETF global, con rendimientos
