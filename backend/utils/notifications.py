@@ -2,6 +2,8 @@
 from db import connection as c
 from db.connection import iso
 
+from utils import cifrado, telegram
+
 KINDS = ("aviso", "riesgo", "accion")  # aviso general, alerta de riesgo, accion sugerida
 ALERT = "alerta"  # lo genera el sistema cuando se cumple una alerta del cliente; el consultor no lo manda
 
@@ -25,12 +27,30 @@ def load(recipient=None):
     return data
 
 
+def telegram_context(user_id):
+    """Contexto con que se cifra el chat de Telegram: lo ata a la fila del usuario."""
+    return f"usuarios.telegram_chat:{user_id}"
+
+
+def telegram_chat(username):
+    """Chat de Telegram del usuario (descifrado), o None si no lo enlazo o no se puede descifrar."""
+    row = c.fetch_one("SELECT id, telegram_chat_cifrado FROM usuarios WHERE usuario = %s", (username,))
+    if not row or not row["telegram_chat_cifrado"]:
+        return None
+    try:
+        return cifrado.descifrar(row["telegram_chat_cifrado"], telegram_context(row["id"]))
+    except cifrado.CifradoError:
+        return None  # sin clave, con otra clave o alterado: no se manda nada
+
+
 def add(recipient, sender, kind, title, message, event_id=None):
     """Guarda un aviso de `sender` (dict con username y name) para el usuario `recipient`. El sistema no tiene fila de usuario."""
     row = c.fetch_one(
         "INSERT INTO avisos (cliente_id, de_usuario_id, tipo, titulo, mensaje, evento_alerta_id) "
         "VALUES ((SELECT id FROM usuarios WHERE usuario = %s), (SELECT id FROM usuarios WHERE usuario = %s), %s, %s, %s, %s) "
         "RETURNING uid", (recipient, sender["username"], kind, title, message, event_id))
+    # Si el usuario enlazo su Telegram, el aviso le llega tambien ahi.
+    telegram.send(telegram_chat(recipient), f"{title}\n\n{message}\n\n{sender['name']} · Datil Solutions")
     return _item(c.fetch_one(SQL + " WHERE a.uid = %s", (row["uid"],)))
 
 

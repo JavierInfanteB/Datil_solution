@@ -28,6 +28,15 @@ class Config:
     # Token de consulta de la API SIE de Banxico (tasas de CETES / Bono M).
     BANXICO_TOKEN = os.environ.get("BANXICO_TOKEN", "")
 
+    # Token del bot de Telegram que manda los avisos (variable de entorno TELEGRAM_DATIL); vacio = sin Telegram.
+    TELEGRAM_TOKEN = os.environ.get("TELEGRAM_DATIL", "")
+
+    # Clave de cifrado de datos personales (32 bytes en base64, variable CIFRADO_DATIL); ver utils/cifrado.py.
+    CIFRADO_KEY = os.environ.get("CIFRADO_DATIL", "")
+
+    # Clave de Google AI Studio para el agente: variable de entorno IA_DATIL (GEMINI_API_KEY como respaldo).
+    GEMINI_API_KEY = os.environ.get("IA_DATIL") or os.environ.get("GEMINI_API_KEY", "")
+
     # Carpeta con el frontend compilado: si existe, Flask lo sirve en "/" (web y API en un solo dominio).
     STATIC_DIR = os.environ.get("STATIC_DIR") or None
 

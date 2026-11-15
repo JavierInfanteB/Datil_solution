@@ -71,6 +71,9 @@ services:
       SECRET_KEY: ${SECRET_KEY:?define SECRET_KEY en .env}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
       BANXICO_TOKEN: ${BANXICO_TOKEN:-}
+      IA_DATIL: ${IA_DATIL:-}                 # clave de Gemini del asistente
+      TELEGRAM_DATIL: ${TELEGRAM_DATIL:-}     # token del bot que manda los avisos
+      CIFRADO_DATIL: ${CIFRADO_DATIL:-}       # clave que cifra los datos personales en la base (32 bytes en base64)
     ports:
       # 5005 y no 5002: el 5002 es el Datil publico del stack web (08_Web).
       - "127.0.0.1:${API_HOST_PORT:-5005}:8000"

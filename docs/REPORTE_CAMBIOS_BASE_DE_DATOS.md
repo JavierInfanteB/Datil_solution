@@ -83,6 +83,8 @@ Resultado real con los datos del repo: 3 usuarios, 1 asignación, 5 posiciones, 
 - **Migración `070_udibonos_bpa.sql`**: `instrumentos.series_extra` (series adicionales del catálogo) y `lotes_bono.tasa_vigente` / `udi_inicio_periodo` (periodo de cupón en curso de un BPA). El importador carga los 17 instrumentos de `data/assets.json`.
 - **Puertos**: PostgreSQL en 8002 (host y red de Docker) y API en 5005, publicados solo en `127.0.0.1`.
 
+- **Asistente de IA y avisos por Telegram** unidos a esta rama. Migración `080_telegram_cifrado.sql`: `usuarios.telegram_chat_cifrado TEXT`, cifrado por la aplicación con AES-256-GCM (mismo esquema que la bóveda de criptografía; clave en `CIFRADO_DATIL`). El bot es solo de salida: no se guardan conversaciones.
+
 ## 7. Aviso sobre el despliegue existente (`.github/workflows/deploy.yml`)
 Un push a `main` que toque `backend/**` reconstruye y recrea el contenedor en el runner. Con estos cambios la API **necesita PostgreSQL** (`DB_HOST`, `DB_USER`, `DB_PASSWORD`, `SECRET_KEY`…). **No hagas merge a `main` hasta configurar la base en el entorno de despliegue**; no se modificó `.github/`. La imagen por defecto (`docker build .`) sigue siendo web+API (`target: full`).
 

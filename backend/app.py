@@ -17,7 +17,7 @@ def create_app():
     if DEMO_READONLY:
         @app.before_request
         def block_writes():
-            if request.method not in ("GET", "HEAD", "OPTIONS") and request.path not in ("/api/auth/login", "/api/auth/logout"):
+            if request.method not in ("GET", "HEAD", "OPTIONS") and request.path not in ("/api/auth/login", "/api/auth/logout", "/api/agent/ask"):
                 return jsonify({"error": "Modo de pruebas: solo lectura, no se pueden hacer cambios."}), 403
 
     @app.route("/api/health")
