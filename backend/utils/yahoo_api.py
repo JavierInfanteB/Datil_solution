@@ -145,6 +145,19 @@ def _series_from_chart(result, divisor=1):
     return sorted(by_date.items())
 
 
+def get_price_series_between(symbol, start, end):
+    """Serie diaria [(fecha, precio)] entre dos fechas (date). Con fechas explicitas Yahoo entrega datos diarios aun de 18 anos;
+    con range=max entrega mensuales."""
+    params = {"period1": int(datetime(start.year, start.month, start.day, tzinfo=timezone.utc).timestamp()),
+              "period2": int(datetime(end.year, end.month, end.day, tzinfo=timezone.utc).timestamp()), "interval": "1d"}
+    response = _session().get(CHART_URL.format(symbol=symbol), params=params, timeout=20)
+    response.raise_for_status()
+    result = response.json().get("chart", {}).get("result")
+    if not result:
+        raise ValueError(f"Sin datos para el símbolo {symbol}")
+    return _series_from_chart(result[0])
+
+
 def get_price_series(symbol, range_="5y"):
     """Historico diario para calcular riesgo, en la moneda principal de la
     accion (no en peniques). Devuelve {"series", "currency", "name", "exchange"}."""

@@ -69,6 +69,32 @@ def _benchmark_series():
     return load_stock(BENCHMARK)["series"]
 
 
+MARKET_START = date(2008, 3, 1)  # el ACWI diario empieza en marzo de 2008: incluye 2008, 2020 y 2022
+
+
+def market_worst():
+    """Peor mes del mercado global (ACWI, USD, 21 dias habiles) desde 2008: {"return", "from", "to"} (cache de 6 h)."""
+    def loader():
+        series = yahoo_api.get_price_series_between(BENCHMARK, MARKET_START, date.today())
+        change, start, end = risk_engine.worst_window(series)
+        return {"return": change, "from": start, "to": end}
+    return _cached(("market-worst",), loader)
+
+
+def _stress(stock_rows, total):
+    """Perdida del portafolio si el mercado repitiera su peor mes: beta del portafolio (acciones con su beta; bonos y efectivo en 0) x ese mes."""
+    try:
+        market = market_worst()
+    except Exception as exc:
+        return {"error": _describe(exc)[0]}
+    covered = [r for r in stock_rows if (r.get("metrics") or {}).get("beta") is not None]
+    beta = sum(r["value"] / total * r["metrics"]["beta"] for r in covered)
+    loss = risk_engine.stress_loss(beta, market["return"])
+    return {"market_worst_percent": round(market["return"] * 100, 1), "from": market["from"], "to": market["to"], "beta": round(beta, 2),
+            "loss_percent": round(loss * 100, 2), "loss_mxn": round(loss * total, 2),
+            "covers_pct_of_portfolio": round(sum(r["value"] for r in covered) / total * 100, 1)}
+
+
 def assess(symbol):
     """Metricas + puntaje de riesgo de una accion."""
     data = load_stock(symbol)
@@ -239,7 +265,11 @@ def portfolio_risk_for(username, view=None):
             # efectivo y bonos daria falsa tranquilidad. Se muestran los numeros junto a lo que hizo
             # el mercado global (ACWI, en pesos) en el mismo periodo, para tener contra que comparar.
             benchmark = [p for d, p in load_stock(BENCHMARK)["series_mxn"] if d >= index[0][0]]
+            var, cvar = risk_engine.value_at_risk(prices)
             history = {
+                "var": {"horizon_days": risk_engine.VAR_HORIZON, "confidence": round(risk_engine.VAR_CONFIDENCE * 100),
+                        "var_percent": round(var * 100, 2), "cvar_percent": round(cvar * 100, 2),
+                        "var_mxn": round(var * total, 2), "cvar_mxn": round(cvar * total, 2)},
                 "volatility": round(risk_engine.annual_volatility(prices) * 100, 2),
                 "tail_loss": round(risk_engine.tail_loss(prices) * 100, 2),
                 "max_drawdown": round(risk_engine.max_drawdown(prices) * 100, 2),
@@ -287,10 +317,13 @@ def portfolio_risk_for(username, view=None):
             "cash_share": round(view["cash"] / total * 100, 2),
         },
         "scenarios": _scenarios(total, bond_lots, curve, stock_value, foreign_stock_value),
+        "stress": _stress(stock_rows, total),
         "incomplete": view["incomplete"],
         "notes": [
             "Los bonos y el efectivo se tratan como estables en el historial; su riesgo de tasas aparece en los escenarios.",
             "El historial supone que siempre se tuvo la mezcla de hoy.",
+            "El VaR es la pérdida que no se superó en el 95% de los meses de los últimos 3 años con la mezcla de hoy, dando más peso a los meses que se parecen "
+            "a qué tan agitado está el mercado ahora; el CVaR es el promedio de los meses peores. Describe el pasado: no es una predicción ni un límite de pérdida.",
         ],
     }
 
@@ -299,8 +332,12 @@ def portfolio_risk_for(username, view=None):
 @require_auth
 @require_permission("risk")
 def portfolio_risk():
+    """El detalle (puntaje, historial, VaR, estres, escenarios) es del consultor y del admin; el cliente solo recibe si su riesgo es bajo, medio o alto."""
     try:
-        return jsonify(portfolio_risk_for(g.current_user["username"]))
+        data = portfolio_risk_for(g.current_user["username"])
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 422
+    if g.current_user["role"] == "usuario":
+        return jsonify({"summary_only": True, "level": data["stocks"]["level"]})
+    return jsonify(data)
 

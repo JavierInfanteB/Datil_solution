@@ -12,7 +12,7 @@ historicas, cada una llevada a una escala 0-100 entre un umbral "bajo" y uno
     caida maxima (3 a.)  15   la peor caida pico-a-valle que ya vivio
     beta                 40   cuanto amplifica los movimientos del mercado global
 
-Los pesos y umbrales (RULES) se calibraron con scripts/backtest_risk.py, que
+Los pesos y umbrales (RULES) se calibraron con backend/scripts/backtest_risk.py (vive en la rama pruebas), que
 compara el puntaje contra lo que realmente paso los 12 meses siguientes
 (AUC contra "caida >= 30%": 0.68 con el modelo anterior de cinco senales, 0.71
 con este, y mejor en las cuatro rebanadas del periodo). Lo que se probo:
@@ -22,7 +22,7 @@ con este, y mejor en las cuatro rebanadas del periodo). Lo que se probo:
   - Peor mes y distancia al maximo de 52 semanas: las mas debiles y redundantes, se quitaron.
 Con 59 acciones y solo un par de crisis en la muestra, las diferencias de ~0.005
 entre combinaciones de pesos son ruido: el ajuste es deliberadamente moderado y,
-si se vuelve a calibrar, hay que correr el backtest otra vez y comparar.
+si se vuelve a calibrar, hay que correr el backtest (rama pruebas) otra vez y comparar.
 Volatilidad, perdidas y caidas se miden en PESOS, porque es el dinero del
 usuario: una accion extranjera tambien lleva el riesgo cambiario. La beta usa
 los precios en su moneda original contra un ETF global, con rendimientos
@@ -36,6 +36,10 @@ TRADING_DAYS = 252
 LONG_WINDOW = 3 * TRADING_DAYS
 MIN_RETURNS = 250  # menos de ~1 ano de historia no alcanza para medir riesgo
 TAIL_SHARE = 0.05  # fraccion de los peores dias que promedia la perdida de cola
+VAR_HORIZON = 21  # dias habiles: un mes
+VAR_CONFIDENCE = 0.95
+VAR_MIN_WINDOWS = 100  # menos ventanas de un mes que estas no alcanzan para describir una cola
+EWMA_LAMBDA = 0.94  # RiskMetrics: la volatilidad de hace ~16 dias pesa la mitad
 BETA_MAX_WEEKS = 156
 BETA_MIN_WEEKS = 52
 
@@ -85,6 +89,51 @@ def tail_loss(prices):
     returns = sorted(log_returns(prices)[-LONG_WINDOW:])
     worst = returns[: max(1, int(len(returns) * TAIL_SHARE))]
     return max(0.0, -mean(worst))
+
+
+def ewma_vol(prices, lam=EWMA_LAMBDA):
+    """Volatilidad diaria EWMA despues de ver cada precio (el indice k usa los rendimientos hasta prices[k]; el 0 queda en None)."""
+    returns = [b / a - 1 for a, b in zip(prices, prices[1:])]
+    var = mean(r * r for r in returns[:30])
+    out = [None]
+    for r in returns:
+        var = lam * var + (1 - lam) * r * r
+        out.append(math.sqrt(var))
+    return out
+
+
+def value_at_risk(prices, horizon=VAR_HORIZON, confidence=VAR_CONFIDENCE, vol_scaled=True):
+    """(VaR, CVaR) historicos a `horizon` dias como fracciones positivas ((0.08, 0.11) = -8% y -11%).
+    VaR: la perdida que no se supero en `confidence` de las ventanas de los ultimos 3 anos.
+    CVaR: la perdida promedio de las ventanas peores que el VaR.
+    Con `vol_scaled` (Hull-White) cada ventana del pasado se multiplica por la volatilidad EWMA de hoy entre la que habia
+    al empezar esa ventana: si el mercado esta mas agitado que entonces, esa ventana cuenta como mas grande. En el backtest
+    (59 acciones) bajo las excedencias de 9% a 5% en el mercado bajista de 2022; ningun metodo ve venir el primer mes de un crash.
+    Las ventanas se traslapan: en 3 anos hay ~36 meses independientes, asi que es una descripcion del
+    pasado de esta mezcla, no un limite ni una prediccion."""
+    prices = prices[-(LONG_WINDOW + 1):]
+    vols = ewma_vol(prices) if vol_scaled else None
+
+    def window(i):
+        change = prices[i + horizon] / prices[i] - 1
+        return change * vols[-1] / vols[i] if vols and vols[i] else change
+
+    windows = sorted(window(i) for i in range(1 if vols else 0, len(prices) - horizon))
+    if len(windows) < VAR_MIN_WINDOWS:
+        raise ValueError("Historia insuficiente para calcular el VaR")
+    tail = windows[: max(1, int(len(windows) * (1 - confidence)))]
+    return max(0.0, -tail[-1]), max(0.0, -mean(tail))
+
+
+def worst_window(series, horizon=VAR_HORIZON):
+    """(rendimiento, fecha de inicio, fecha de fin) de la peor ventana de `horizon` dias de una serie [(fecha, precio)]."""
+    return min((series[i + horizon][1] / series[i][1] - 1, series[i][0], series[i + horizon][0]) for i in range(len(series) - horizon))
+
+
+def stress_loss(beta, market_worst):
+    """Perdida (fraccion positiva, tope 100%) de una mezcla con esa beta si el mercado repite su peor ventana (`market_worst` negativo).
+    La beta no ve el riesgo propio de cada empresa ni el tipo de cambio: es un peor caso de mercado, no un limite."""
+    return min(1.0, max(0.0, -(beta or 0.0) * market_worst))
 
 
 def weekly_returns(series):

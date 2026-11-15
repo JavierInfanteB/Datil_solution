@@ -95,8 +95,12 @@ export function iniciarIdioma() {
       // sin almacenamiento: se queda como está
     }
     const url = new URL(window.location.href);
-    url.searchParams.delete("lang");  // ?lang= mandaría sobre lo que se acaba de elegir
-    window.location.replace(url);
+    if (url.searchParams.has("lang")) {
+      url.searchParams.delete("lang");  // ?lang= mandaría sobre lo que se acaba de elegir
+      window.location.replace(url);
+    } else {
+      window.location.reload();  // replace() a la misma URL con "#" (p. ej. #acceso) es solo un salto de ancla y no recarga
+    }
   });
   document.body.append(boton);
 

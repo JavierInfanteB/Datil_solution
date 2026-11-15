@@ -487,6 +487,21 @@ export const EXACTO = {
   "Solo se da de baja a quien está en cero: sin efectivo, posiciones ni órdenes pendientes": "Only someone at zero can be deactivated: no cash, positions or pending orders",
   "Usuario y contraseña son requeridos": "Username and password are required",
   "Credenciales inválidas": "Invalid credentials",
+  // VaR, estrés y nivel de riesgo del cliente
+  "Pérdida en un mal mes (VaR)": "Loss in a bad month (VaR)",
+  "Pérdida en los peores meses (CVaR)": "Loss in the worst months (CVaR)",
+  "Si el mercado repitiera su peor mes": "If the market repeated its worst month",
+  "Pérdida estresada": "Stressed loss",
+  "Peor mes del mercado global": "Worst month of the global market",
+  "Beta del portafolio": "Portfolio beta",
+  "Nivel de riesgo de tu portafolio": "Your portfolio's risk level",
+  "Tu consultor ve el detalle del riesgo de tu portafolio.": "Your consultant sees the details of your portfolio's risk.",
+  "Todavía no hay acciones en tu portafolio para medir su riesgo.": "There are no stocks in your portfolio yet to measure its risk.",
+  "Es lo que perdería la mezcla de hoy si el mercado global repitiera su peor mes desde 2008, según la beta de sus acciones (bonos y efectivo se tratan como estables). Es un peor caso histórico de mercado, no un límite: no incluye el tipo de cambio ni lo que le pase a una empresa en particular, que puede caer más que el mercado por algo suyo. En pruebas con carteras de 5 acciones habría cubierto el crash de 2020 en 96 de cada 100 casos.": "It is what today's mix would lose if the global market repeated its worst month since 2008, based on the beta of its stocks (bonds and cash are treated as stable). It is a historical worst case for the market, not a limit: it does not include the exchange rate or what happens to a particular company, which can fall more than the market for its own reasons. In tests with 5-stock portfolios it would have covered the 2020 crash in 96 out of 100 cases.",
+  "La pérdida de un mes que no se superó en 95 de cada 100 meses del historial. Es un \"mal mes\" típico, no el peor posible.": "The loss for a month that was not exceeded in 95 out of 100 months of the history. It is a typical \"bad month\", not the worst possible.",
+  "El promedio de las pérdidas de los peores meses, los que superaron al VaR. Dice qué tan feo suele ser un mes realmente malo.": "The average of the losses in the worst months, the ones that exceeded the VaR. It tells how bad a really bad month usually is.",
+  "La pérdida que tendría tu portafolio si el mercado global repitiera su peor mes desde 2008, según qué tanto se mueven tus acciones con el mercado (beta).": "The loss your portfolio would have if the global market repeated its worst month since 2008, based on how much your stocks move with the market (beta).",
+  "El VaR es la pérdida que no se superó en el 95% de los meses de los últimos 3 años con la mezcla de hoy, dando más peso a los meses que se parecen a qué tan agitado está el mercado ahora; el CVaR es el promedio de los meses peores. Describe el pasado: no es una predicción ni un límite de pérdida.": "The VaR is the loss that was not exceeded in 95% of the months of the last 3 years with today's mix, giving more weight to the months that resemble how turbulent the market is now; the CVaR is the average of the worst months. It describes the past: it is not a prediction or a loss limit.",
 };
 
 export const PLANTILLAS = [
@@ -529,4 +544,8 @@ export const PLANTILLAS = [
   ["El porcentaje debe ser mayor que 0 y de {n} como máximo", "The percentage must be greater than 0 and at most {1}"],
   ["El título (hasta {n}) y el mensaje (hasta {n}) son requeridos", "The title (up to {1}) and the message (up to {2}) are required"],
   ["La meta necesita un título (hasta {n}) y un monto mayor que 0", "The goal needs a title (up to {1}) and an amount greater than 0"],
+  // VaR y estrés
+  ["{n} del portafolio", "{1} of the portfolio"],
+  ["acciones: {n} del portafolio", "stocks: {1} of the portfolio"],
+  ["En {n} de los meses de los últimos 3 años la mezcla de hoy perdió menos que el VaR (los meses se ajustan a qué tan agitado está el mercado ahora); el CVaR es el promedio de los meses peores. Describe el pasado: no es una predicción ni un límite, y un golpe repentino del mercado puede superarlo.", "In {1} of the months of the last 3 years today's mix lost less than the VaR (the months are adjusted to how turbulent the market is now); the CVaR is the average of the worst months. It describes the past: it is not a prediction or a limit, and a sudden market shock can exceed it."],
 ];

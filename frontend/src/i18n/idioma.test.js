@@ -28,6 +28,17 @@ test("ninguna entrada del diccionario queda vacía y las plantillas usan todas s
   }
 });
 
+test("el VaR, el estrés y el nivel del cliente tienen traducción", () => {
+  for (const es of [
+    "Pérdida en un mal mes (VaR)", "Pérdida en los peores meses (CVaR)", "Si el mercado repitiera su peor mes", "Pérdida estresada",
+    "Peor mes del mercado global", "Beta del portafolio", "Nivel de riesgo de tu portafolio", "Tu consultor ve el detalle del riesgo de tu portafolio.",
+    "Riesgo alto", "Riesgo medio", "Riesgo bajo",
+  ]) assert.notEqual(traducir(es), null, es);
+  assert.equal(traducir("9.35% del portafolio"), "9.35% of the portfolio");
+  assert.equal(traducir("acciones: 89.8% del portafolio"), "stocks: 89.8% of the portfolio");
+  assert.match(traducir("En 95% de los meses de los últimos 3 años la mezcla de hoy perdió menos que el VaR (los meses se ajustan a qué tan agitado está el mercado ahora); el CVaR es el promedio de los meses peores. Describe el pasado: no es una predicción ni un límite, y un golpe repentino del mercado puede superarlo."), /^In 95% of the months/);
+});
+
 test("frases que arma el backend con cifras y símbolos", () => {
   assert.equal(traducir("Buena tendencia: +23.7% en 6 meses y sobre su promedio de 200 días"), "Good trend: +23.7% in 6 months and above its 200-day average");
   assert.equal(traducir("CETES28 · CETES 28 días"), "CETES28 · CETES 28 days");
