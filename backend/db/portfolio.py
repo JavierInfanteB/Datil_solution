@@ -18,7 +18,6 @@ from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
-import psycopg
 
 from db import connection as c
 from db.connection import as_float, as_num, iso

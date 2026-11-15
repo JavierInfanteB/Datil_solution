@@ -4,8 +4,6 @@ from datetime import timedelta
 
 from dotenv import load_dotenv
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
 # Carga backend/.env (secretos y tokens NO viven en el codigo fuente).
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 

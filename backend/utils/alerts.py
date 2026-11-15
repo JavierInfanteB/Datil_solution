@@ -7,7 +7,7 @@ Las alertas se evaluan cuando alguien abre la app, no hay un proceso en segundo 
 Persisten en alertas (regla y nivel actual) y eventos_alerta (cada cambio de nivel).
 """
 from db import connection as c
-from db.connection import as_float, as_num, iso, transaction
+from db.connection import as_num, iso, transaction
 from utils import notifications
 
 KINDS = ("loss", "gain")

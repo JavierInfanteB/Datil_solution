@@ -11,7 +11,7 @@ from modules.portfolio import build_portfolio_view
 from utils import alerts, audit, notifications, records
 from utils.accounts import load_users
 from db import portfolio as pf_repo
-from utils.decorators import require_auth, require_permission, require_role
+from utils.decorators import require_auth, require_role
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 AUDIT_LIMIT = 50

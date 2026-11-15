@@ -18,7 +18,7 @@ fila del cliente bloqueada, asi una orden, un cupon o un vencimiento nunca se ap
 """
 import copy
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 from config import DEMO_READONLY
 from db import portfolio as pf_repo

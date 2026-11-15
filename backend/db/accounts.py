@@ -131,12 +131,6 @@ def release_clients_of(consultant):
               (date.today(), consultant))
 
 
-def current_consultant(username):
-    row = c.fetch_one("SELECT k.usuario FROM asignaciones_consultor a JOIN usuarios k ON k.id = a.consultor_id "
-                      "JOIN usuarios cl ON cl.id = a.cliente_id WHERE cl.usuario = %s AND a.hasta IS NULL", (username,))
-    return row["usuario"] if row else None
-
-
 # ---------------------------------------------------------------- sesiones (JWT con inactividad)
 def session_create(jti, user_id, ip, device):
     c.execute("INSERT INTO sesiones (jti, usuario_id, ip, dispositivo) VALUES (%s, %s, %s, %s)",
@@ -158,12 +152,6 @@ def session_touch(jti):
 
 def session_end(jti):
     c.execute("UPDATE sesiones SET cerrada_en = now() WHERE jti = %s AND cerrada_en IS NULL", (jti,))
-
-
-def is_new_ip(user_id, ip):
-    """Una IP es nueva si el usuario no tiene una sesion anterior con ella (el login actual ya se guardo)."""
-    row = c.fetch_one("SELECT count(*) AS n FROM sesiones WHERE usuario_id = %s AND ip = %s", (user_id, ip))
-    return row["n"] <= 1
 
 
 def log_login_attempt(typed, user_id, ok, ip, reason=None):

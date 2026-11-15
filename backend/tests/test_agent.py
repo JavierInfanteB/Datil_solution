@@ -12,7 +12,6 @@ La clase LiveGeminiTest llama a Gemini de verdad. Se salta sola; para correrla:
     set IA_DATIL=tu-clave   (y tener instalado google-generativeai)
 """
 import json
-import os
 import re
 import sys
 import types

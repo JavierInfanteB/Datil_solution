@@ -91,7 +91,6 @@ def titles_for_amount(amount_mxn, unit_price):
 
 
 COUPON_KINDS = ("bono_m", "udibono", "bpa")  # los que pagan cupon: tienen coupon_days, coupons_paid y next_coupon_date
-BPA_FLOATERS = ("BPAG28", "BPAG91", "BPA182")
 
 
 def new_lot(bond, quantity, name, rate_pct, purchase_date, lot_id, term_days=None, udi=None, price=None):

@@ -403,7 +403,7 @@ class AccountsApiTest(unittest.TestCase):
 
     def test_ideas_de_acciones_solo_con_motivo(self):
         flat = [("d", 100.0)] * 250
-        self.assertEqual(ideas.reasons(ideas.facts(flat)), [f"Cerca de su mínimo de 1.0 años (+0.0%)"])
+        self.assertEqual(ideas.reasons(ideas.facts(flat)), ["Cerca de su mínimo de 1.0 años (+0.0%)"])
         up = [("d", 50.0 + i * 0.1) for i in range(300)]
         self.assertTrue(any("Buena tendencia" in r for r in ideas.reasons(ideas.facts(up))))
         down = [("d", 200.0 - i * 0.3) for i in range(300)]
