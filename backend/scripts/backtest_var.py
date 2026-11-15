@@ -12,7 +12,8 @@ Limites a tener presentes al leer el resultado:
     el valor p de Kupiec es optimista. Mas que el valor p, mirar la tasa por periodo.
   - Sesgo de supervivencia: el universo son empresas que siguen cotizando hoy.
 
-Uso (desde backend/):  python scripts/backtest_var.py [--cache archivo.pkl]
+Uso (desde backend/):  python scripts/backtest_var.py [--cache archivo.pkl] [--plano]
+(--plano mide el VaR historico sin escalar por la volatilidad de hoy; por defecto mide el que usa la app)
 (reusa el cache de backtest_risk.py: las descargas se guardan y las siguientes corridas no vuelven a Yahoo)
 """
 import math
@@ -29,6 +30,7 @@ from utils import risk_engine  # noqa: E402
 
 H, W = risk_engine.VAR_HORIZON, risk_engine.LONG_WINDOW
 EXPECTED = 1 - risk_engine.VAR_CONFIDENCE
+PLAIN = "--plano" in sys.argv  # VaR historico sin escalar por la volatilidad de hoy (el de antes)
 CRASH_2020 = (date(2020, 1, 15), date(2020, 4, 30))  # origenes cuyo mes siguiente cae en el crash del covid
 
 
@@ -36,7 +38,7 @@ def evaluate(dates, prices):
     """[(fecha de origen, excedio, perdida real, VaR, CVaR)] con ventanas de H dias sin traslape."""
     rows = []
     for i in range(W, len(prices) - H, H):
-        var, cvar = risk_engine.value_at_risk(prices[i - W: i + 1])
+        var, cvar = risk_engine.value_at_risk(prices[i - W: i + 1], vol_scaled=not PLAIN)
         real = prices[i + H] / prices[i] - 1
         rows.append((date.fromisoformat(dates[i]), real <= -var, max(0.0, -real), var, cvar))
     return rows

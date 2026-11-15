@@ -15,10 +15,16 @@ def creciendo(diario, n=800):
 
 
 def azar(vol, n=800, semilla=3):
+    return por_tramos([(vol, n)], semilla)
+
+
+def por_tramos(tramos, semilla=5):
+    """Precios al azar con la volatilidad diaria de cada tramo: [(vol, dias), ...]."""
     rng, precio, out = random.Random(semilla), 100.0, [100.0]
-    for _ in range(n):
-        precio *= 1 + rng.gauss(0.0003, vol)
-        out.append(precio)
+    for vol, dias in tramos:
+        for _ in range(dias):
+            precio *= 1 + rng.gauss(0.0003, vol)
+            out.append(precio)
     return out
 
 
@@ -49,6 +55,24 @@ class ValueAtRiskTest(unittest.TestCase):
         crash_viejo = [100.0] * 50 + [10.0] * 50  # una caida de 90% anterior a la ventana
         precios = crash_viejo + [10 * 1.0005 ** i for i in range(risk_engine.LONG_WINDOW + 1)]
         self.assertEqual(risk_engine.value_at_risk(precios), (0.0, 0.0))
+
+    def test_si_el_mercado_se_agita_el_var_sube(self):
+        precios = por_tramos([(0.006, 700), (0.03, 60)])
+        self.assertGreater(risk_engine.value_at_risk(precios)[0], 2 * risk_engine.value_at_risk(precios, vol_scaled=False)[0])
+
+    def test_si_el_mercado_se_calma_el_var_baja(self):
+        precios = por_tramos([(0.03, 60), (0.006, 700)])
+        self.assertLess(risk_engine.value_at_risk(precios)[0], risk_engine.value_at_risk(precios, vol_scaled=False)[0])
+
+    def test_con_volatilidad_constante_escalar_casi_no_cambia_nada(self):
+        precios = azar(0.012)
+        escalado, plano = (risk_engine.value_at_risk(precios, vol_scaled=s)[0] for s in (True, False))
+        self.assertAlmostEqual(escalado, plano, delta=0.35 * plano)
+
+    def test_ewma_sigue_la_volatilidad_reciente(self):
+        vols = risk_engine.ewma_vol(por_tramos([(0.005, 300), (0.03, 100)]))
+        self.assertIsNone(vols[0])
+        self.assertGreater(vols[-1], 3 * vols[250])
 
     def test_con_poca_historia_avisa_en_vez_de_inventar(self):
         with self.assertRaises(ValueError):

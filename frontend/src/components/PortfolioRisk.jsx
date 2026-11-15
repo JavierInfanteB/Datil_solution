@@ -98,6 +98,27 @@ export function PortfolioRiskDetail({ data }) {
               </span>
             </div>
           </div>
+          {history.var && (
+            <>
+              <div className="datil-summary-grid">
+                <div>
+                  <span className="datil-label"><Term text={GLOSSARY.var}>Pérdida en un mal mes (VaR)</Term></span>
+                  <strong>{formatCurrency(history.var.var_mxn)}</strong>
+                  <span className="datil-period-tag">{pct(history.var.var_percent)} del portafolio</span>
+                </div>
+                <div>
+                  <span className="datil-label"><Term text={GLOSSARY.cvar}>Pérdida en los peores meses (CVaR)</Term></span>
+                  <strong>{formatCurrency(history.var.cvar_mxn)}</strong>
+                  <span className="datil-period-tag">{pct(history.var.cvar_percent)} del portafolio</span>
+                </div>
+              </div>
+              <p className="datil-period-tag">
+                En {history.var.confidence}% de los meses de los últimos 3 años la mezcla de hoy perdió menos que el VaR (los meses se ajustan a qué tan
+                agitado está el mercado ahora); el CVaR es el promedio de los meses peores. Describe el pasado: no es una predicción ni un límite, y un golpe
+                repentino del mercado puede superarlo.
+              </p>
+            </>
+          )}
           <p className="datil-period-tag">
             Con la mezcla de hoy mantenida de {history.from} a {history.to}, en pesos, incluyendo las acciones que
             suman {history.covers_pct_of_portfolio}% del portafolio. {history.benchmark.symbol} es un fondo de
