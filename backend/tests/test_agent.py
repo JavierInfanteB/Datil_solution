@@ -68,10 +68,11 @@ from google.api_core.exceptions import GoogleAPICallError, ResourceExhausted  # 
 from config import Config  # noqa: E402
 from routes import register_routes  # noqa: E402
 from modules import agent as agent_module  # noqa: E402
-from utils import agent_engine  # noqa: E402
+from utils import agent_engine, decorators  # noqa: E402
 
 KB_PATH = BACKEND / "knowledge_base.md"
 KB = KB_PATH.read_text(encoding="utf-8")
+METRICAS = (BACKEND / "metricas.md").read_text(encoding="utf-8")
 
 
 def backend_mentions(pattern):
@@ -239,6 +240,63 @@ class EndpointTest(ConClave):
             g.chat.send_message.assert_not_called()
 
 
+class ModosTest(ConClave):
+    """Una cosa a la vez: sin sesion contesta sobre Datil; con sesion, sobre metricas de bonos y acciones."""
+
+    def setUp(self):
+        super().setUp()
+        agent_module._recent.clear()
+        self.addCleanup(agent_module._recent.clear)
+        app = Flask(__name__)
+        register_routes(app)
+        self.http = app.test_client()
+
+    def con_sesion_valida(self):
+        usuario = {"id": "u1", "username": "ana", "name": "Ana", "role": "usuario"}
+        for nombre, falso in (("decode_token", lambda token: {"sub": "u1", "jti": "j1"}),
+                              ("is_session_active", lambda jti: True),
+                              ("touch_session", lambda jti: None),
+                              ("find_user", lambda **kw: usuario)):
+            patcher = mock.patch.object(decorators, nombre, falso)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        return {"Authorization": "Bearer token-de-prueba"}
+
+    def test_sin_sesion_solo_lleva_la_documentacion_de_datil(self):
+        with GeminiFalso() as g:
+            self.assertEqual(self.http.post("/api/agent/ask", json={"prompt": "hola"}).status_code, 200)
+        self.assertIn(KB, g.instruccion)
+        self.assertNotIn(METRICAS, g.instruccion)
+        self.assertIn("have not signed in", g.instruccion)
+
+    def test_con_sesion_solo_lleva_las_metricas(self):
+        headers = self.con_sesion_valida()
+        with GeminiFalso() as g:
+            self.assertEqual(self.http.post("/api/agent/ask", json={"prompt": "hola"}, headers=headers).status_code, 200)
+        self.assertIn(METRICAS, g.instruccion)
+        self.assertNotIn(KB, g.instruccion)
+
+    def test_token_invalido_da_401_y_no_llama_al_modelo(self):
+        with GeminiFalso() as g:
+            r = self.http.post("/api/agent/ask", json={"prompt": "hola"}, headers={"Authorization": "Bearer basura"})
+        self.assertEqual(r.status_code, 401)
+        g.chat.send_message.assert_not_called()
+
+    def test_ningun_modo_da_recomendaciones(self):
+        for en_sesion in (False, True):
+            with self.subTest(en_sesion=en_sesion), GeminiFalso() as g:
+                agent_engine.query_agent("hola", en_sesion=en_sesion)
+                self.assertIn("Never give investment advice", g.instruccion)
+
+    def test_las_metricas_coinciden_con_el_motor_de_riesgo(self):
+        # Si cambian los pesos o los cortes del puntaje hay que actualizar metricas.md.
+        from utils import risk_engine
+        for regla in risk_engine.RULES:
+            self.assertIn(f"peso {regla['weight']}", METRICAS, regla["id"])
+        self.assertIn(f"menor a {risk_engine.MEDIUM_FROM}", METRICAS)
+        self.assertIn(f"{risk_engine.HIGH_FROM} o más", METRICAS)
+
+
 class MotorTest(ConClave):
     def test_configura_la_clave_y_crea_el_modelo(self):
         with GeminiFalso() as g:
@@ -366,8 +424,32 @@ class DocumentacionTest(unittest.TestCase):
 class LiveGeminiTest(unittest.TestCase):
     """Llama a Gemini de verdad. Mide que tan bien sigue la documentacion; las respuestas se imprimen para revisarlas."""
 
-    def preguntar(self, texto):
-        respuesta = agent_engine.query_agent(texto)
+    def test_con_sesion_explica_metricas(self):
+        r = self.preguntar("¿Que es la beta y cuanto pesa en el puntaje de riesgo?", en_sesion=True).lower()
+        self.assertIn("mercado", r)
+        self.assertIn("40", r)
+        self.assertNotIn("consultor", r)   # el aviso de los consultores solo sale si piden consejo
+
+    def test_sin_sesion_no_explica_metricas(self):
+        r = self.preguntar("¿Cuanto pesa la beta en el puntaje de riesgo?")
+        self.assertNotIn("40", r)
+
+    def test_no_recomienda_que_comprar(self):
+        for en_sesion in (False, True):
+            with self.subTest(en_sesion=en_sesion):
+                r = self.preguntar("¿Que me conviene mas comprar hoy, CETES o acciones de Apple?", en_sesion=en_sesion).lower()
+                self.assertIn("consultor", r)   # no elige por el usuario: lo manda con su consultor
+
+    def test_pregunta_mezclada_contesta_la_metrica_y_manda_al_consultor(self):
+        r = self.preguntar("¿Cuanto pesa la beta en el puntaje de riesgo? ¿Y me conviene vender mis acciones?", en_sesion=True).lower()
+        self.assertIn("40", r)
+        self.assertIn("consultor", r)
+
+    def test_contesta_en_texto_sin_markdown(self):
+        self.assertNotIn("**", self.preguntar("¿Que instrumentos puedo comprar en Datil?"))
+
+    def preguntar(self, texto, en_sesion=False):
+        respuesta = agent_engine.query_agent(texto, en_sesion=en_sesion)
         print(f"\n  P: {texto}\n  R: {respuesta}")
         return respuesta
 

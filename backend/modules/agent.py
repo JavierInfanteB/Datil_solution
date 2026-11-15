@@ -5,6 +5,7 @@ from collections import deque
 from flask import Blueprint, jsonify, request
 
 from utils.agent_engine import SATURADO, AgentError, query_agent
+from utils.decorators import require_auth
 
 agent_bp = Blueprint("agent", __name__, url_prefix="/api/agent")
 
@@ -13,7 +14,7 @@ MAX_PROMPT = 2000    # caracteres por mensaje
 MAX_HISTORY = 20     # mensajes previos de la conversacion
 WINDOW = 60          # segundos
 MAX_PER_IP = 8       # mensajes por ventana de una misma direccion
-MAX_GLOBAL = 30      # mensajes por ventana entre todos
+MAX_GLOBAL = 12      # mensajes por ventana entre todos (el plan gratuito de Gemini da 15 por minuto)
 
 # shortcut: contador en memoria, vale con un solo proceso (gunicorn --workers 1); con mas workers pasar a Redis.
 _lock = threading.Lock()
@@ -33,6 +34,14 @@ def _allow(ip: str) -> bool:
 
 @agent_bp.route("/ask", methods=["POST"])
 def ask():
+    # Una cosa a la vez: sin sesion contesta sobre Datil; con sesion, sobre metricas de bonos y acciones.
+    # Un token vencido o invalido da 401, como en el resto de la API.
+    if request.headers.get("Authorization"):
+        return require_auth(_answer)(True)
+    return _answer(False)
+
+
+def _answer(en_sesion):
     payload = request.get_json() or {}
     prompt = payload.get("prompt") if isinstance(payload, dict) else None
     if not isinstance(prompt, str) or not prompt.strip():
@@ -52,7 +61,7 @@ def ask():
         return response, 429
 
     try:
-        reply = query_agent(prompt.strip(), history)
+        reply = query_agent(prompt.strip(), history, en_sesion)
     except AgentError as e:
         return jsonify({"error": str(e)}), e.status
     return jsonify({"response": reply}), 200
