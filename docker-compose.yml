@@ -27,8 +27,7 @@ services:
       retries: 30
       start_period: 5s
 
-  # Tarea unica: aplica database/schema/*.sql (una sola vez cada archivo) e importa data/*.json sin duplicar.
-  # data/ se monta solo lectura: los JSON nunca se modifican.
+  # Tarea unica: aplica database/schema/*.sql (una sola vez cada archivo).
   migrate:
     build:
       context: .
@@ -46,10 +45,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       DATIL_APP_PASSWORD: ${DATIL_APP_PASSWORD:?define DATIL_APP_PASSWORD en .env}
       DATIL_READONLY_PASSWORD: ${DATIL_READONLY_PASSWORD:?define DATIL_READONLY_PASSWORD en .env}
-    volumes:
-      - ./data:/app/data:ro
     working_dir: /app/database/migration
-    command: ["python", "run_migrations.py", "--import-json", "/app/data"]
+    command: ["python", "run_migrations.py"]
     restart: "no"
 
   api:

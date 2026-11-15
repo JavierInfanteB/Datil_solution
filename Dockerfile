@@ -1,6 +1,5 @@
 # Web + API en una sola imagen: Flask sirve el frontend compilado y la API desde el mismo dominio.
-# Contexto de build: esta carpeta. Los datos viven en PostgreSQL (servicio `db` de docker-compose.yml); data/*.json solo se
-# copia como origen de la migracion inicial y respaldo.
+# Contexto de build: esta carpeta. Los datos viven en PostgreSQL (servicio `db` de docker-compose.yml); ya no hay JSON de datos.
 FROM node:22-slim AS web
 WORKDIR /web
 COPY frontend/package*.json ./
@@ -23,7 +22,6 @@ RUN pip install -r backend/requirements.txt gunicorn
 RUN useradd --system --no-create-home app
 COPY --chown=app backend backend
 COPY --chown=app database database
-COPY --chown=app data data
 
 USER app
 WORKDIR /app/backend

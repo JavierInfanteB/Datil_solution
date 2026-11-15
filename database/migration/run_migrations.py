@@ -1,33 +1,37 @@
-"""Aplica database/schema/*.sql a PostgreSQL, en orden y una sola vez cada archivo, y (opcional) importa los JSON.
+"""Aplica database/schema/*.sql a PostgreSQL, en orden y una sola vez cada archivo.
 
-  python run_migrations.py [--import-json ../../data] [--dry-run]
+  python run_migrations.py
 
 Variables: DB_HOST, DB_PORT, DB_NAME, POSTGRES_USER, POSTGRES_PASSWORD (propietario), DATIL_APP_PASSWORD y
 DATIL_READONLY_PASSWORD (contrasenas de los roles datil_app y datil_readonly; no viven en el repo).
   * Archivos NNN_*.sql: versionados; se aplican una vez y se registra su checksum en datil.schema_migraciones.
   * Archivos R__*.sql: repetibles (permisos); se aplican en cada arranque.
-Es idempotente: se puede correr en cada `docker compose up`.
+Es idempotente: se puede correr en cada `docker compose up`. La importacion de los JSON originales vive en la rama `pruebas`.
 """
-import argparse
 import hashlib
-import json
+import os
 import sys
 import time
 from pathlib import Path
 
 import psycopg
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import import_json  # noqa: E402
+from psycopg.rows import dict_row
 
 SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schema"
+
+
+def connect():
+    return psycopg.connect(
+        host=os.environ.get("DB_HOST", "localhost"), port=os.environ.get("DB_PORT", "5432"), dbname=os.environ.get("DB_NAME", "datil_db"),
+        user=os.environ.get("POSTGRES_USER", "datil_owner"), password=os.environ.get("POSTGRES_PASSWORD", ""),
+        options="-c search_path=datil,public -c timezone=UTC", autocommit=True, row_factory=dict_row)
 
 
 def wait_for_database(timeout=90):
     deadline, last = time.time() + timeout, None
     while time.time() < deadline:
         try:
-            return import_json.connect()
+            return connect()
         except psycopg.OperationalError as exc:
             last = exc
             print("Esperando a PostgreSQL...", str(exc).strip().splitlines()[-1][:100], flush=True)
@@ -36,7 +40,6 @@ def wait_for_database(timeout=90):
 
 
 def apply_schema(conn):
-    import os
     conn.execute("CREATE SCHEMA IF NOT EXISTS datil")
     conn.execute("CREATE TABLE IF NOT EXISTS datil.schema_migraciones (version TEXT PRIMARY KEY, checksum TEXT NOT NULL, "
                  "aplicada_en TIMESTAMPTZ NOT NULL DEFAULT now())")
@@ -63,19 +66,9 @@ def apply_schema(conn):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--import-json", metavar="DIR", help="carpeta con los JSON originales (data/)")
-    parser.add_argument("--dry-run", action="store_true", help="la importacion se simula y se revierte")
-    parser.add_argument("--report", help="guarda el reporte de la importacion en esta ruta")
-    args = parser.parse_args()
     conn = wait_for_database()
     done = apply_schema(conn)
     print("Esquema:", ", ".join(done) if done else "al dia (nada nuevo que aplicar)")
-    if args.import_json:
-        report = import_json.run_import(conn, args.import_json, args.dry_run)
-        import_json.print_report(report)
-        if args.report:
-            Path(args.report).write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     return 0
 
 

@@ -239,7 +239,11 @@ def portfolio_risk_for(username, view=None):
             # efectivo y bonos daria falsa tranquilidad. Se muestran los numeros junto a lo que hizo
             # el mercado global (ACWI, en pesos) en el mismo periodo, para tener contra que comparar.
             benchmark = [p for d, p in load_stock(BENCHMARK)["series_mxn"] if d >= index[0][0]]
+            var, cvar = risk_engine.value_at_risk(prices)
             history = {
+                "var": {"horizon_days": risk_engine.VAR_HORIZON, "confidence": round(risk_engine.VAR_CONFIDENCE * 100),
+                        "var_percent": round(var * 100, 2), "cvar_percent": round(cvar * 100, 2),
+                        "var_mxn": round(var * total, 2), "cvar_mxn": round(cvar * total, 2)},
                 "volatility": round(risk_engine.annual_volatility(prices) * 100, 2),
                 "tail_loss": round(risk_engine.tail_loss(prices) * 100, 2),
                 "max_drawdown": round(risk_engine.max_drawdown(prices) * 100, 2),
@@ -291,6 +295,8 @@ def portfolio_risk_for(username, view=None):
         "notes": [
             "Los bonos y el efectivo se tratan como estables en el historial; su riesgo de tasas aparece en los escenarios.",
             "El historial supone que siempre se tuvo la mezcla de hoy.",
+            "El VaR es la pérdida que no se superó en el 95% de los meses de los últimos 3 años con la mezcla de hoy; el CVaR es el promedio de los meses peores. "
+            "Describe el pasado: no es una predicción ni un límite de pérdida.",
         ],
     }
 

@@ -46,6 +46,8 @@ Conéctate con DBeaver/pgAdmin a `localhost:8002`, base `datil_db`, usuario `dat
 
 ## Pruebas automáticas
 
+`main` solo lleva código funcional: las pruebas (`backend/tests`, `database/tests`, `frontend/src/**/*.test.js`) viven en la rama `pruebas` (`git switch pruebas`). Ahí corren así:
+
 Necesitan una base **desechable** (se borra su esquema `datil`). Con el contenedor `db` arriba:
 
 ```powershell
