@@ -14,9 +14,10 @@ MAX_PROMPT = 2000    # caracteres por mensaje
 MAX_HISTORY = 20     # mensajes previos de la conversacion
 WINDOW = 60          # segundos
 MAX_PER_IP = 8       # mensajes por ventana de una misma direccion
-MAX_GLOBAL = 12      # mensajes por ventana entre todos (el plan gratuito de Gemini da 15 por minuto)
+MAX_GLOBAL = 6       # por proceso: con los 2 workers de gunicorn son 12 entre todos (el plan gratuito de Gemini da 15 por minuto)
 
-# shortcut: contador en memoria, vale con un solo proceso (gunicorn --workers 1); con mas workers pasar a Redis.
+# shortcut: contador en memoria de cada proceso (gunicorn corre 2 workers, por eso los topes van a la mitad);
+# si se sube el numero de workers, bajar MAX_GLOBAL o pasar el contador a la base.
 _lock = threading.Lock()
 _recent = deque()    # (momento, ip) de los mensajes aceptados en la ventana
 
