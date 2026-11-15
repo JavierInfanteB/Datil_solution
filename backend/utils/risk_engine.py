@@ -125,6 +125,17 @@ def value_at_risk(prices, horizon=VAR_HORIZON, confidence=VAR_CONFIDENCE, vol_sc
     return max(0.0, -tail[-1]), max(0.0, -mean(tail))
 
 
+def worst_window(series, horizon=VAR_HORIZON):
+    """(rendimiento, fecha de inicio, fecha de fin) de la peor ventana de `horizon` dias de una serie [(fecha, precio)]."""
+    return min((series[i + horizon][1] / series[i][1] - 1, series[i][0], series[i + horizon][0]) for i in range(len(series) - horizon))
+
+
+def stress_loss(beta, market_worst):
+    """Perdida (fraccion positiva, tope 100%) de una mezcla con esa beta si el mercado repite su peor ventana (`market_worst` negativo).
+    La beta no ve el riesgo propio de cada empresa ni el tipo de cambio: es un peor caso de mercado, no un limite."""
+    return min(1.0, max(0.0, -(beta or 0.0) * market_worst))
+
+
 def weekly_returns(series):
     """{(ano, semana ISO): rendimiento} usando el ultimo precio de cada semana."""
     last_by_week = {}

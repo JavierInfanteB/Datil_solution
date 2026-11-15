@@ -126,6 +126,34 @@ export function PortfolioRiskDetail({ data }) {
           </p>
         </>
       )}
+      {data.stress?.error && <p className="datil-period-tag">{data.stress.error}</p>}
+      {data.stress && !data.stress.error && (
+        <>
+          <h3 className="datil-subheading">Si el mercado repitiera su peor mes</h3>
+          <div className="datil-summary-grid">
+            <div>
+              <span className="datil-label"><Term text={GLOSSARY.estres}>Pérdida estresada</Term></span>
+              <strong>{formatCurrency(data.stress.loss_mxn)}</strong>
+              <span className="datil-period-tag">{pct(data.stress.loss_percent)} del portafolio</span>
+            </div>
+            <div>
+              <span className="datil-label">Peor mes del mercado global</span>
+              <strong>{pct(data.stress.market_worst_percent)}</strong>
+              <span className="datil-period-tag">{data.stress.from} a {data.stress.to}</span>
+            </div>
+            <div>
+              <span className="datil-label"><Term text={GLOSSARY.beta}>Beta</Term> del portafolio</span>
+              <strong>{data.stress.beta}</strong>
+              <span className="datil-period-tag">acciones: {data.stress.covers_pct_of_portfolio}% del portafolio</span>
+            </div>
+          </div>
+          <p className="datil-period-tag">
+            Es lo que perdería la mezcla de hoy si el mercado global repitiera su peor mes desde 2008, según la beta de sus acciones (bonos y efectivo
+            se tratan como estables). Es un peor caso histórico de mercado, no un límite: no incluye el tipo de cambio ni lo que le pase a una empresa en
+            particular, que puede caer más que el mercado por algo suyo. En pruebas con carteras de 5 acciones habría cubierto el crash de 2020 en 96 de cada 100 casos.
+          </p>
+        </>
+      )}
       <h3 className="datil-subheading">Qué pasaría si...</h3>
       <table className="datil-table">
         <thead>

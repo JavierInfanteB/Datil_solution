@@ -3,6 +3,7 @@ import os
 import random
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -77,6 +78,30 @@ class ValueAtRiskTest(unittest.TestCase):
     def test_con_poca_historia_avisa_en_vez_de_inventar(self):
         with self.assertRaises(ValueError):
             risk_engine.value_at_risk(azar(0.01, n=80))
+
+
+class EstresTest(unittest.TestCase):
+    def test_peor_ventana_con_sus_fechas(self):
+        serie = [("d0", 100), ("d1", 90), ("d2", 50), ("d3", 60), ("d4", 80)]
+        self.assertEqual(risk_engine.worst_window(serie, horizon=2), (-0.5, "d0", "d2"))
+
+    def test_perdida_estresada_es_beta_por_el_peor_mes(self):
+        self.assertAlmostEqual(risk_engine.stress_loss(1.2, -0.35), 0.42)
+        self.assertEqual(risk_engine.stress_loss(None, -0.35), 0.0)  # sin beta no se inventa
+        self.assertEqual(risk_engine.stress_loss(-0.5, -0.35), 0.0)  # un activo que sube cuando cae el mercado no pierde en este escenario
+        self.assertEqual(risk_engine.stress_loss(5.0, -0.35), 1.0)  # tope: no se puede perder mas de todo
+
+    def test_el_portafolio_pondera_la_beta_por_su_peso_y_deja_bonos_y_efectivo_en_cero(self):
+        from modules import risk
+        filas = [{"value": 600.0, "metrics": {"beta": 1.0}}, {"value": 200.0, "metrics": {"beta": None}}]
+        with mock.patch.object(risk, "market_worst", return_value={"return": -0.30, "from": "2020-02-20", "to": "2020-03-20"}):
+            r = risk._stress(filas, 1000.0)
+        self.assertEqual((r["beta"], r["loss_percent"], r["loss_mxn"], r["covers_pct_of_portfolio"]), (0.6, 18.0, 180.0, 60.0))
+
+    def test_si_falla_la_historia_del_mercado_avisa_y_no_rompe(self):
+        from modules import risk
+        with mock.patch.object(risk, "market_worst", side_effect=RuntimeError("sin red")):
+            self.assertIn("error", risk._stress([{"value": 100.0, "metrics": {"beta": 1.0}}], 100.0))
 
 
 if __name__ == "__main__":
