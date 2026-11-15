@@ -113,8 +113,9 @@ export function PortfolioRiskDetail({ data }) {
                 </div>
               </div>
               <p className="datil-period-tag">
-                En {history.var.confidence}% de los meses de los últimos 3 años la mezcla de hoy perdió menos que el VaR; el CVaR es el
-                promedio de los meses peores. Describe el pasado: no es una predicción ni un límite, y en una crisis fuerte la pérdida puede ser mayor.
+                En {history.var.confidence}% de los meses de los últimos 3 años la mezcla de hoy perdió menos que el VaR (los meses se ajustan a qué tan
+                agitado está el mercado ahora); el CVaR es el promedio de los meses peores. Describe el pasado: no es una predicción ni un límite, y un golpe
+                repentino del mercado puede superarlo.
               </p>
             </>
           )}

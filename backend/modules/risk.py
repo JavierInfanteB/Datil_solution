@@ -295,8 +295,8 @@ def portfolio_risk_for(username, view=None):
         "notes": [
             "Los bonos y el efectivo se tratan como estables en el historial; su riesgo de tasas aparece en los escenarios.",
             "El historial supone que siempre se tuvo la mezcla de hoy.",
-            "El VaR es la pérdida que no se superó en el 95% de los meses de los últimos 3 años con la mezcla de hoy; el CVaR es el promedio de los meses peores. "
-            "Describe el pasado: no es una predicción ni un límite de pérdida.",
+            "El VaR es la pérdida que no se superó en el 95% de los meses de los últimos 3 años con la mezcla de hoy, dando más peso a los meses que se parecen "
+            "a qué tan agitado está el mercado ahora; el CVaR es el promedio de los meses peores. Describe el pasado: no es una predicción ni un límite de pérdida.",
         ],
     }
 
