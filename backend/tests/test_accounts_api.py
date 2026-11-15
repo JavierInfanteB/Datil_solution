@@ -16,7 +16,10 @@ from flask import Flask  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 
 from routes import register_routes  # noqa: E402
-from utils import alerts, bond_engine, data_store, ideas  # noqa: E402
+from config import Config  # noqa: E402
+from utils import alerts, bond_engine, data_store, ideas, telegram  # noqa: E402
+
+telegram_real_call = telegram._call  # la funcion real, antes de que las pruebas la reemplacen
 
 PASSWORD = "clave-de-prueba-1"
 PASSWORD_HASH = generate_password_hash(PASSWORD)  # scrypt es lento a proposito: una sola vez para todas las pruebas
@@ -541,6 +544,108 @@ class AccountsApiTest(unittest.TestCase):
         cetes = [h for h in portfolio["holdings"] if h["symbol"] == "CETES28"]
         self.assertEqual([h["quantity"] for h in cetes], [int(coupon // 9.95355)])
         self.assertLess(portfolio["cash"], 10)  # el cupon se invirtio
+
+
+class TelegramTest(AccountsApiTest):
+    """Avisos por Telegram: enlazar el chat y recibir ahi lo que entra a la bandeja. Telegram nunca se llama de verdad."""
+
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(Config, "TELEGRAM_TOKEN", "123:token-de-prueba")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.updates = []   # lo que "contesta" getUpdates
+        self.sent = []      # mensajes mandados: (chat_id, texto)
+
+        def fake_call(method, **params):
+            if method == "getMe":
+                return {"username": "bot_de_prueba"}
+            if method == "getUpdates":
+                return self.updates
+            if method == "sendMessage":
+                self.sent.append((params["chat_id"], params["text"]))
+                return {}
+
+        for name, value in (("_call", fake_call), ("_bot_username", None)):
+            patcher = mock.patch.object(telegram, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        # Sin hilos: el envio ocurre en el momento y la prueba lo ve.
+        patcher = mock.patch.object(telegram.threading, "Thread", lambda target, args, kwargs, daemon: mock.Mock(start=lambda: target(*args, **kwargs)))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def start_message(self, username, chat_id):
+        return {"update_id": len(self.updates) + 1, "message": {"chat": {"id": chat_id}, "text": f"/start {telegram.link_code(username)}"}}
+
+    def notify_beto(self):
+        return self.http.post("/api/consultant/clients/beto/notifications", headers=self.as_user("ana"),
+                              json={"kind": "riesgo", "title": "Revisa AAPL", "message": "Bajó mucho esta semana."})
+
+    def test_enlazar_y_recibir_un_aviso(self):
+        beto = self.as_user("beto")
+        status = self.http.get("/api/notifications/telegram", headers=beto).get_json()
+        self.assertEqual(status, {"available": True, "linked": False,
+                                  "url": f"https://t.me/bot_de_prueba?start={telegram.link_code('beto')}"})
+
+        # Antes de tocar Iniciar en el bot no hay nada que enlazar.
+        self.assertEqual(self.http.post("/api/notifications/telegram", headers=beto).status_code, 404)
+
+        self.updates.append(self.start_message("beto", 555))
+        linked = self.http.post("/api/notifications/telegram", headers=beto)
+        self.assertEqual(linked.status_code, 200)
+        self.assertTrue(linked.get_json()["linked"])
+        self.assertEqual(self.sent[-1][0], 555)  # mensaje de confirmacion
+
+        self.assertEqual(self.notify_beto().status_code, 201)
+        chat_id, text = self.sent[-1]
+        self.assertEqual(chat_id, 555)
+        self.assertIn("Revisa AAPL", text)
+        self.assertIn("Bajó mucho esta semana.", text)
+        self.assertIn("Ana", text)
+
+    def test_el_codigo_de_otro_usuario_no_enlaza(self):
+        self.updates.append(self.start_message("carla", 777))
+        self.assertEqual(self.http.post("/api/notifications/telegram", headers=self.as_user("beto")).status_code, 404)
+        self.assertNotEqual(telegram.link_code("beto"), telegram.link_code("carla"))
+
+    def test_sin_enlazar_no_se_manda_nada_y_el_aviso_se_guarda_igual(self):
+        self.assertEqual(self.notify_beto().status_code, 201)
+        self.assertEqual(self.sent, [])
+        self.assertEqual(self.http.get("/api/notifications", headers=self.as_user("beto")).get_json()["unread"], 1)
+
+    def test_desenlazar_deja_de_mandar(self):
+        beto = self.as_user("beto")
+        self.updates.append(self.start_message("beto", 555))
+        self.http.post("/api/notifications/telegram", headers=beto)
+        self.assertFalse(self.http.delete("/api/notifications/telegram", headers=beto).get_json()["linked"])
+        self.sent.clear()
+        self.notify_beto()
+        self.assertEqual(self.sent, [])
+
+    def test_la_alerta_cumplida_del_cliente_tambien_llega(self):
+        self.updates.append(self.start_message("beto", 555))
+        self.http.post("/api/notifications/telegram", headers=self.as_user("beto"))
+        alerts.create("beto", {"username": "beto", "role": "usuario"}, "AAPL", "loss", 5)
+        alerts.evaluate("beto", losing_view("beto"))  # AAPL va -10%
+        self.assertIn("Alerta cumplida: AAPL", self.sent[-1][1])
+
+    def test_sin_token_no_hay_telegram(self):
+        beto = self.as_user("beto")
+        with mock.patch.object(Config, "TELEGRAM_TOKEN", ""):
+            self.assertEqual(self.http.get("/api/notifications/telegram", headers=beto).get_json(),
+                             {"available": False, "linked": False, "url": None})
+            self.assertEqual(self.http.post("/api/notifications/telegram", headers=beto).status_code, 503)
+
+    def test_el_consultor_no_tiene_bandeja_ni_telegram(self):
+        self.assertEqual(self.http.get("/api/notifications/telegram", headers=self.as_user("ana")).status_code, 403)
+
+    def test_un_fallo_de_telegram_no_deja_el_token_en_el_log(self):
+        with mock.patch.object(telegram, "_call", telegram_real_call), \
+                mock.patch.object(telegram.requests, "post", side_effect=telegram.requests.ConnectionError("https://api.telegram.org/bot123:token-de-prueba/x")), \
+                self.assertLogs(telegram.log, "ERROR") as logs:
+            self.assertIsNone(telegram._call("getMe"))
+        self.assertNotIn("token-de-prueba", "".join(logs.output))
 
 
 if __name__ == "__main__":

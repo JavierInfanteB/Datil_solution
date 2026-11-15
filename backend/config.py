@@ -29,6 +29,9 @@ class Config:
     # Token de consulta de la API SIE de Banxico (tasas de CETES / Bono M).
     BANXICO_TOKEN = os.environ.get("BANXICO_TOKEN", "")
 
+    # Token del bot de Telegram que manda los avisos (variable de entorno TELEGRAM_DATIL); vacio = sin Telegram.
+    TELEGRAM_TOKEN = os.environ.get("TELEGRAM_DATIL", "")
+
     # Clave de Google AI Studio para el agente: variable de entorno IA_DATIL (GEMINI_API_KEY como respaldo).
     GEMINI_API_KEY = os.environ.get("IA_DATIL") or os.environ.get("GEMINI_API_KEY", "")
 

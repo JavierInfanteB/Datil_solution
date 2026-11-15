@@ -2,6 +2,8 @@
 import uuid
 from datetime import datetime, timezone
 
+from utils import telegram
+from utils.accounts import find_user
 from utils.data_store import read_json, write_json
 
 FILE = "notifications.json"
@@ -31,6 +33,10 @@ def add(recipient, sender, kind, title, message):
     }
     data.setdefault(recipient, []).append(item)
     write_json(FILE, data)
+    # Si el usuario enlazo su Telegram, el aviso le llega tambien ahi.
+    user = find_user(username=recipient)
+    if user and user.get("telegram_chat_id"):
+        telegram.send(user["telegram_chat_id"], f"{title}\n\n{message}\n\n{sender['name']} · Datil Solutions")
     return item
 
 

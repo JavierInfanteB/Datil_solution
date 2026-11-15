@@ -5,8 +5,8 @@ Se corre desde backend/:  python -m unittest tests.test_agent -v
 Gemini nunca se llama de verdad: se reemplaza `agent_engine.genai`. Si google-generativeai no esta instalado se
 usa un modulo falso, asi que estas pruebas corren igual con o sin la libreria.
 
-Las dos pruebas marcadas con @unittest.expectedFailure (Telegram y correo) describen alertas planeadas que el
-backend aun no tiene. Cuando existan empezaran a "pasar de forma inesperada" y habra que quitarles la marca.
+La prueba marcada con @unittest.expectedFailure (correo) describe un envio planeado que el backend aun no
+tiene. Cuando exista empezara a "pasar de forma inesperada" y habra que quitarle la marca.
 
 La clase LiveGeminiTest llama a Gemini de verdad. Se salta sola; para correrla:
     set IA_DATIL=tu-clave   (y tener instalado google-generativeai)
@@ -400,15 +400,14 @@ class DocumentacionTest(unittest.TestCase):
         faltan = [k for k in kinds if nombres.get(k, k) not in KB.lower()]
         self.assertEqual(faltan, [], f"la documentacion no menciona: {faltan}")
 
-    # Telegram y correo se dejan en la documentacion a proposito: estan planeados. Estas dos pruebas
-    # empezaran a pasar solas cuando el backend los tenga; entonces hay que quitarles la marca.
-    @unittest.expectedFailure
     def test_no_promete_telegram_si_el_backend_no_lo_tiene(self):
         self.assertTrue(
             "telegram" not in KB.lower() or backend_mentions(r"telegram"),
             "la documentacion promete alertas por Telegram y el backend no lo implementa",
         )
 
+    # El correo se deja en la documentacion a proposito: esta planeado. Esta prueba empezara a pasar
+    # sola cuando el backend lo tenga; entonces hay que quitarle la marca.
     @unittest.expectedFailure
     def test_no_promete_correo_si_el_backend_no_lo_tiene(self):
         self.assertTrue(
