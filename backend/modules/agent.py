@@ -13,7 +13,7 @@ agent_bp = Blueprint("agent", __name__, url_prefix="/api/agent")
 MAX_PROMPT = 2000    # caracteres por mensaje
 MAX_HISTORY = 20     # mensajes previos de la conversacion
 WINDOW = 60          # segundos
-MAX_PER_IP = 8       # mensajes por ventana de una misma direccion
+MAX_PER_IP = 4       # por proceso y por direccion: con los 2 workers, unos 8 por visitante
 MAX_GLOBAL = 6       # por proceso: con los 2 workers de gunicorn son 12 entre todos (el plan gratuito de Gemini da 15 por minuto)
 
 # shortcut: contador en memoria de cada proceso (gunicorn corre 2 workers, por eso los topes van a la mitad);
