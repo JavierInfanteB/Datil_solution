@@ -55,7 +55,7 @@ export default function LoginForm({ enfocar = true, mostrarDemo = true }) {
             </button>
           </span>
         </label>
-        {error && <p className="datil-error">{error}</p>}
+        {error && <p className="datil-error" role="alert">{error}</p>}
         <button className="datil-btn datil-btn-primary" type="submit" disabled={loading || !username || !password}>
           {loading ? "Ingresando..." : "Iniciar sesión"}
         </button>

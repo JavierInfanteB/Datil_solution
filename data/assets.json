@@ -1,7 +1,19 @@
 [
-  { "symbol": "CETES28", "name": "CETES 28 días", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43936", "nominal_value": 10, "term_days": 28 },
-  { "symbol": "CETES91", "name": "CETES 91 días", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43939", "nominal_value": 10, "term_days": 91 },
-  { "symbol": "CETES182", "name": "CETES 182 días", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43942", "nominal_value": 10, "term_days": 182 },
-  { "symbol": "CETES364", "name": "CETES 364 días", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43945", "nominal_value": 10, "term_days": 364 },
-  { "symbol": "BONOM10", "name": "Bono M tasa fija 10 años", "type": "bono", "kind": "bono_m", "source": "banxico", "series_id": "SF44071", "nominal_value": 100, "term_days": 3640, "coupon_days": 182 }
+  { "symbol": "CETES28", "name": "CETES 28 días", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43936", "term_series_id": "SF43935", "nominal_value": 10, "term_days": 28 },
+  { "symbol": "CETES91", "name": "CETES 91 días", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43939", "term_series_id": "SF43938", "nominal_value": 10, "term_days": 91 },
+  { "symbol": "CETES182", "name": "CETES 182 días", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43942", "term_series_id": "SF43941", "nominal_value": 10, "term_days": 182 },
+  { "symbol": "CETES364", "name": "CETES 364 días", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF43945", "term_series_id": "SF43944", "nominal_value": 10, "term_days": 364 },
+  { "symbol": "CETES728", "name": "CETES 728 días", "type": "bono", "kind": "cetes", "source": "banxico", "series_id": "SF349785", "term_series_id": "SF349778", "nominal_value": 10, "term_days": 728 },
+  { "symbol": "BONOM3", "name": "Bono M tasa fija 3 años", "type": "bono", "kind": "bono_m", "source": "banxico", "series_id": "SF43883", "nominal_value": 100, "term_days": 1092, "coupon_days": 182 },
+  { "symbol": "BONOM5", "name": "Bono M tasa fija 5 años", "type": "bono", "kind": "bono_m", "source": "banxico", "series_id": "SF43886", "nominal_value": 100, "term_days": 1820, "coupon_days": 182 },
+  { "symbol": "BONOM10", "name": "Bono M tasa fija 10 años", "type": "bono", "kind": "bono_m", "source": "banxico", "series_id": "SF44071", "nominal_value": 100, "term_days": 3640, "coupon_days": 182 },
+  { "symbol": "BONOM20", "name": "Bono M tasa fija 20 años", "type": "bono", "kind": "bono_m", "source": "banxico", "series_id": "SF45384", "nominal_value": 100, "term_days": 7280, "coupon_days": 182 },
+  { "symbol": "BONOM30", "name": "Bono M tasa fija 30 años", "type": "bono", "kind": "bono_m", "source": "banxico", "series_id": "SF60696", "nominal_value": 100, "term_days": 10920, "coupon_days": 182 },
+  { "symbol": "UDIBONO3", "name": "Udibono tasa real 3 años", "type": "bono", "kind": "udibono", "source": "banxico", "series_id": "SF61592", "nominal_value": 100, "unit": "UDI", "term_days": 1092, "coupon_days": 182 },
+  { "symbol": "UDIBONO10", "name": "Udibono tasa real 10 años", "type": "bono", "kind": "udibono", "source": "banxico", "series_id": "SF43924", "nominal_value": 100, "unit": "UDI", "term_days": 3640, "coupon_days": 182 },
+  { "symbol": "UDIBONO20", "name": "Udibono tasa real 20 años", "type": "bono", "kind": "udibono", "source": "banxico", "series_id": "SF46958", "nominal_value": 100, "unit": "UDI", "term_days": 7280, "coupon_days": 182 },
+  { "symbol": "UDIBONO30", "name": "Udibono tasa real 30 años", "type": "bono", "kind": "udibono", "source": "banxico", "series_id": "SF46961", "nominal_value": 100, "unit": "UDI", "term_days": 10920, "coupon_days": 182 },
+  { "symbol": "BPAG28", "name": "BPA mensual (BPAG28) 3 años", "type": "bono", "kind": "bpa", "source": "banxico", "series_id": "SF43936", "cetes_series_id": "SF43936", "tpfg_series_id": "SF43774", "price_series_id": "SF165598", "nominal_value": 100, "term_days": 1092, "coupon_days": 28 },
+  { "symbol": "BPAG91", "name": "BPA trimestral (BPAG91) 5 años", "type": "bono", "kind": "bpa", "source": "banxico", "series_id": "SF43939", "cetes_series_id": "SF43939", "tpfg_series_id": "SF43774", "price_series_id": "SF165599", "nominal_value": 100, "term_days": 1820, "coupon_days": 91 },
+  { "symbol": "BPA182", "name": "BPA semestral con protección a la inflación (BPA182) 7 años", "type": "bono", "kind": "bpa", "source": "banxico", "series_id": "SF43942", "cetes_series_id": "SF43942", "price_series_id": "SF45462", "udi_protection": true, "nominal_value": 100, "term_days": 2548, "coupon_days": 182 }
 ]

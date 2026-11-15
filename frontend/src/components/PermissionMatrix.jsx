@@ -32,7 +32,7 @@ export default function PermissionMatrix({ modules, rows, onChange, disabled, ac
   };
 
   return (
-    <div className="datil-table-wrap">
+    <div className="datil-table-wrap" tabIndex={0}>
       <table className="datil-table">
         <thead>
           <tr>
@@ -47,7 +47,11 @@ export default function PermissionMatrix({ modules, rows, onChange, disabled, ac
                 {moduleLabel(mod.id)}
               </th>
             ))}
-            {actions && <th rowSpan={2} />}
+            {actions && (
+              <th rowSpan={2}>
+                <span className="datil-sr-only">Acciones</span>
+              </th>
+            )}
           </tr>
           <tr>
             {modules.flatMap((mod) =>

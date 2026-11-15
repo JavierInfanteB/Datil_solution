@@ -13,21 +13,35 @@ Dos instrumentos:
   menos que su devengado (y se puede perder); si bajaron, vale mas.
 
 - Bono M (kind "bono_m"): tasa fija con cupon cada `coupon_days` dias (182).
-  Cada subasta se modela como un bono nuevo a la par: el cupon es la tasa del
-  dia de compra, y el precio inicial es el nominal. El cupon se abona al
-  efectivo en cada fecha de pago y el nominal al vencer. Su precio de mercado
-  es el valor presente de los cupones y el nominal que faltan a la tasa de hoy
-  (precio sucio: incluye el cupon corrido), asi que sube cuando las tasas bajan
-  y baja cuando suben, y mas cuanto mas largo es el plazo.
+  Cada compra se simula como un bono nuevo a la par: el cupon es la tasa del dia de compra y el precio inicial es el
+  nominal (simulacion: el cupon real de cada emision viene en la convocatoria). El cupon se abona al efectivo en cada
+  fecha de pago (si cae en dia inhabil, el habil anterior) por los dias reales del periodo, y el nominal al vencer. Su
+  precio de mercado es el sucio con la formula de Banxico: valor presente de los cupones y el nominal que faltan al
+  rendimiento de mercado del plazo restante, asi que sube cuando las tasas bajan y baja cuando suben.
 
-Aproximaciones conocidas: la tasa de mercado de un CETE a un plazo intermedio
-se interpola entre las cuatro subastas (28/91/182/364 dias), y para el Bono M
-se usa la tasa del Bono M a 10 anos para cualquier plazo restante (curva plana).
+- Udibono (kind "udibono"): como el Bono M pero vale 100 UDIS por titulo y su cupon es una tasa real. Se compra,
+  cobra cupon y vence en UDIS convertidas a pesos con la UDI del dia de cada operacion (Banxico la publica todos los
+  dias); el rendimiento de mercado es real y el valor en pesos usa la UDI de hoy.
+
+- BPA (kind "bpa": BPAG28, BPAG91 y BPA182): tasa variable. Cada periodo (28, 91 o 182 dias) paga la mayor entre los CETES
+  del plazo y la TPFG vigentes al inicio del periodo (BPAG), o la mayor entre los CETES a 182 dias y el cambio de la UDI
+  en el periodo (BPA182). La tasa se fija al empezar el periodo y se guarda en el lote (`current_rate`). Cotizan cerca de
+  la par: se valuan con el precio limpio del titulo on the run, que converge a 100 al acercarse el vencimiento.
+  shortcut: el simulador arranca el primer periodo en la compra (paga precio limpio, sin intereses corridos de la emision
+  real); y la sobretasa de Banxico es una forma de cotizar el precio, no parte del cupon.
+
+Mercado de cada dia: el vector de precios "on the run" de Banxico (utils/market_vector.py). De los CETES se toma su
+rendimiento y plazo por vencer; de los Bonos M, el rendimiento que da su precio limpio (bono_yield_from_clean_price), y
+los lotes se valuan a la tasa interpolada en su plazo restante. Estas cuentas reproducen los precios publicados.
+shortcut: la formula de Bono M (bono_clean_price) supone periodos de 182 dias, como la formula reducida de Banxico; los
+periodos reales con dias inhabiles difieren por unos dias. Revisar si se necesita el calendario exacto de cada emision.
 """
 from datetime import date, timedelta
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 
-AUCTION_WEEKDAY = 1  # Banxico subasta los martes (0 = lunes)
-SETTLEMENT_DAYS = 2  # y liquida el jueves: de ahi corre el plazo y Banxico publica la tasa con esa fecha
+from utils import calendar_mx, market_vector
+
+# Subastas: Banxico coloca (liquida) los jueves y subasta dos dias habiles antes; ver utils/calendar_mx.py.
 # Reglas de operacion de cetesdirecto que se simulan:
 MIN_INVESTMENT = 100  # pesos minimos por compra; se compra por monto y lo que no alcanza para un titulo queda en efectivo
 LOCK_BUSINESS_DAYS = 3  # vender o cambiar la reinversion: hasta 3 dias habiles antes del vencimiento
@@ -40,13 +54,8 @@ def to_date(value):
 
 
 def business_days_before(day, n):
-    """El dia que queda `n` dias habiles (lunes a viernes; no se cuentan feriados) antes de `day`."""
-    day = to_date(day)
-    while n:
-        day -= timedelta(days=1)
-        if day.weekday() < 5:
-            n -= 1
-    return day
+    """El dia que queda `n` dias habiles antes de `day` (no cuenta fines de semana ni inhabiles bancarios)."""
+    return calendar_mx.business_days_before(to_date(day), n)
 
 
 def last_change_day(lot):
@@ -65,13 +74,36 @@ def purchase_price(lot):
 
 
 def cetes_price(nominal, rate_pct, term_days):
-    """Precio con descuento de un CETE al plazo y tasa de rendimiento dados."""
-    return round(nominal / (1 + rate_pct / 100 * term_days / 360), 6)
+    """Precio con descuento de un CETE: VN / (1 + r*t/360), a 7 decimales como lo calcula Banxico."""
+    price = Decimal(str(nominal)) / (1 + Decimal(str(rate_pct)) / 100 * term_days / 360)
+    return float(price.quantize(Decimal("1e-7"), ROUND_HALF_UP))
 
 
-def new_lot(bond, quantity, name, rate_pct, purchase_date, lot_id):
-    """Lote recien comprado de un bono del catalogo a la tasa de subasta."""
+def titles_for_amount(amount_mxn, unit_price):
+    """Titulos enteros que alcanzan para un monto: el monto entre el precio de cada uno, truncado, como asigna Banxico.
+    El importe se liquida en centavos, asi que un titulo mas alcanza si su costo redondeado a centavos no pasa del monto
+    (un monto que sale de un costo ya redondeado, como el de una reinversion, no pierde un titulo por medio centavo)."""
+    amount, price = Decimal(str(amount_mxn)), Decimal(str(unit_price))
+    titles = int((amount / price).to_integral_value(ROUND_DOWN))
+    while (price * (titles + 1)).quantize(Decimal("0.01"), ROUND_HALF_UP) <= amount:
+        titles += 1
+    return titles
+
+
+COUPON_KINDS = ("bono_m", "udibono", "bpa")  # los que pagan cupon: tienen coupon_days, coupons_paid y next_coupon_date
+BPA_FLOATERS = ("BPAG28", "BPAG91", "BPA182")
+
+
+def new_lot(bond, quantity, name, rate_pct, purchase_date, lot_id, term_days=None, udi=None, price=None):
+    """Lote recien comprado de un bono del catalogo a la tasa de subasta. `term_days` es el plazo real de esa
+    emision (Banxico lo publica por subasta: un CETE de 182 dias puede salir a 175) y ya trae su vencimiento; con el
+    plazo nominal del catalogo, un vencimiento inhabil se paga el dia habil inmediato anterior.
+    `udi` es el valor de la UDI de la compra (Udibonos, que se compran y pagan en UDIS); `price` el precio limpio por
+    titulo de los bonos de tasa variable (BPA); `rate_pct` es el rendimiento, o la tasa del primer cupon en los BPA."""
     purchase_date = to_date(purchase_date)
+    maturity = purchase_date + timedelta(days=term_days or bond["term_days"])
+    if not term_days:
+        maturity = calendar_mx.previous_business_day(maturity)
     kind = bond.get("kind", "cetes")
     lot = {
         "symbol": bond["symbol"],
@@ -82,49 +114,105 @@ def new_lot(bond, quantity, name, rate_pct, purchase_date, lot_id):
         "nominal_value": bond["nominal_value"],
         "rate_at_purchase": rate_pct,
         "purchase_date": purchase_date.isoformat(),
-        "maturity_date": (purchase_date + timedelta(days=bond["term_days"])).isoformat(),
+        "maturity_date": maturity.isoformat(),
         "lot_id": lot_id,
     }
-    if kind == "bono_m":
-        lot["purchase_price"] = bond["nominal_value"]
+    if kind in COUPON_KINDS:
+        lot["purchase_price"] = price if price is not None else bond["nominal_value"]
         lot["coupon_days"] = bond["coupon_days"]
-        lot["next_coupon_date"] = (purchase_date + timedelta(days=bond["coupon_days"])).isoformat()
         lot["coupons_paid"] = 0
+        lot["next_coupon_date"] = coupon_schedule(lot)[0].isoformat()
+        if kind == "udibono":
+            lot["udi_at_purchase"] = udi
+        if kind == "bpa":
+            lot["current_rate"] = rate_pct  # tasa del periodo en curso; se fija al inicio de cada periodo
+            if udi is not None:
+                lot["udi_period_start"] = udi  # BPA182: la proteccion compara el cambio de la UDI en el periodo
     else:
-        lot["purchase_price"] = cetes_price(bond["nominal_value"], rate_pct, bond["term_days"])
+        lot["purchase_price"] = cetes_price(bond["nominal_value"], rate_pct, (maturity - purchase_date).days)
     return lot
+
+
+def coupon_schedule(lot):
+    """Fechas de pago de cupon, de la primera al vencimiento. Cada pago cae a `coupon_days` de la compra y, si ese dia
+    es inhabil, se corre al dia habil inmediato anterior; el ultimo pago es el vencimiento."""
+    start, maturity, period = to_date(lot["purchase_date"]), to_date(lot["maturity_date"]), lot["coupon_days"]
+    dates, k = [], 1
+    while True:
+        pay = calendar_mx.previous_business_day(start + timedelta(days=k * period))
+        if pay >= maturity:
+            return dates + [maturity]
+        dates.append(pay)
+        k += 1
+
+
+def _coupon_periods(lot):
+    """(inicio, pago) de cada periodo de cupon; los intereses corren por los dias reales entre fechas de pago."""
+    previous, periods = to_date(lot["purchase_date"]), []
+    for pay in coupon_schedule(lot):
+        periods.append((previous, pay))
+        previous = pay
+    return periods
+
+
+def coupon_period(lot, number):
+    """(inicio, pago) del periodo de cupon `number` (1 es el primero)."""
+    periods = _coupon_periods(lot)
+    return periods[min(number, len(periods)) - 1]
+
+
+def _coupon_rate(lot):
+    """Tasa anual (%) del cupon: la del periodo en curso en los BPA, la fija de la emision en los demas."""
+    if kind_of(lot) == "bpa":
+        return lot["current_rate"]
+    return lot.get("coupon_rate", lot["rate_at_purchase"])
+
+
+def _udi_factor(lot, udi):
+    """Pesos por unidad del valor nominal: la UDI en Udibonos (que valen UDIS), 1 en los demas."""
+    if kind_of(lot) != "udibono":
+        return 1
+    return udi or lot["udi_at_purchase"]
+
+
+def unit_cost(lot):
+    """Pesos que cuesta un titulo de este lote, sin redondear (el costo del lote si se redondea)."""
+    return purchase_price(lot) * _udi_factor(lot, lot.get("udi_at_purchase"))
 
 
 def cost(lot):
     """Pesos que costo el lote (lo que se pago al comprarlo)."""
-    return round(purchase_price(lot) * lot["quantity"], 2)
+    return round(unit_cost(lot) * lot["quantity"], 2)
 
 
-def coupon_amount(lot):
-    """Cupon por pago de todo el lote (solo Bono M)."""
-    return round(
-        lot["nominal_value"] * lot["quantity"] * lot["rate_at_purchase"] / 100 * lot["coupon_days"] / 360, 2
-    )
+def coupon_amount(lot, number=None, udi=None):
+    """Cupon del periodo `number` (1 es el primero; por defecto el siguiente por pagar) de todo el lote, en pesos:
+    valor nominal x dias reales del periodo x tasa / 360. En Udibonos va en UDIS y se convierte con la `udi` del dia de
+    pago; en los BPA es la tasa del periodo en curso (la de los siguientes se conoce hasta que empiezan)."""
+    periods = _coupon_periods(lot)
+    start, pay = periods[min(number or lot.get("coupons_paid", 0) + 1, len(periods)) - 1]
+    amount = lot["nominal_value"] * lot["quantity"] * _coupon_rate(lot) / 100 * (pay - start).days / 360
+    return round(amount * _udi_factor(lot, udi), 2)
 
 
-def maturity_value(lot):
+def maturity_value(lot, udi=None):
     """Lo que paga el lote al vencer (sin contar cupones ya abonados)."""
-    if kind_of(lot) == "bono_m":
-        return round(lot["nominal_value"] * lot["quantity"], 2)
+    if kind_of(lot) in COUPON_KINDS:
+        return round(lot["nominal_value"] * lot["quantity"] * _udi_factor(lot, udi), 2)
     term = (to_date(lot["maturity_date"]) - to_date(lot["purchase_date"])).days
     return round(purchase_price(lot) * lot["quantity"] * (1 + lot["rate_at_purchase"] / 100 * term / 360), 2)
 
 
-def accrued_value(lot, as_of):
+def accrued_value(lot, as_of, udi=None):
     """Valor devengado: cuanto vale si se mantiene hasta vencer, a la tasa que se
     fijo al comprar (sube en linea recta, sin mirar el mercado)."""
-    if kind_of(lot) == "bono_m":
+    if kind_of(lot) in COUPON_KINDS:
         # Cupon corrido desde el ultimo pago; los cupones ya pagados estan en efectivo.
-        last_coupon = to_date(lot["next_coupon_date"]) - timedelta(days=lot["coupon_days"])
-        days = max(0, min((as_of - last_coupon).days, lot["coupon_days"]))
-        return round(
-            lot["nominal_value"] * lot["quantity"] * (1 + lot["rate_at_purchase"] / 100 * days / 360), 2
-        )
+        periods = _coupon_periods(lot)
+        start, pay = periods[min(lot.get("coupons_paid", 0), len(periods) - 1)]
+        days = max(0, min((as_of - start).days, (pay - start).days))
+        value = lot["nominal_value"] * lot["quantity"] * (1 + _coupon_rate(lot) / 100 * days / 360)
+        return round(value * _udi_factor(lot, udi), 2)
     purchase = to_date(lot["purchase_date"])
     maturity = to_date(lot["maturity_date"])
     elapsed = max(0, min((as_of - purchase).days, (maturity - purchase).days))
@@ -133,54 +221,149 @@ def accrued_value(lot, as_of):
     )
 
 
-def build_curve(rates, bonds):
-    """Curva de tasas de hoy a partir de {simbolo: tasa} y el catalogo de bonos."""
-    return {
-        "cetes": sorted(
-            (b["term_days"], rates[b["symbol"]])
-            for b in bonds
-            if b.get("kind", "cetes") == "cetes" and b["symbol"] in rates
-        ),
-        "bono_m": {b["symbol"]: rates[b["symbol"]] for b in bonds if b.get("kind") == "bono_m" and b["symbol"] in rates},
-    }
+def curve_from_vector(values, vector_udi=None, udi=None):
+    """Curva de mercado del dia a partir de {serie: valor} del vector de Banxico: los CETES con su rendimiento y su plazo
+    por vencer, los Bonos M y Udibonos con el rendimiento que da su precio limpio (los rangos que hoy no cotizan se omiten)
+    y los bonos de tasa variable con su precio limpio. `vector_udi` es la UDI del dia del vector (el precio de los Udibonos
+    va en pesos) y `udi` la de hoy, con la que se pasan a pesos los Udibonos."""
+    def nodes(table, udi_for_price=1):
+        return sorted(
+            (values[term], bono_yield_from_clean_price(values[price] / udi_for_price, values[coupon], int(values[term])))
+            for term, price, coupon in table if term in values and price in values and coupon in values
+        )
+
+    cetes = sorted((values[term], values[rate]) for term, rate in market_vector.CETES if term in values and rate in values)
+    if not cetes:
+        raise ValueError("Sin tasas de CETES para valuar a mercado")
+    curve = {"cetes": cetes, "bono_m": {}, "bono_m_curve": nodes(market_vector.BONOS_M)}
+    if vector_udi:
+        curve["udibono_curve"] = nodes(market_vector.UDIBONOS, vector_udi)
+    if udi:
+        curve["udi"] = udi
+    curve["floaters"] = {symbol: (values[term], values[price]) for symbol, (term, price) in market_vector.FLOATERS.items()
+                         if term in values and price in values}
+    return curve
+
+
+def interpolate(points, x):
+    """Interpolacion lineal entre nodos (x, y) ordenados; fuera del rango se usa el nodo mas cercano."""
+    if x <= points[0][0]:
+        return points[0][1]
+    if x >= points[-1][0]:
+        return points[-1][1]
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        if x0 <= x <= x1:
+            return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
 
 
 def cetes_yield(curve, remaining_days):
-    """Tasa de mercado de un CETE al plazo restante: interpolacion lineal entre
-    las subastas; fuera del rango se usa la tasa del plazo mas cercano."""
-    points = curve["cetes"]
-    if not points:
+    """Tasa de mercado de un CETE al plazo restante: interpolacion lineal entre los CETES 'on the run' del dia."""
+    if not curve["cetes"]:
         raise ValueError("Sin tasas de CETES para valuar a mercado")
-    if remaining_days <= points[0][0]:
-        return points[0][1]
-    if remaining_days >= points[-1][0]:
-        return points[-1][1]
-    for (t0, y0), (t1, y1) in zip(points, points[1:]):
-        if t0 <= remaining_days <= t1:
-            return y0 + (y1 - y0) * (remaining_days - t0) / (t1 - t0)
+    return interpolate(curve["cetes"], remaining_days)
+
+
+def bono_m_yield(curve, lot, remaining_days):
+    """Rendimiento de mercado de un Bono M al plazo restante: de la curva del dia si la hay, o la tasa de su subasta."""
+    if curve.get("bono_m_curve"):
+        return interpolate(curve["bono_m_curve"], remaining_days)
+    if lot["symbol"] not in curve["bono_m"]:
+        raise ValueError(f"Sin tasa de mercado para {lot['symbol']}")
+    return curve["bono_m"][lot["symbol"]]
+
+
+def bono_clean_price(coupon_pct, yield_pct, days_to_maturity, nominal=100, period=182):
+    """Precio limpio de un Bono M o Udibono por titulo, con la formula de Banxico (cupones iguales de `period` dias, un
+    solo rendimiento). Sirve para cotizar con el vector de precios y para sacar el rendimiento de un precio."""
+    k = -(-days_to_maturity // period)  # cupones por pagar, incluyendo el vigente
+    to_next = days_to_maturity - (k - 1) * period
+    coupon = nominal * coupon_pct / 100 * period / 360
+    r = yield_pct / 100 * period / 360
+    exponent = to_next / period
+    dirty = sum(coupon / (1 + r) ** (j - 1 + exponent) for j in range(1, k + 1)) + nominal / (1 + r) ** (k - 1 + exponent)
+    return dirty - coupon * (period - to_next) / period
+
+
+def bono_accrued(coupon_pct, days_to_maturity, nominal=100, period=182):
+    """Intereses devengados del cupon vigente por titulo (la diferencia entre precio sucio y limpio)."""
+    to_next = days_to_maturity - (-(-days_to_maturity // period) - 1) * period
+    return nominal * coupon_pct / 100 * (period - to_next) / 360
+
+
+def bono_yield_from_clean_price(clean_price, coupon_pct, days_to_maturity, nominal=100, period=182):
+    """Rendimiento anual (%) que da un precio limpio de Bono M o Udibono; el precio baja cuando sube el rendimiento
+    (biseccion)."""
+    low, high = 0.0, 100.0
+    for _ in range(200):
+        mid = (low + high) / 2
+        if bono_clean_price(coupon_pct, mid, days_to_maturity, nominal, period) > clean_price:
+            low = mid
+        else:
+            high = mid
+    return (low + high) / 2
+
+
+def bpa_rate(reference_pct, tpfg_pct=None, udi_start=None, udi_end=None, days=None):
+    """Tasa anual (%) del cupon de un BPA, con redondeo a 2 decimales. BPAG28 y BPAG91: la mayor entre los CETES del plazo
+    y la TPFG vigentes al inicio del periodo. BPA182: la mayor entre los CETES a 182 dias y el cambio de la UDI en el
+    periodo llevado a tasa anual (36000 x (UDI final / UDI inicial - 1) / dias), que es la proteccion contra la inflacion."""
+    rate = reference_pct
+    if tpfg_pct is not None:
+        rate = max(rate, tpfg_pct)
+    if udi_start and udi_end and days:
+        rate = max(rate, (udi_end / udi_start - 1) * 36000 / days)
+    return round(rate, 2)
+
+
+def _dirty_per_unit(lot, as_of, yield_pct):
+    """Precio sucio por unidad de nominal de un lote con cupon fijo, con la formula general de Banxico: cada cupon y el
+    principal se descuentan con (1 + r*Nj/360)^-(j - d/N1), donde Nj son los dias reales de cada periodo, d los dias
+    corridos del vigente y j cuenta los pagos por recibir."""
+    y = max(yield_pct, 0.0) / 100
+    periods = _coupon_periods(lot)
+    paid = min(lot.get("coupons_paid", 0), len(periods) - 1)
+    first_start = periods[paid][0]
+    n1 = (periods[paid][1] - first_start).days
+    elapsed = max(0, min((as_of - first_start).days, n1))
+    nominal, rate = lot["nominal_value"], _coupon_rate(lot) / 100
+    dirty = 0.0
+    for j, (start, pay) in enumerate(periods[paid:], 1):
+        days = (pay - start).days
+        flow = nominal * rate * days / 360 + (nominal if j == len(periods) - paid else 0)
+        dirty += flow / (1 + y * days / 360) ** (j - elapsed / n1)
+    return dirty
 
 
 def market_value(lot, as_of, curve, shift=0.0):
     """Valor de mercado del lote hoy: lo que se obtendria al venderlo.
     `shift` suma puntos porcentuales a la tasa de mercado (prueba de estres)."""
     remaining = (to_date(lot["maturity_date"]) - as_of).days
+    kind = kind_of(lot)
     if remaining <= 0:
-        return maturity_value(lot)
+        return maturity_value(lot, curve.get("udi"))
 
-    if kind_of(lot) == "cetes":
+    if kind == "cetes":
         y = max(cetes_yield(curve, remaining) + shift, 0.0)
         return round(maturity_value(lot) / (1 + y / 100 * remaining / 360), 2)
 
-    if lot["symbol"] not in curve["bono_m"]:
-        raise ValueError(f"Sin tasa de mercado para {lot['symbol']}")
-    y = max(curve["bono_m"][lot["symbol"]] + shift, 0.0)
-    period = lot["coupon_days"]
-    q = 1 + y / 100 * period / 360
-    nominal = lot["nominal_value"]
-    coupon = nominal * lot["rate_at_purchase"] / 100 * period / 360
-    next_coupon = to_date(lot["next_coupon_date"])
-    n = max(1, (to_date(lot["maturity_date"]) - next_coupon).days // period + 1)
-    f = max(0, (next_coupon - as_of).days) / period
+    if kind == "bono_m":
+        dirty = _dirty_per_unit(lot, as_of, bono_m_yield(curve, lot, remaining) + shift)
+        return round(dirty * lot["quantity"], 2)
 
-    dirty = sum((coupon + (nominal if k == n else 0)) / q ** (k - 1 + f) for k in range(1, n + 1))
-    return round(dirty * lot["quantity"], 2)
+    if kind == "udibono":
+        if not curve.get("udibono_curve"):
+            raise ValueError("Sin tasas de mercado de Udibonos")
+        dirty = _dirty_per_unit(lot, as_of, interpolate(curve["udibono_curve"], remaining) + shift)
+        return round(dirty * lot["quantity"] * _udi_factor(lot, curve.get("udi")), 2)
+
+    # BPA (tasa variable): cotizan cerca de la par. Se toma el precio limpio del titulo on the run de su familia, que
+    # converge a la par conforme se acerca el vencimiento, mas los intereses corridos del periodo en curso.
+    if lot["symbol"] not in curve.get("floaters", {}):
+        raise ValueError(f"Sin precio de mercado para {lot['symbol']}")
+    otr_term, otr_clean = curve["floaters"][lot["symbol"]]
+    clean = lot["nominal_value"] - (lot["nominal_value"] - otr_clean) * min(1.0, remaining / otr_term)
+    periods = _coupon_periods(lot)
+    start, pay = periods[min(lot.get("coupons_paid", 0), len(periods) - 1)]
+    days = max(0, min((as_of - start).days, (pay - start).days))
+    accrued = lot["nominal_value"] * _coupon_rate(lot) / 100 * days / 360
+    return round((clean + accrued) * lot["quantity"], 2)

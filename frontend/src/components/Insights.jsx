@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import apiClient from "../api/client";
-import { formatCurrency } from "../utils/format";
+import { formatCurrency, trendClass } from "../utils/format";
 import { apiError } from "../utils/risk";
 
 const PERIODS = [7, 30, 90];
 const sign = (v) => (v >= 0 ? "var(--datil-up)" : "var(--datil-down)");
-const trend = (v) => (v == null ? "" : v >= 0 ? "datil-up" : "datil-down");
 const pctText = (v) => (v == null ? "N/D" : `${v > 0 ? "+" : ""}${v}%`);
 
 // Activos en tendencia y movimiento mes a mes y año a año de las acciones de un grupo de clientes. `endpoint` decide de
@@ -38,7 +37,7 @@ export default function Insights({ endpoint, filter = {} }) {
           </button>
         ))}
       </div>
-      {error && <p className="datil-error">{error}</p>}
+      {error && <p className="datil-error" role="alert">{error}</p>}
       {!error && !data && <p>Calculando... la primera vez puede tardar unos segundos.</p>}
       {data && <Market data={data} />}
     </>
@@ -61,7 +60,7 @@ function Market({ data }) {
         {trending.length === 0 ? (
           <p>Sin operaciones en los últimos {days} días.</p>
         ) : (
-          <div className="datil-table-wrap">
+          <div className="datil-table-wrap" tabIndex={0}>
             <table className="datil-table">
               <thead>
                 <tr>
@@ -127,7 +126,7 @@ function Market({ data }) {
             <p className="datil-period-tag">
               {ranked.length > 10 ? "Las 5 que más subieron y las 5 que más bajaron. " : ""}Variación del precio en su moneda.
             </p>
-            <div className="datil-table-wrap">
+            <div className="datil-table-wrap" tabIndex={0}>
               <table className="datil-table">
                 <thead>
                   <tr>
@@ -150,11 +149,11 @@ function Market({ data }) {
                       </td>
                       <td className="datil-col-num">{r.holders}</td>
                       {r.monthly.map((v, i) => (
-                        <td key={months[i]} className={`datil-col-num ${trend(v)}`}>
+                        <td key={months[i]} className={`datil-col-num ${trendClass(v)}`}>
                           {pctText(v)}
                         </td>
                       ))}
-                      <td className={`datil-col-num ${trend(r.year_pct)}`}>{pctText(r.year_pct)}</td>
+                      <td className={`datil-col-num ${trendClass(r.year_pct)}`}>{pctText(r.year_pct)}</td>
                     </tr>
                   ))}
                 </tbody>

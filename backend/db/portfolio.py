@@ -31,6 +31,8 @@ ORDER_STATUS_TO_DB = {"pending": "pendiente", "executed": "ejecutada", "cancelle
 ORDER_STATUS_FROM_DB = {v: k for k, v in ORDER_STATUS_TO_DB.items()}
 ORIGIN_TO_DB = {"cliente": "cliente", "admin": "admin", "automático": "automatico", "orden programada": "orden_programada"}
 ORIGIN_FROM_DB = {v: k for k, v in ORIGIN_TO_DB.items()}
+COUPON_KINDS = ("bono_m", "udibono", "bpa")   # igual que bond_math.COUPON_KINDS
+FIXED_COUPON = ("bono_m", "udibono")          # el cupon se pacta en la emision; el del BPA cambia cada periodo
 
 
 class CashMismatch(Exception):
@@ -47,6 +49,11 @@ def day(value):
 
 
 # ------------------------------------------------------------------ lectura
+def _opt(value):
+    """Tasa o UDI opcional con 6 decimales (None si el lote no la lleva)."""
+    return d(value, 6) if value is not None else None
+
+
 def ensure_catalog(symbol, name, currency=None):
     """Da de alta el simbolo en acciones_catalogo la primera vez que se usa (el backend acepta cualquier simbolo de Yahoo)."""
     c.execute("INSERT INTO acciones_catalogo (simbolo, nombre, moneda) VALUES (%s, %s, COALESCE(%s::text, 'USD')) "
@@ -68,7 +75,8 @@ def _lot_rows(user_id):
     lots = []
     for r in c.fetch_all(
             "SELECT l.uid, l.cantidad, l.fecha_compra, l.precio_compra, l.tasa_compra, l.reinversion_modo, l.proximo_cupon, "
-            "l.cupones_pagados, e.instrumento_id, e.fecha_vencimiento, i.nombre, i.tipo, i.valor_nominal, i.dias_cupon "
+            "l.cupones_pagados, l.valor_udi_compra, l.tasa_vigente, l.udi_inicio_periodo, "
+            "e.instrumento_id, e.fecha_vencimiento, i.nombre, i.tipo, i.valor_nominal, i.dias_cupon "
             "FROM lotes_bono l JOIN emisiones e ON e.id = l.emision_id JOIN instrumentos i ON i.simbolo = e.instrumento_id "
             "WHERE l.usuario_id = %s AND l.estado = 'vigente' ORDER BY l.id", (user_id,)):
         lot = {"symbol": r["instrumento_id"], "name": r["nombre"], "type": "bono", "kind": r["tipo"],
@@ -76,9 +84,15 @@ def _lot_rows(user_id):
                "rate_at_purchase": as_float(r["tasa_compra"]), "purchase_date": r["fecha_compra"].isoformat(),
                "maturity_date": r["fecha_vencimiento"].isoformat(), "lot_id": str(r["uid"]),
                "purchase_price": as_float(r["precio_compra"]), "reinvest": REINVEST_FROM_DB.get(r["reinversion_modo"], "none")}
-        if r["tipo"] == "bono_m":
+        if r["tipo"] in COUPON_KINDS:
             lot.update(coupon_days=r["dias_cupon"], next_coupon_date=r["proximo_cupon"].isoformat(),
                        coupons_paid=r["cupones_pagados"])
+        if r["tipo"] == "udibono":
+            lot["udi_at_purchase"] = as_float(r["valor_udi_compra"])
+        if r["tipo"] == "bpa":
+            lot["current_rate"] = as_float(r["tasa_vigente"])
+            if r["udi_inicio_periodo"] is not None:
+                lot["udi_period_start"] = as_float(r["udi_inicio_periodo"])
         lots.append(lot)
     return lots
 
@@ -137,15 +151,16 @@ def list_orders(username):
 def catalog_bonds():
     """Catalogo de bonos con la misma forma de assets.json."""
     bonds = []
-    for r in c.fetch_all("SELECT i.simbolo, i.nombre, i.tipo, i.valor_nominal, i.plazo_dias, i.dias_cupon, s.codigo "
+    for r in c.fetch_all("SELECT i.simbolo, i.nombre, i.tipo, i.valor_nominal, i.plazo_dias, i.dias_cupon, i.series_extra, s.codigo "
                          "FROM instrumentos i LEFT JOIN series_mercado s ON s.id = i.serie_subasta_id "
                          "WHERE i.activo ORDER BY i.simbolo"):
         bond = {"symbol": r["simbolo"], "name": r["nombre"], "type": "bono", "kind": r["tipo"], "source": "banxico",
                 "series_id": r["codigo"], "nominal_value": as_num(r["valor_nominal"]), "term_days": r["plazo_dias"]}
         if r["dias_cupon"]:
             bond["coupon_days"] = r["dias_cupon"]
+        bond.update(r["series_extra"])  # series adicionales de Banxico (plazo real, CETES/TPFG de referencia, precio, UDI)
         bonds.append(bond)
-    order = {"CETES28": 0, "CETES91": 1, "CETES182": 2, "CETES364": 3}
+    order = {"CETES28": 0, "CETES91": 1, "CETES182": 2, "CETES364": 3, "CETES728": 4}
     return sorted(bonds, key=lambda b: (order.get(b["symbol"], 9), b["symbol"]))
 
 
@@ -222,7 +237,7 @@ class PortfolioSession:
         return row["id"] if row else None
 
     def _emission(self, lot):
-        kind_m = lot["kind"] == "bono_m"
+        kind_m = lot["kind"] in FIXED_COUPON
         clave = f"{lot['symbol']}-{lot['purchase_date'].replace('-', '')}"
         return c.fetch_one(
             "INSERT INTO emisiones (instrumento_id, clave, fecha_emision, fecha_vencimiento, tasa_cupon) VALUES (%s, %s, %s, %s, %s) "
@@ -265,16 +280,18 @@ class PortfolioSession:
             if lot_id not in lot_old:
                 c.execute(
                     "INSERT INTO lotes_bono (uid, usuario_id, emision_id, cantidad, fecha_compra, precio_compra, tasa_compra, "
-                    "reinversion_modo, proximo_cupon, cupones_pagados) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "reinversion_modo, proximo_cupon, cupones_pagados, valor_udi_compra, tasa_vigente, udi_inicio_periodo) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (lot_id, uid, self._emission(lot), d(lot["quantity"], 6), day(lot["purchase_date"]), d(lot["purchase_price"], 7),
                      d(lot["rate_at_purchase"], 6), REINVEST_TO_DB[lot.get("reinvest", "none")],
-                     day(lot["next_coupon_date"]) if lot.get("next_coupon_date") else None, lot.get("coupons_paid", 0)))
+                     day(lot["next_coupon_date"]) if lot.get("next_coupon_date") else None, lot.get("coupons_paid", 0),
+                     _opt(lot.get("udi_at_purchase")), _opt(lot.get("current_rate")), _opt(lot.get("udi_period_start"))))
             elif lot != lot_old[lot_id]:
-                c.execute("UPDATE lotes_bono SET cantidad = %s, reinversion_modo = %s, proximo_cupon = %s, cupones_pagados = %s "
-                          "WHERE uid = %s AND usuario_id = %s",
+                c.execute("UPDATE lotes_bono SET cantidad = %s, reinversion_modo = %s, proximo_cupon = %s, cupones_pagados = %s, "
+                          "tasa_vigente = %s, udi_inicio_periodo = %s WHERE uid = %s AND usuario_id = %s",
                           (d(lot["quantity"], 6), REINVEST_TO_DB[lot.get("reinvest", "none")],
                            day(lot["next_coupon_date"]) if lot.get("next_coupon_date") else None, lot.get("coupons_paid", 0),
-                           lot_id, uid))
+                           _opt(lot.get("current_rate")), _opt(lot.get("udi_period_start")), lot_id, uid))
         for lot_id in lot_old.keys() - lot_new.keys():
             if lot_id in redeemed:
                 c.execute("UPDATE lotes_bono SET estado = 'vencido' WHERE uid = %s", (lot_id,))

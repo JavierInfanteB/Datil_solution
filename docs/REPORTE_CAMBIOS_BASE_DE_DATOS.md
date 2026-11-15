@@ -73,9 +73,15 @@ Resultado real con los datos del repo: 3 usuarios, 1 asignación, 5 posiciones, 
 
 ### Qué NO se pudo verificar aquí (pendiente, ver README §Verificación)
 - `docker compose up -d --build` **no se ejecutó**: el entorno de trabajo no tiene daemon de Docker. La verificación en tu Docker Desktop está pendiente.
-- Persistencia tras reiniciar el contenedor y la comprobación del puerto 5434 libre: pendientes en tu máquina.
+- Persistencia tras reiniciar el contenedor y la comprobación del puerto libre: pendientes en tu máquina.
 - Las pruebas usaron un shim de `psycopg` sobre libpq (sin acceso a PyPI); el código usa psycopg 3.2.3 oficial. Primera ejecución real con la librería oficial: pendiente.
 - Frontend (React) no se ejecutó; solo se verificó la forma de las respuestas de la API.
+
+## 6 bis. Revisión del 15-nov-2026 (rama `postgresql-con-main`)
+- **Verificado en Docker Desktop** con `psycopg` 3.2.3 oficial: `docker compose up -d --build`, migración, importación idempotente, persistencia tras reinicio y las pruebas contra PostgreSQL 16.
+- **Unida con `main`** (reglas de Banxico, Udibonos, BPA, vector de precios): la lógica de bonos es la de `main` y la persistencia es PostgreSQL.
+- **Migración `070_udibonos_bpa.sql`**: `instrumentos.series_extra` (series adicionales del catálogo) y `lotes_bono.tasa_vigente` / `udi_inicio_periodo` (periodo de cupón en curso de un BPA). El importador carga los 17 instrumentos de `data/assets.json`.
+- **Puertos**: PostgreSQL en 8002 (host y red de Docker) y API en 5005, publicados solo en `127.0.0.1`.
 
 ## 7. Aviso sobre el despliegue existente (`.github/workflows/deploy.yml`)
 Un push a `main` que toque `backend/**` reconstruye y recrea el contenedor en el runner. Con estos cambios la API **necesita PostgreSQL** (`DB_HOST`, `DB_USER`, `DB_PASSWORD`, `SECRET_KEY`…). **No hagas merge a `main` hasta configurar la base en el entorno de despliegue**; no se modificó `.github/`. La imagen por defecto (`docker build .`) sigue siendo web+API (`target: full`).

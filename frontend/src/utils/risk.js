@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import apiClient from "../api/client";
+import { apiError } from "./errors";
+import { pct } from "./format";
 
-export const apiError = (err, fallback) => err.response?.data?.error ?? fallback;
-
-export const pct = (value) => (value == null ? "N/D" : `${value.toFixed(1)}%`);
+// Se siguen exportando desde aquí para no tocar los imports de las pantallas.
+export { apiError, pct };
 
 export const SCORE_EXPLANATION =
   "Mide qué tanto suele caer una acción, con datos históricos hasta hoy. En pruebas con 10 años de historia, las " +

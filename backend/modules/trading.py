@@ -133,7 +133,7 @@ def buy_asset():
         pending = bond_engine.schedule_purchase(username, bond, order["name"], order["amount_mxn"], order["reinvest"])
         return jsonify({
             "message": (
-                f"Orden registrada para la subasta del {pending['scheduled_date']} (se liquida dos días después). "
+                f"Orden registrada para la subasta del {pending['scheduled_date']} (se liquida el jueves de esa semana o el día hábil que lo sustituya). "
                 f"Ten el dinero en tu cuenta ese día; puedes cancelarla hasta el día anterior"
             ),
             "order": pending,

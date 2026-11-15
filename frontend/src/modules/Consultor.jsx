@@ -10,11 +10,10 @@ import Insights from "../components/Insights";
 import NotifyClient from "../components/NotifyClient";
 import { RiskBadge } from "../components/RiskParts";
 import SignalsFeed from "../components/SignalsFeed";
-import { formatCurrency } from "../utils/format";
+import { formatCurrency, trendClass } from "../utils/format";
 import { apiError } from "../utils/risk";
 
 const PERIODS = [7, 30, 90];
-const trend = (v) => (v >= 0 ? "datil-up" : "datil-down");
 
 // Situaciones que el consultor quiere ver de un vistazo, y cómo ordenar su lista.
 const result = (c) => c.unrealized + c.realized;
@@ -112,7 +111,7 @@ function ClientsView({ filter, onOpen, onOptions, onNotice }) {
     };
   }, [days, filter.client]);
 
-  if (error) return <p className="datil-error">{error}</p>;
+  if (error) return <p className="datil-error" role="alert">{error}</p>;
   if (!data) return <p>Calculando el riesgo de tus clientes... la primera vez puede tardar unos segundos.</p>;
   if (data.clients.length === 0)
     return (
@@ -144,7 +143,7 @@ function ClientsView({ filter, onOpen, onOptions, onNotice }) {
           </div>
           <div>
             <span className="datil-label">Resultado total</span>
-            <strong className={trend(total)}>{formatCurrency(total)}</strong>
+            <strong className={trendClass(total)}>{formatCurrency(total)}</strong>
           </div>
           <div>
             <span className="datil-label">Compras / ventas</span>
@@ -207,7 +206,7 @@ function ClientsView({ filter, onOpen, onOptions, onNotice }) {
 
       <section className="datil-card">
         <h2>Clientes</h2>
-        <div className="datil-table-wrap">
+        <div className="datil-table-wrap" tabIndex={0}>
           <table className="datil-table">
             <thead>
               <tr>
@@ -217,7 +216,7 @@ function ClientsView({ filter, onOpen, onOptions, onNotice }) {
                 <th>Riesgo de sus acciones</th>
                 <th className="datil-col-num">Compras / ventas</th>
                 <th className="datil-col-num">Volumen</th>
-                <th />
+                <th><span className="datil-sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody>
@@ -238,7 +237,7 @@ function ClientsView({ filter, onOpen, onOptions, onNotice }) {
                     <span className="datil-period-tag"> {c.username}</span>
                   </td>
                   <td className="datil-col-num">{formatCurrency(c.total)}</td>
-                  <td className={`datil-col-num ${trend(result(c))}`}>{formatCurrency(result(c))}</td>
+                  <td className={`datil-col-num ${trendClass(result(c))}`}>{formatCurrency(result(c))}</td>
                   <td>{c.risk && c.risk.level ? <RiskBadge level={c.risk.level} score={c.risk.score} /> : <span className="datil-period-tag">N/D</span>}</td>
                   <td className="datil-col-num">
                     {c.buys} / {c.sells}
@@ -336,7 +335,7 @@ const amountOf = (row) => row.gain_mxn ?? row.realized_pnl_mxn;
 function TopTable({ rows, columns, empty }) {
   if (rows.length === 0) return <p className="datil-period-tag">{empty}</p>;
   return (
-    <div className="datil-table-wrap">
+    <div className="datil-table-wrap" tabIndex={0}>
       <table className="datil-table">
         <thead>
           <tr>
@@ -353,7 +352,7 @@ function TopTable({ rows, columns, empty }) {
             <tr key={`${r.username}-${r.symbol}-${i}`}>
               <td>{r.client}</td>
               {columns.map(([title, cell, numeric]) => (
-                <td key={title} className={numeric ? `datil-col-num ${amountOf(r) >= 0 ? "datil-up" : "datil-down"}` : undefined}>
+                <td key={title} className={numeric ? `datil-col-num ${trendClass(amountOf(r))}` : undefined}>
                   {cell(r)}
                 </td>
               ))}

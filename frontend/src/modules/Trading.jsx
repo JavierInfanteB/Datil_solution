@@ -5,9 +5,11 @@ import { Meter, RiskBadge, StockRiskDetail } from "../components/RiskParts";
 import Select from "../components/Select";
 import StockCompare from "../components/StockCompare";
 import StockSearch from "../components/StockSearch";
-import { formatCurrency, formatMoney, formatPeriodLabel } from "../utils/format";
+import { formatCurrency, formatMoney, formatPeriodLabel, trendClass } from "../utils/format";
+import Term from "../components/Term";
+import { GLOSSARY } from "../utils/glossary";
 import { REINVEST_LABEL } from "../utils/reinvest";
-import { useStockRisk } from "../utils/risk";
+import { apiError, useStockRisk } from "../utils/risk";
 import { GRAIN_LABELS, LAPSES, lapseStart, lapseVariation, periodVariations, sliceLapse } from "../utils/variation";
 
 // Cubre el lapso más largo (1 año) más el cierre previo que sirve de base a la primera variación.
@@ -15,7 +17,6 @@ const HISTORY_DAYS = 400;
 const fetchHistory = (symbol, type) => apiClient.get(`/api/history/${symbol}`, { params: { type, days: HISTORY_DAYS } });
 
 const signed = (value) => `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
-const trendClass = (value) => (value >= 0 ? "datil-up" : "datil-down");
 
 // La sección (Acciones / Bonos y CETES) se elige en el menú lateral; ver moduleRegistry.
 // `client`: solo cuando el admin opera en nombre de un cliente (el admin no tiene cartera propia).
@@ -29,6 +30,7 @@ export default function Trading({ section, client }) {
   const [bondSymbol, setBondSymbol] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [message, setMessage] = useState(null);
+  const [busy, setBusy] = useState(false); // evita enviar la misma orden dos veces con doble clic
   const [history, setHistory] = useState(null);
   const [historyError, setHistoryError] = useState("");
   const [lapseId, setLapseId] = useState("1M");
@@ -71,11 +73,15 @@ export default function Trading({ section, client }) {
 
   useEffect(() => {
     if (!activeSymbol) return;
+    let cancelled = false;
     setHistoryError("");
     setHistory(null);
     fetchHistory(activeSymbol, tab)
-      .then(({ data }) => setHistory(data))
-      .catch(() => setHistoryError("No se pudo obtener el histórico de este activo."));
+      .then(({ data }) => !cancelled && setHistory(data))
+      .catch(() => !cancelled && setHistoryError("No se pudo obtener el histórico de este activo."));
+    return () => {
+      cancelled = true;
+    };
   }, [activeSymbol, tab]);
 
   const submit = async (action) => {
@@ -85,7 +91,9 @@ export default function Trading({ section, client }) {
       return;
     }
 
+    if (busy) return;
     setMessage(null);
+    setBusy(true);
     try {
       const { data } = await apiClient.post(`/api/trading/${action}`, {
         symbol,
@@ -113,7 +121,9 @@ export default function Trading({ section, client }) {
       fetchHistory(symbol, tab).then(({ data }) => setHistory(data));
       loadOrders();
     } catch (err) {
-      setMessage({ type: "error", text: err.response?.data?.error ?? "Ocurrió un error." });
+      setMessage({ type: "error", text: apiError(err, "Ocurrió un error.") });
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -131,10 +141,13 @@ export default function Trading({ section, client }) {
   // En bonos, history.current.price es la tasa vigente (%), no un precio. Un CETE se compra con
   // descuento (nominal / (1 + tasa * dias/360)); el Bono M se compra a la par y paga cupones.
   const bondRate = tab === "bono" ? history?.current?.price : null;
+  // Los Udibonos valen UDIS (100 por título): su precio en pesos depende de la UDI del día, así que aquí no se estima.
   const bondUnitCost =
-    activeBond && bondRate != null && activeBond.kind !== "bono_m"
+    activeBond && bondRate != null && activeBond.kind === "cetes"
       ? activeBond.nominal_value / (1 + (bondRate / 100) * (activeBond.term_days / 360))
-      : activeBond?.nominal_value;
+      : activeBond?.kind === "udibono"
+        ? null
+        : activeBond?.nominal_value;
   const unitPrice = tab === "accion" ? history?.current?.price : bondUnitCost;
   const estimatedTotal = unitPrice != null && quantity > 0 ? unitPrice * Number(quantity) : null;
   // Las acciones cotizan en la moneda de su bolsa; el dinero de la cuenta es en pesos.
@@ -191,7 +204,7 @@ export default function Trading({ section, client }) {
             {" "}
             a la tasa de la última subasta; el precio final es el de la subasta en que entre tu orden y lo que no alcance para un título queda
             en efectivo.
-            {activeBond?.kind !== "bono_m" &&
+            {activeBond?.kind === "cetes" &&
               ` Al vencer recibirías ${formatCurrency(Math.floor(Number(amount) / bondUnitCost) * activeBond.nominal_value)}.`}
           </span>
         </p>
@@ -203,7 +216,7 @@ export default function Trading({ section, client }) {
           ) : (
             <>
               Si vendes {quantity} títulos hoy recibes <strong>{formatCurrency(quote.proceeds)}</strong>
-              <span className={quote.realized_pnl_mxn >= 0 ? "datil-up" : "datil-down"}> ({formatCurrency(quote.realized_pnl_mxn)})</span>
+              <span className={trendClass(quote.realized_pnl_mxn)}> ({formatCurrency(quote.realized_pnl_mxn)})</span>
               <span className="datil-period-tag"> a precio de mercado. Puedes vender {quote.sellable} títulos.</span>
             </>
           )}
@@ -220,15 +233,6 @@ export default function Trading({ section, client }) {
               ({formatMoney(estimatedTotal, stockCurrency)}
               {fxMxn ? ` a ${stockCurrency}/MXN ${fxMxn}` : ""})
             </span>
-          )}
-          {tab === "bono" && activeBond?.kind !== "bono_m" && activeBond && (
-            <span className="datil-period-tag">
-              {" "}
-              (con descuento; al vencer recibes {formatCurrency(activeBond.nominal_value * Number(quantity))})
-            </span>
-          )}
-          {tab === "bono" && activeBond?.kind === "bono_m" && (
-            <span className="datil-period-tag"> (a la par; paga cupón cada {activeBond.coupon_days} días)</span>
           )}
         </p>
       )}
@@ -302,16 +306,16 @@ export default function Trading({ section, client }) {
         </div>
       )}
       <div className="datil-actions">
-        <button className="datil-btn datil-btn-primary" onClick={() => submit("buy")}>
-          Comprar
+        <button className="datil-btn datil-btn-primary" disabled={busy} onClick={() => submit("buy")}>
+          {busy ? "Enviando..." : "Comprar"}
         </button>
-        <button className="datil-btn datil-btn-secondary" onClick={() => submit("sell")}>
+        <button className="datil-btn datil-btn-secondary" disabled={busy} onClick={() => submit("sell")}>
           Vender
         </button>
       </div>
       {message && <p className={message.type === "ok" ? "datil-success" : "datil-error"}>{message.text}</p>}
 
-      {historyError && <p className="datil-error">{historyError}</p>}
+      {historyError && <p className="datil-error" role="alert">{historyError}</p>}
 
       {history && (
         <>
@@ -394,13 +398,13 @@ export default function Trading({ section, client }) {
           {rows.length === 0 ? (
             <p className="datil-period-tag">Sin datos suficientes en este lapso.</p>
           ) : (
-            <div className="datil-table-scroll">
+            <div className="datil-table-scroll" tabIndex={0}>
               <table className="datil-table">
                 <thead>
                   <tr>
                     <th>Periodo</th>
                     <th className="datil-col-num">Var. %</th>
-                    <th className="datil-col-num">{isBond ? "Var. (pp)" : "Var. valor"}</th>
+                    <th className="datil-col-num">{isBond ? <Term text={GLOSSARY.pp}>Var. (pp)</Term> : "Var. valor"}</th>
                     <th className="datil-col-num">{isBond ? "Tasa al cierre" : "Cierre"}</th>
                   </tr>
                 </thead>
@@ -461,7 +465,7 @@ export default function Trading({ section, client }) {
                 <th>Símbolo</th>
                 <th className="datil-col-num">Monto o títulos</th>
                 <th>Subasta</th>
-                <th></th>
+                <th><span className="datil-sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody>

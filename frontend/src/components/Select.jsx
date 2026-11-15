@@ -17,14 +17,18 @@ export default function Select({ value, options, onChange, placeholder = "Selecc
   }, []);
 
   const selected = options.find((opt) => opt.value === value);
+  const onKeyDown = (event) => {
+    if (event.key === "Escape") setOpen(false);
+  };
 
   return (
-    <div className="datil-select" ref={rootRef}>
+    <div className="datil-select" ref={rootRef} onKeyDown={onKeyDown}>
       <button
         type="button"
         className="datil-select-trigger"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        aria-haspopup="listbox"
       >
         <span>{selected ? selected.label : placeholder}</span>
         <span className="datil-select-caret" aria-hidden="true" />
@@ -32,9 +36,11 @@ export default function Select({ value, options, onChange, placeholder = "Selecc
       {open && (
         <ul className="datil-select-list" role="listbox">
           {options.map((opt) => (
-            <li key={opt.value}>
+            <li key={opt.value} role="presentation">
               <button
                 type="button"
+                role="option"
+                aria-selected={opt.value === value}
                 className={opt.value === value ? "datil-select-option active" : "datil-select-option"}
                 onClick={() => {
                   onChange(opt.value);

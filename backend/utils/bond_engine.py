@@ -1,11 +1,11 @@
 """Motor de compra/venta de bonos y CETES.
 
-Banxico subasta los martes y liquida el jueves (bond_math.AUCTION_WEEKDAY y SETTLEMENT_DAYS). Toda compra es una
+Banxico coloca (liquida) los jueves y subasta dos dias habiles antes, normalmente el martes (utils/calendar_mx.py). Toda compra es una
 orden para la proxima subasta: se ejecuta cuando Banxico publica la tasa de esa subasta y, si ya paso la
 liquidacion sin tasa, falla (ese instrumento no se subasto esa semana). Cada compra ejecutada crea un "lote"
 independiente (holding) con su propia tasa; su plazo corre desde la liquidacion, porque cada subasta fija una tasa distinta.
 Sigue las reglas de operacion de cetesdirecto: se compra por monto (minimo $100) para la subasta del proximo martes si
-la orden se registra a mas tardar el dia anterior, y se cancela hasta ese dia. Se puede vender antes a precio de mercado
+la orden se registra a mas tardar el dia habil anterior, y se cancela hasta ese dia. Se puede vender antes a precio de mercado
 hasta 3 dias habiles antes del vencimiento. Al comprar se elige si al vencer se reinvierte en CETES a 28 dias (todo, o
 solo el capital); esa orden queda pendiente y se cambia hasta 3 dias habiles antes del vencimiento.
 
@@ -22,30 +22,24 @@ from datetime import date, datetime, timedelta, timezone
 
 from config import DEMO_READONLY
 from db import portfolio as pf_repo
-from utils import bond_math
-from utils.market_data import get_bond_auction_rate, list_bonds
+from utils import bond_math, calendar_mx
+from utils.market_data import (get_bond_auction_rate, get_bond_auction_term, get_bond_price_on, get_bpa_start_rate,
+                               get_udi, list_bonds)
 
 
 def _parse_date(value):
     return date.fromisoformat(value)
 
 
-def _next_weekday_on_or_after(start, weekday):
-    """weekday: 0=lunes ... 6=domingo. Si start ya cae en ese dia, se usa start."""
-    days_ahead = (weekday - start.weekday()) % 7
-    return start + timedelta(days=days_ahead)
-
-
 def next_scheduled_purchase_date(today=None):
-    """Subasta a la que entra una orden de hoy: la del proximo martes, porque se registra a mas tardar el dia habil
-    anterior. Un martes ya entra a la de la semana siguiente."""
-    today = today or date.today()
-    return _next_weekday_on_or_after(today + timedelta(days=1), bond_math.AUCTION_WEEKDAY)
+    """Subasta a la que entra una orden de hoy: la primera cuyo dia habil anterior no ha pasado (normalmente el martes
+    siguiente). Un martes ya entra a la de la semana siguiente."""
+    return calendar_mx.next_registrable_auction(today or date.today())
 
 
 def _auction_settling_on(day):
-    """La subasta que liquida en `day` (o la siguiente, si `day` no es jueves)."""
-    return _next_weekday_on_or_after(bond_math.to_date(day) - timedelta(days=bond_math.SETTLEMENT_DAYS), bond_math.AUCTION_WEEKDAY)
+    """La subasta cuya colocacion es `day` (o la primera posterior, si `day` no es dia de colocacion)."""
+    return calendar_mx.auction_settling_on(bond_math.to_date(day))
 
 
 def _event(side, lot, quantity, total_mxn, event_date=None, realized_pnl=None):
@@ -72,26 +66,49 @@ def _event(side, lot, quantity, total_mxn, event_date=None, realized_pnl=None):
     return event
 
 
-def _redeem_lot(portfolio, lot, events):
+def _redeem_lot(portfolio, lot, events, udi=None):
     maturity = _parse_date(lot["maturity_date"])
-    amount = bond_math.maturity_value(lot)
+    amount = bond_math.maturity_value(lot, udi)  # en Udibonos, con la UDI del dia del vencimiento
     portfolio["cash"] = round(portfolio["cash"] + amount, 2)
     portfolio["holdings"].remove(lot)
     events.append(_event("redeem", lot, lot["quantity"], amount, maturity,
                          realized_pnl=round(amount - bond_math.cost(lot), 2)))
 
 
-def _pay_coupons(portfolio, lot, today, events, reinvestments):
-    """Abona al efectivo cada cupon vencido de un Bono M. Si el lote reinvierte todo, el cupon va a CETES a 28 dias
-    (se agrega la orden a `reinvestments`). Devuelve True si pago alguno."""
+def _pay_coupons(portfolio, lot, today, events, reinvestments, bond=None):
+    """Abona al efectivo cada cupon vencido (Bono M, Udibono o BPA). Si el lote reinvierte todo, el cupon va a CETES a 28
+    dias (se agrega la orden a `reinvestments`). Si Banxico aun no publica un dato que el cupon necesita (la UDI del dia
+    de pago, o las tasas del siguiente periodo de un BPA), ese cupon espera. Devuelve True si pago alguno."""
     paid = False
+    kind = bond_math.kind_of(lot)
     last_date = min(today, _parse_date(lot["maturity_date"]))
-    while _parse_date(lot["next_coupon_date"]) <= last_date:
-        pay_date = _parse_date(lot["next_coupon_date"])
-        amount = bond_math.coupon_amount(lot)
+    schedule = bond_math.coupon_schedule(lot)  # fechas de pago ya corridas por dias inhabiles
+    while lot["coupons_paid"] < len(schedule) and schedule[lot["coupons_paid"]] <= last_date:
+        number = lot["coupons_paid"] + 1
+        pay_date = schedule[number - 1]
+        start, _ = bond_math.coupon_period(lot, number)
+        udi_pay, next_rate = None, None
+        try:
+            if kind == "udibono" or (kind == "bpa" and bond and bond.get("udi_protection")):
+                udi_pay = get_udi(pay_date)
+            if kind == "bpa" and number < len(schedule):
+                next_rate = get_bpa_start_rate(bond, pay_date)  # tasa del periodo que empieza hoy
+        except Exception:
+            break
+        if kind == "bpa":
+            rate = lot["current_rate"]  # fijada al inicio del periodo; en BPA182 se compara con el cambio de la UDI
+            if udi_pay and lot.get("udi_period_start"):
+                rate = bond_math.bpa_rate(rate, None, lot["udi_period_start"], udi_pay, (pay_date - start).days)
+            amount = round(lot["nominal_value"] * lot["quantity"] * rate / 100 * (pay_date - start).days / 360, 2)
+            if next_rate is not None:
+                lot["current_rate"] = next_rate
+            if udi_pay:
+                lot["udi_period_start"] = udi_pay
+        else:
+            amount = bond_math.coupon_amount(lot, udi=udi_pay)  # dias reales del periodo
         portfolio["cash"] = round(portfolio["cash"] + amount, 2)
         lot["coupons_paid"] += 1
-        lot["next_coupon_date"] = (pay_date + timedelta(days=lot["coupon_days"])).isoformat()
+        lot["next_coupon_date"] = schedule[min(lot["coupons_paid"], len(schedule) - 1)].isoformat()
         coupon = _event("coupon", lot, lot["quantity"], amount, pay_date)
         events.append(coupon)
         if lot.get("reinvest") == "all":
@@ -110,9 +127,19 @@ def _execute_order(portfolio, order, bonds_by_symbol, events):
 
     # La tasa es la de la subasta de la orden (no la de hoy) y el plazo corre desde la liquidacion.
     auction = _parse_date(order["scheduled_date"])
-    settlement = auction + timedelta(days=bond_math.SETTLEMENT_DAYS)
+    settlement = calendar_mx.placement_of_auction(auction)
+    kind = bond.get("kind", "cetes")
+    udi = price = None
     try:
-        rate = get_bond_auction_rate(order["symbol"], auction)
+        if kind == "bpa":  # tasa de su primer cupon y precio limpio de ese dia
+            rate = get_bpa_start_rate(bond, settlement)
+            price = get_bond_price_on(bond, settlement)
+        else:
+            rate = get_bond_auction_rate(order["symbol"], auction)
+        # El plazo real tambien lo publica Banxico por subasta (un CETE de 182 dias puede salir a 175).
+        term = get_bond_auction_term(order["symbol"], auction) if bond.get("term_series_id") else None
+        if kind == "udibono" or bond.get("udi_protection"):
+            udi = get_udi(settlement)  # los Udibonos se compran en UDIS; el BPA182 compara la UDI al final de cada periodo
     except ValueError:  # Banxico no tiene tasa de esa subasta
         if date.today() <= settlement:
             return "pending", None  # todavia puede publicar el resultado
@@ -122,13 +149,13 @@ def _execute_order(portfolio, order, bonds_by_symbol, events):
 
     quantity = order["quantity"]
     if order.get("amount_mxn") is not None:  # compra por monto: tantos titulos enteros como alcancen
-        unit = bond_math.purchase_price(bond_math.new_lot(bond, 1, order["name"], rate, settlement, "unidad"))  # sin redondear: el costo si se redondea
-        quantity = int(round(order["amount_mxn"] / unit, 6))  # redondeo antes de truncar: 999.9999999 son 1000 titulos
+        unit = bond_math.unit_cost(bond_math.new_lot(bond, 1, order["name"], rate, settlement, "unidad", term, udi, price))  # sin redondear: el costo si se redondea
+        quantity = bond_math.titles_for_amount(order["amount_mxn"], unit)  # truncado como asigna Banxico (importe en centavos)
         if order.get("source") == "reinversión" and quantity < bond_math.REINVEST_MIN_TITLES:
             return "failed", "No alcanza para 10 títulos de CETES a 28 días: el dinero queda en efectivo"
         if quantity < 1:
             return "failed", "El monto no alcanza para un título a la tasa de esa subasta: queda en efectivo"
-    lot = bond_math.new_lot(bond, quantity, order["name"], rate, settlement, str(uuid.uuid4()))
+    lot = bond_math.new_lot(bond, quantity, order["name"], rate, settlement, str(uuid.uuid4()), term, udi, price)
     lot["reinvest"] = order.get("reinvest", "none")
     cost = bond_math.cost(lot)
     if portfolio["cash"] < cost:
@@ -162,10 +189,11 @@ def _process_due_events(session):
     username = session.username
     reinvestments = []  # cupones que se reinvierten
 
-    for order in user_orders:  # ordenes de antes que cayeron en lunes: la subasta es el martes
+    for order in user_orders:  # ordenes de antes que no cayeron en dia de subasta (p. ej. en lunes): se pasan a su subasta
         auction = _parse_date(order["scheduled_date"])
-        if order["status"] == "pending" and auction.weekday() != bond_math.AUCTION_WEEKDAY:
-            order["scheduled_date"] = _next_weekday_on_or_after(auction, bond_math.AUCTION_WEEKDAY).isoformat()
+        canonical = calendar_mx.auction_for_week(auction)
+        if order["status"] == "pending" and auction != canonical:
+            order["scheduled_date"] = canonical.isoformat()
 
     held = lambda lot_id: any(h.get("lot_id") == lot_id for h in portfolio["holdings"])
 
@@ -188,10 +216,16 @@ def _process_due_events(session):
     for lot in list(portfolio["holdings"]):
         if lot["type"] != "bono":
             continue
-        if bond_math.kind_of(lot) == "bono_m":
-            _pay_coupons(portfolio, lot, today, events, reinvestments)
+        if bond_math.kind_of(lot) in bond_math.COUPON_KINDS:
+            _pay_coupons(portfolio, lot, today, events, reinvestments, bonds_by_symbol.get(lot["symbol"]))
         if _parse_date(lot["maturity_date"]) <= today:
-            _redeem_lot(portfolio, lot, events)
+            udi = None
+            if bond_math.kind_of(lot) == "udibono":
+                try:
+                    udi = get_udi(_parse_date(lot["maturity_date"]))
+                except Exception:
+                    continue  # sin la UDI del vencimiento todavia no se puede pagar: se reintenta
+            _redeem_lot(portfolio, lot, events, udi)
 
     user_orders.extend(reinvestments)
     run_due_orders()  # reinversiones de lo que acaba de vencer y de los cupones
@@ -224,7 +258,13 @@ def _new_order(symbol, name, quantity, scheduled_date, reinvest="none", amount_m
 def _reinvestment_terms(lot):
     """Cuanto compra en CETES a 28 dias la reinversion de un lote: todo lo que paga al vencer, o solo lo que costo."""
     mode = lot["reinvest"]
-    amount = bond_math.maturity_value(lot) if mode == "all" else bond_math.cost(lot)
+    udi = None
+    if mode == "all" and bond_math.kind_of(lot) == "udibono":
+        try:
+            udi = get_udi(date.today())
+        except Exception:
+            pass  # sin la UDI de hoy se usa la de la compra (un monto menor, el resto queda en efectivo)
+    amount = bond_math.maturity_value(lot, udi) if mode == "all" else bond_math.cost(lot)
     return {"reinvest": mode, "amount_mxn": amount}
 
 

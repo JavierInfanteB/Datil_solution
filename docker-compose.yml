@@ -1,6 +1,7 @@
 # Dátil Solution: PostgreSQL 16 + migracion + API Flask.
 #   docker compose up -d --build
 # Proyecto aislado ("datil-solution"): sus contenedores, red y volumen llevan ese prefijo y no tocan ningun otro proyecto.
+# Puertos: los 5000 son de salida (la API) y los 8000 de bases de datos. Todo se publica solo en 127.0.0.1.
 name: datil-solution
 
 services:
@@ -13,13 +14,14 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-datil_owner}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copia .env.example a .env y define POSTGRES_PASSWORD}
       TZ: UTC
+    # PostgreSQL escucha en 8002 tambien dentro de la red de Docker (los 8000 son de bases de datos).
+    command: ["postgres", "-p", "8002"]
     ports:
-      # 5434 en el host (los otros proyectos usan 5432/5433); 5432 dentro de la red de Docker.
-      - "${DB_HOST_PORT:-5434}:5432"
+      - "127.0.0.1:${DB_HOST_PORT:-8002}:8002"
     volumes:
       - datil_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -p 8002 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 3s
       timeout: 3s
       retries: 30
@@ -38,7 +40,7 @@ services:
         condition: service_healthy
     environment:
       DB_HOST: db
-      DB_PORT: "5432"
+      DB_PORT: "8002"
       DB_NAME: ${POSTGRES_DB:-datil_db}
       POSTGRES_USER: ${POSTGRES_USER:-datil_owner}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -62,7 +64,7 @@ services:
         condition: service_completed_successfully
     environment:
       DB_HOST: db
-      DB_PORT: "5432"
+      DB_PORT: "8002"
       DB_NAME: ${POSTGRES_DB:-datil_db}
       DB_USER: datil_app          # rol de la aplicacion: solo DML, sin DDL ni UPDATE/DELETE sobre el libro mayor
       DB_PASSWORD: ${DATIL_APP_PASSWORD}
@@ -70,7 +72,8 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
       BANXICO_TOKEN: ${BANXICO_TOKEN:-}
     ports:
-      - "${API_HOST_PORT:-5000}:8000"
+      # 5005 y no 5002: el 5002 es el Datil publico del stack web (08_Web).
+      - "127.0.0.1:${API_HOST_PORT:-5005}:8000"
 
 volumes:
   datil_pgdata:

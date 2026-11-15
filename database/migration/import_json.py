@@ -35,6 +35,10 @@ ORIGIN = {"cliente": "cliente", "admin": "admin", "automático": "automatico", "
 REINV = {"none": "ninguna", "all": "todo", "same": "capital"}
 ORDER_STATUS = {"pending": "pendiente", "executed": "ejecutada", "cancelled": "cancelada", "failed": "fallida"}
 SETTLEMENT_DAYS = 2
+RATE_TYPE = {"cetes": "cero", "bono_m": "fija", "udibono": "real", "bpa": "variable"}
+FIXED_COUPON = ("bono_m", "udibono")  # el cupon se pacta en la emision; el del BPA cambia cada periodo
+# Campos del catalogo (assets.json) que no tienen columna propia: van en instrumentos.series_extra.
+CATALOG_EXTRA = ("term_series_id", "cetes_series_id", "tpfg_series_id", "price_series_id", "udi_protection", "unit")
 
 
 def D(value, places=2):
@@ -147,21 +151,33 @@ class Importer:
                     (client["id"], consultant["id"]))
             self.count["asignaciones: importados"] += 1
 
+    def serie(self, codigo, nombre):
+        new = self.insert("series_mercado", "INSERT INTO series_mercado (fuente, codigo, nombre, frecuencia) VALUES ('banxico', %s, %s, 'semanal') "
+                          "ON CONFLICT (fuente, codigo) DO NOTHING RETURNING id", (codigo, nombre))
+        return new or self.one("SELECT id FROM series_mercado WHERE fuente = 'banxico' AND codigo = %s", (codigo,))["id"]
+
     def catalog(self):
         for a in self.load("assets.json", []):
             if a.get("type") != "bono":
                 continue
-            if self.one("SELECT 1 AS x FROM instrumentos WHERE simbolo = %s", (a["symbol"],)):
+            kind = a.get("kind", "cetes")
+            if kind not in RATE_TYPE:
+                self.warn(f"assets.json: {a['symbol']} es de un tipo que la base no conoce ({kind}): se omite")
                 continue
-            bono_m = a.get("kind") == "bono_m"
-            serie = self.insert("series_mercado", "INSERT INTO series_mercado (fuente, codigo, nombre, frecuencia) VALUES ('banxico', %s, %s, 'semanal') "
-                                "ON CONFLICT (fuente, codigo) DO NOTHING RETURNING id", (a["series_id"], a["name"]))
-            serie = serie or self.one("SELECT id FROM series_mercado WHERE fuente = 'banxico' AND codigo = %s", (a["series_id"],))["id"]
+            extra = Jsonb({k: a[k] for k in CATALOG_EXTRA if k in a})
+            if self.one("SELECT 1 AS x FROM instrumentos WHERE simbolo = %s", (a["symbol"],)):
+                # Ya existia (p. ej. sembrado por 060): solo se le ponen las series adicionales del catalogo.
+                self.ex("UPDATE instrumentos SET series_extra = %s WHERE simbolo = %s AND series_extra <> %s", (extra, a["symbol"], extra))
+                continue
+            # Un bono de tasa variable (BPA) se referencia a los CETES del plazo de su cupon.
+            reference = self.serie(a["cetes_series_id"], f"{a['name']} - CETES de referencia") if kind == "bpa" else None
             self.insert("instrumentos",
-                        "INSERT INTO instrumentos (simbolo, nombre, tipo, tipo_tasa, valor_nominal, plazo_dias, dias_cupon, serie_subasta_id) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (simbolo) DO NOTHING RETURNING simbolo AS id",
-                        (a["symbol"], a["name"], "bono_m" if bono_m else "cetes", "fija" if bono_m else "cero", a["nominal_value"],
-                         a["term_days"], a.get("coupon_days") if bono_m else None, serie))
+                        "INSERT INTO instrumentos (simbolo, nombre, tipo, tipo_tasa, valor_nominal, moneda_base, plazo_dias, dias_cupon, "
+                        "serie_subasta_id, serie_referencia_id, series_extra) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                        "ON CONFLICT (simbolo) DO NOTHING RETURNING simbolo AS id",
+                        (a["symbol"], a["name"], kind, RATE_TYPE[kind], a["nominal_value"], "UDI" if kind == "udibono" else "MXN",
+                         a["term_days"], a.get("coupon_days") if kind != "cetes" else None, self.serie(a["series_id"], a["name"]),
+                         reference, extra))
 
     def instrument(self, symbol):
         return self.one("SELECT * FROM instrumentos WHERE simbolo = %s", (symbol,))
@@ -170,7 +186,7 @@ class Importer:
         return self.one(
             "INSERT INTO emisiones (instrumento_id, clave, fecha_emision, fecha_vencimiento, tasa_cupon) VALUES (%s, %s, %s, %s, %s) "
             "ON CONFLICT ON CONSTRAINT uq_emision_clave DO UPDATE SET clave = EXCLUDED.clave RETURNING id",
-            (symbol, f"{symbol}-{purchase:%Y%m%d}", purchase, maturity, D(rate, 6) if kind == "bono_m" else None))["id"]
+            (symbol, f"{symbol}-{purchase:%Y%m%d}", purchase, maturity, D(rate, 6) if kind in FIXED_COUPON else None))["id"]
 
     def auction(self, symbol, scheduled, inst):
         scheduled = to_date(scheduled)
@@ -245,11 +261,15 @@ class Importer:
         lid = self.insert(
             "lotes_bono",
             "INSERT INTO lotes_bono (uid, usuario_id, emision_id, cantidad, fecha_compra, precio_compra, tasa_compra, reinversion_modo, "
-            "proximo_cupon, cupones_pagados, estado) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (uid) DO NOTHING RETURNING id",
+            "proximo_cupon, cupones_pagados, estado, valor_udi_compra, tasa_vigente, udi_inicio_periodo) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (uid) DO NOTHING RETURNING id",
             (lot_uid, uid, emis, D(h["quantity"], 6), purchase, D(price, 7), D(h["rate_at_purchase"], 6),
              REINV.get(h.get("reinvest", "none"), "ninguna"),
              to_date(h["next_coupon_date"]) if h.get("next_coupon_date") else None, h.get("coupons_paid", 0),
-             h.get("_estado", "vigente")))
+             h.get("_estado", "vigente"),
+             D(h["udi_at_purchase"], 6) if h.get("udi_at_purchase") is not None else None,
+             D(h["current_rate"], 6) if h.get("current_rate") is not None else None,
+             D(h["udi_period_start"], 6) if h.get("udi_period_start") is not None else None))
         lid = lid or self.one("SELECT id FROM lotes_bono WHERE uid = %s", (lot_uid,))["id"]
         lots[str(lot_uid)] = (lid, h)
         if h.get("lot_id"):

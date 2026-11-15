@@ -26,3 +26,10 @@ export function formatPeriodLabel(period) {
 export function formatDateTime(iso) {
   return new Date(iso).toLocaleString("es-MX", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
+
+// Porcentaje con un decimal; N/D cuando el dato no llegó.
+export const pct = (value) => (value == null ? "N/D" : `${value.toFixed(1)}%`);
+
+// Clase de color según el signo: verde (>= 0), rojo (< 0) y sin color cuando no hay dato.
+// Antes, un N/D se pintaba de verde porque null >= 0 es verdadero.
+export const trendClass = (value) => (value == null ? "" : value >= 0 ? "datil-up" : "datil-down");

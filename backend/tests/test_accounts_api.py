@@ -425,10 +425,12 @@ class AccountsApiTest(unittest.TestCase):
         return [o for o in data_store.read_json("orders.json").get("beto", []) if o["status"] == "pending"]
 
     def test_la_orden_entra_a_la_subasta_del_proximo_martes(self):
-        monday, tuesday, wednesday = date(2026, 11, 2), date(2026, 11, 3), date(2026, 11, 4)
+        monday, tuesday, wednesday = date(2026, 11, 9), date(2026, 11, 10), date(2026, 11, 11)
         self.assertEqual(bond_engine.next_scheduled_purchase_date(monday), tuesday)  # se registra el dia anterior
-        self.assertEqual(bond_engine.next_scheduled_purchase_date(tuesday), date(2026, 11, 10))  # el martes ya no alcanza
-        self.assertEqual(bond_engine.next_scheduled_purchase_date(wednesday), date(2026, 11, 10))
+        self.assertEqual(bond_engine.next_scheduled_purchase_date(tuesday), date(2026, 11, 17))  # el martes ya no alcanza
+        self.assertEqual(bond_engine.next_scheduled_purchase_date(wednesday), date(2026, 11, 17))
+        # El lunes 2 de nov. es inhabil: el ultimo dia habil para la subasta del martes 3 fue el viernes 30 de oct.
+        self.assertEqual(bond_engine.next_scheduled_purchase_date(date(2026, 11, 2)), tuesday)
 
     def test_se_compra_por_monto_y_el_plazo_corre_desde_el_jueves(self):
         tuesday = date(2026, 11, 3)
@@ -452,7 +454,8 @@ class AccountsApiTest(unittest.TestCase):
             with mock.patch.object(bond_engine, "get_bond_auction_rate", side_effect=error):
                 return bond_engine._execute_order(portfolio, order, {"CETES28": self.CETES28}, [])
 
-        self.assertEqual(run(date.today(), ValueError("sin tasa"))[0], "pending")  # aun puede publicarse
+        upcoming = bond_engine.next_scheduled_purchase_date()  # una subasta real: su liquidacion todavia no llega
+        self.assertEqual(run(upcoming, ValueError("sin tasa"))[0], "pending")  # aun puede publicarse
         self.assertEqual(run(date.today() - timedelta(days=30), ValueError("sin tasa"))[0], "failed")  # no hubo subasta
         self.assertEqual(run(date.today() - timedelta(days=30), OSError("sin red"))[0], "pending")  # sin red se reintenta
         self.assertEqual(portfolio["holdings"], [])
@@ -466,7 +469,7 @@ class AccountsApiTest(unittest.TestCase):
         order = reply.get_json()["order"]
         self.assertEqual((reply.status_code, order["status"], order["amount_mxn"], order["reinvest"]), (200, "pending", 1000, "all"))
         self.assertGreater(date.fromisoformat(order["scheduled_date"]), date.today())
-        self.assertEqual(date.fromisoformat(order["scheduled_date"]).weekday(), 1)  # martes
+        self.assertEqual(date.fromisoformat(order["scheduled_date"]), bond_engine.next_scheduled_purchase_date())
 
     def test_una_compra_se_cancela_hasta_el_dia_anterior_a_su_subasta(self):
         data_store.write_json("orders.json", {"beto": [{"id": ORDEN_1, "symbol": "CETES28", "status": "pending", "source": "compra",
@@ -507,7 +510,7 @@ class AccountsApiTest(unittest.TestCase):
         bond_engine.process_due_events("beto")
         (order,) = self._pending()
         auction = date.fromisoformat(order["scheduled_date"])
-        self.assertEqual((auction.weekday(), auction + timedelta(days=2)), (1, date.fromisoformat(lot["maturity_date"])))
+        self.assertEqual(auction, bond_engine._auction_settling_on(lot["maturity_date"]))  # la subasta que liquida al vencer
         self.assertEqual((order["symbol"], order["source_lot_id"], order["amount_mxn"]), ("CETES28", LOTE_2, 1000.0))
 
         portfolios = data_store.read_json("portfolios.json")
@@ -556,7 +559,8 @@ class AccountsApiTest(unittest.TestCase):
                                                         "amount_mxn": 1000.0, "created_at": "2026-11-01", "source": "compra", "reinvest": "none",
                                                         "scheduled_date": monday.isoformat(), "status": "pending"}]})
         bond_engine.process_due_events("beto")
-        self.assertEqual(self._pending()[0]["scheduled_date"], (monday + timedelta(days=1)).isoformat())
+        from utils import calendar_mx
+        self.assertEqual(self._pending()[0]["scheduled_date"], calendar_mx.auction_for_week(monday).isoformat())
 
     def test_el_cupon_del_bono_m_se_reinvierte_si_el_lote_reinvierte_todo(self):
         from utils import bond_math

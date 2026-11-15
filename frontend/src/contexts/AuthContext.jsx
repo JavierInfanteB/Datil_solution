@@ -14,8 +14,13 @@ const USER_KEY = "datil_user";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
-    const raw = localStorage.getItem(USER_KEY);
-    return raw ? JSON.parse(raw) : null;
+    try {
+      const raw = localStorage.getItem(USER_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      // Dato corrupto en el navegador: se trata como sesión cerrada en vez de dejar la página en blanco.
+      return null;
+    }
   });
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [showWarning, setShowWarning] = useState(false);

@@ -285,6 +285,35 @@ class PostgresIntegrationTest(unittest.TestCase):
         self.assertTrue({"clients", "audit"} <= set(clients))
         self.assertTrue({"username", "name", "cash"} <= set(clients["clients"][0]))
 
+    def test_udibonos_y_bpa_se_guardan_y_se_leen_completos(self):
+        """Catalogo real (17 instrumentos) y lotes de Udibono y BPA: lo que el motor escribe es lo que vuelve a leer."""
+        from db import portfolio as pf_repo
+        from utils import bond_math
+        catalog = json.loads((DATA_DIR / "assets.json").read_text(encoding="utf-8"))
+        bonds = {a["symbol"]: a for a in catalog if a.get("type") == "bono"}
+        udibono = bond_math.new_lot(bonds["UDIBONO3"], 10, bonds["UDIBONO3"]["name"], 4.5, "2026-10-01", str(uuid.UUID(int=901)), udi=8.512345)
+        bpa = bond_math.new_lot(bonds["BPA182"], 5, bonds["BPA182"]["name"], 7.25, "2026-10-01", str(uuid.UUID(int=902)), udi=8.512345, price=99.87)
+        self.files["assets.json"] = catalog
+        self.files["portfolios.json"]["beto"]["holdings"] += [udibono, bpa]
+        pgfixture.load_json_files(self.files)
+
+        with self.app.app_context():
+            read = {b["symbol"]: b for b in pf_repo.catalog_bonds()}
+            self.assertEqual(set(read), set(bonds))
+            for symbol, bond in bonds.items():  # cada campo del catalogo JSON sale igual de la base
+                self.assertEqual({k: read[symbol].get(k) for k in bond}, bond, symbol)
+
+            lots = {h["lot_id"]: h for h in pf_repo.get_portfolio("beto")["holdings"] if h["type"] == "bono"}
+            for original in (udibono, bpa):
+                self.assertEqual({k: lots[original["lot_id"]].get(k) for k in original}, original, original["symbol"])
+
+            # Un cupon de BPA cambia la tasa del periodo y la UDI de inicio: deben persistir.
+            with pf_repo.portfolio_tx("beto") as session:
+                lot = next(h for h in session.portfolio["holdings"] if h.get("lot_id") == bpa["lot_id"])
+                lot.update(current_rate=7.5, udi_period_start=8.6, coupons_paid=1)
+            lot = next(h for h in pf_repo.get_portfolio("beto")["holdings"] if h.get("lot_id") == bpa["lot_id"])
+            self.assertEqual((lot["current_rate"], lot["udi_period_start"], lot["coupons_paid"]), (7.5, 8.6, 1))
+
     def test_una_base_caida_responde_503_y_no_un_error_opaco(self):
         with mock.patch("app.db.ping", return_value=False):
             r = self.http.get("/api/health")
