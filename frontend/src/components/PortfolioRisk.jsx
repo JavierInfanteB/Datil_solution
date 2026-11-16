@@ -3,11 +3,12 @@ import apiClient from "../api/client";
 import { formatCurrency, trendClass } from "../utils/format";
 import { apiError, pct, SCORE_EXPLANATION } from "../utils/risk";
 import { GLOSSARY } from "../utils/glossary";
-import { RiskBadge } from "./RiskParts";
+import { RiskBadge, RiskLevelTag } from "./RiskParts";
 import Term from "./Term";
 
-// Riesgo de todo el portafolio (GET /api/risk/portfolio): puntaje de las acciones, comportamiento histórico,
-// escenarios y concentración. Si el usuario no tiene el módulo de riesgo, no muestra nada.
+// Riesgo de todo el portafolio (GET /api/risk/portfolio): puntaje de las acciones, comportamiento histórico, VaR, estrés,
+// escenarios y concentración. Si el usuario no tiene el módulo de riesgo, no muestra nada. El cliente solo recibe el nivel
+// (bajo, medio o alto): el detalle lo ve su consultor.
 export default function PortfolioRisk() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
@@ -31,8 +32,26 @@ export default function PortfolioRisk() {
       <h2>Riesgo del portafolio</h2>
       {error && <p className="datil-error" role="alert">{error}</p>}
       {!error && !data && <p>Calculando riesgo del portafolio...</p>}
-      {data && <PortfolioRiskDetail data={data} />}
+      {data?.summary_only && <PortfolioRiskLevel level={data.level} />}
+      {data && !data.summary_only && <PortfolioRiskDetail data={data} />}
     </section>
+  );
+}
+
+export function PortfolioRiskLevel({ level }) {
+  if (!level) return <p>Todavía no hay acciones en tu portafolio para medir su riesgo.</p>;
+  return (
+    <>
+      <div className="datil-summary-grid">
+        <div>
+          <span className="datil-label">Nivel de riesgo de tu portafolio</span>
+          <strong>
+            <RiskLevelTag level={level} />
+          </strong>
+        </div>
+      </div>
+      <p className="datil-period-tag">Tu consultor ve el detalle del riesgo de tu portafolio.</p>
+    </>
   );
 }
 
@@ -104,23 +123,21 @@ export function PortfolioRiskDetail({ data }) {
                 <div>
                   <span className="datil-label"><Term text={GLOSSARY.var}>Pérdida en un mal mes (VaR)</Term></span>
                   <strong>{formatCurrency(history.var.var_mxn)}</strong>
-                  <span className="datil-period-tag">{pct(history.var.var_percent)} del portafolio</span>
+                  <span className="datil-period-tag">{`${pct(history.var.var_percent)} del portafolio`}</span>
                 </div>
                 <div>
                   <span className="datil-label"><Term text={GLOSSARY.cvar}>Pérdida en los peores meses (CVaR)</Term></span>
                   <strong>{formatCurrency(history.var.cvar_mxn)}</strong>
-                  <span className="datil-period-tag">{pct(history.var.cvar_percent)} del portafolio</span>
+                  <span className="datil-period-tag">{`${pct(history.var.cvar_percent)} del portafolio`}</span>
                 </div>
               </div>
               <p className="datil-period-tag">
-                En {history.var.confidence}% de los meses de los últimos 3 años la mezcla de hoy perdió menos que el VaR (los meses se ajustan a qué tan
-                agitado está el mercado ahora); el CVaR es el promedio de los meses peores. Describe el pasado: no es una predicción ni un límite, y un golpe
-                repentino del mercado puede superarlo.
+                {`En ${history.var.confidence}% de los meses de los últimos 3 años la mezcla de hoy perdió menos que el VaR (los meses se ajustan a qué tan agitado está el mercado ahora); el CVaR es el promedio de los meses peores. Describe el pasado: no es una predicción ni un límite, y un golpe repentino del mercado puede superarlo.`}
               </p>
             </>
           )}
           <p className="datil-period-tag">
-            Con la mezcla de hoy mantenida de {history.from} a {history.to}, en pesos, incluyendo las acciones que
+            Con la mezcla de hoy mantenida de {history.from} → {history.to}, en pesos, incluyendo las acciones que
             suman {history.covers_pct_of_portfolio}% del portafolio. {history.benchmark.symbol} es un fondo de
             acciones de todo el mundo, como referencia de lo que hizo el mercado en el mismo periodo.
           </p>
@@ -134,17 +151,17 @@ export function PortfolioRiskDetail({ data }) {
             <div>
               <span className="datil-label"><Term text={GLOSSARY.estres}>Pérdida estresada</Term></span>
               <strong>{formatCurrency(data.stress.loss_mxn)}</strong>
-              <span className="datil-period-tag">{pct(data.stress.loss_percent)} del portafolio</span>
+              <span className="datil-period-tag">{`${pct(data.stress.loss_percent)} del portafolio`}</span>
             </div>
             <div>
               <span className="datil-label">Peor mes del mercado global</span>
               <strong>{pct(data.stress.market_worst_percent)}</strong>
-              <span className="datil-period-tag">{data.stress.from} a {data.stress.to}</span>
+              <span className="datil-period-tag">{`${data.stress.from} → ${data.stress.to}`}</span>
             </div>
             <div>
-              <span className="datil-label"><Term text={GLOSSARY.beta}>Beta</Term> del portafolio</span>
+              <span className="datil-label"><Term text={GLOSSARY.beta}>Beta del portafolio</Term></span>
               <strong>{data.stress.beta}</strong>
-              <span className="datil-period-tag">acciones: {data.stress.covers_pct_of_portfolio}% del portafolio</span>
+              <span className="datil-period-tag">{`acciones: ${data.stress.covers_pct_of_portfolio}% del portafolio`}</span>
             </div>
           </div>
           <p className="datil-period-tag">

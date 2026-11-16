@@ -332,8 +332,12 @@ def portfolio_risk_for(username, view=None):
 @require_auth
 @require_permission("risk")
 def portfolio_risk():
+    """El detalle (puntaje, historial, VaR, estres, escenarios) es del consultor y del admin; el cliente solo recibe si su riesgo es bajo, medio o alto."""
     try:
-        return jsonify(portfolio_risk_for(g.current_user["username"]))
+        data = portfolio_risk_for(g.current_user["username"])
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 422
+    if g.current_user["role"] == "usuario":
+        return jsonify({"summary_only": True, "level": data["stocks"]["level"]})
+    return jsonify(data)
 
