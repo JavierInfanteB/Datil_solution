@@ -213,6 +213,8 @@ html:has(.dl-pagina) { scroll-behavior: smooth; scroll-padding-top: 5rem; }
 }
 @media (max-width: 560px) {
   .dl-equipo { grid-template-columns: 1fr; }
+  /* Celular: la barra baja a tres filas (~156 px); pegada arriba tapaba el titular al desplazarse */
+  .dl-nav { position: relative; }
 }
 
 .dl-puntos { list-style: none; margin: 2.2rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.8rem; }

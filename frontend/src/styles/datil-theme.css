@@ -1194,9 +1194,9 @@ h1, h2, h3 {
   }
 }
 
-/* Selector de idioma (fijo, abajo a la derecha); lo crea src/i18n/idioma.js */
+/* Selector de idioma (fijo, abajo a la izquierda: la esquina derecha es del chat y de la etiqueta de demo); lo crea src/i18n/idioma.js */
 .datil-idioma {
-  position: fixed; right: .9rem; bottom: .9rem; z-index: 3000;
+  position: fixed; left: .9rem; bottom: .9rem; z-index: 3000;
   font: 700 .8rem/1 inherit; letter-spacing: .06em;
   padding: .5rem .75rem; border-radius: 999px; cursor: pointer;
   color: var(--datil-text); background: var(--datil-surface); border: 1px solid var(--datil-border);
